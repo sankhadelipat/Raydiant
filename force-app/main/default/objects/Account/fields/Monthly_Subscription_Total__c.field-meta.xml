@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Monthly_Subscription_Total__c</fullName>
+    <description>SUM of monthly subscription net total, rolled up</description>
+    <inlineHelpText>SUM of Monthly_Value__c,  F52_Active__c = TRUE AND Order_Line_Billing_Freq__c = &apos;Monthly&apos;</inlineHelpText>
+    <label>Monthly Subscription Total</label>
+    <precision>12</precision>
+    <required>false</required>
+    <scale>2</scale>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Currency</type>
+</CustomField>

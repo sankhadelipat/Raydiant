@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Sent_Lockbox_Letter__c</fullName>
+    <defaultValue>false</defaultValue>
+    <inlineHelpText>Summer 2022 we changed our LOCKBOX address from San Fran to P.O. Box 736930 Dallas, TX 75373-6930,and sent this Account the notice informing them.</inlineHelpText>
+    <label>Sent Lockbox Letter</label>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

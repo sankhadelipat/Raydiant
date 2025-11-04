@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>account_owner_transfer</fullName>
+    <active>true</active>
+    <description>Only managers can transfer Account ownership</description>
+    <errorConditionFormula>AND(ISCHANGED( OwnerId ), $User.ProfileId = &apos;2F00e1I000000a3TE&apos;)</errorConditionFormula>
+    <errorDisplayField>OwnerId</errorDisplayField>
+    <errorMessage>Only managers can transfer Account ownership</errorMessage>
+</ValidationRule>

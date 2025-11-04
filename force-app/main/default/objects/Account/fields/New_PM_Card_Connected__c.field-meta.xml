@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>New_PM_Card_Connected__c</fullName>
+    <inlineHelpText>THis is the date time when someone in AR connected the new card to the ORDER LINES and applied the car to the outstanding balance on the invoices.</inlineHelpText>
+    <label>New PM Card Connected</label>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>DateTime</type>
+</CustomField>

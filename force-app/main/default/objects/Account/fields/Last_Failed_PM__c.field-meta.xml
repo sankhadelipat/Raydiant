@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Last_Failed_PM__c</fullName>
+    <externalId>false</externalId>
+    <inlineHelpText>This is the card detail of the last failed payment transaction, and this is populated from the flow &quot;Failed Payment Transactions - Accounts&quot;</inlineHelpText>
+    <label>Last Failed PM</label>
+    <length>255</length>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>F52_Separate_Invoice_by_Contract__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Generate a separate Invoice for each Contract. By default, a separate Invoice will be created for each Billing Account, PO# combination.</description>
+    <inlineHelpText>Generate a separate Invoice for each Contract. By default, a separate Invoice will be created for each Billing Account, PO# combination.</inlineHelpText>
+    <label>Separate Invoice by Contract</label>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

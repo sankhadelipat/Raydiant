@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Collections__c</fullName>
+    <label>Collections</label>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Picklist</type>
+    <valueSet>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>1 Day Reminder Email</fullName>
+                <default>false</default>
+                <label>1 Day Reminder Email</label>
+            </value>
+            <value>
+                <fullName>3 Day Reminder Email</fullName>
+                <default>false</default>
+                <label>3 Day Reminder Email</label>
+            </value>
+            <value>
+                <fullName>5 Day Text &amp; Email with Balance</fullName>
+                <default>false</default>
+                <label>5 Day Text &amp; Email with Balance</label>
+            </value>
+            <value>
+                <fullName>7 Day Call</fullName>
+                <default>false</default>
+                <label>7 Day Call</label>
+            </value>
+            <value>
+                <fullName>9 Day Disruption In Service Email &amp; Text</fullName>
+                <default>false</default>
+                <label>9 Day Disruption In Service Email &amp; Text</label>
+            </value>
+            <value>
+                <fullName>11 Day Service Is Being Shut Off</fullName>
+                <default>false</default>
+                <label>11 Day Service Is Being Shut Off</label>
+            </value>
+            <value>
+                <fullName>13 Day Service is Shut Off &amp; Text</fullName>
+                <default>false</default>
+                <label>13 Day Service is Shut Off &amp; Text</label>
+            </value>
+            <value>
+                <fullName>15 Day Balance Due Email</fullName>
+                <default>false</default>
+                <label>15 Day Balance Due Email</label>
+            </value>
+            <value>
+                <fullName>20 Day To Avoid Collections</fullName>
+                <default>false</default>
+                <label>20 Day To Avoid Collections</label>
+            </value>
+            <value>
+                <fullName>25 Day Your Account is Being Sent To Collections</fullName>
+                <default>false</default>
+                <label>25 Day Your Account is Being Sent To Collections</label>
+            </value>
+            <value>
+                <fullName>30 Day Collections</fullName>
+                <default>false</default>
+                <label>30 Day Collections</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

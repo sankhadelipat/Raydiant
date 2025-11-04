@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>CX_Product_Sum_from_Opps__c</fullName>
+    <description>Sum of CX product count from subscriptions</description>
+    <externalId>false</externalId>
+    <inlineHelpText>F52_Active__c = TRUE AND Business_Use_Case__c = &apos;Customer Experience&apos; (refreshed Nightly)</inlineHelpText>
+    <label>Active CX Subscript Count</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

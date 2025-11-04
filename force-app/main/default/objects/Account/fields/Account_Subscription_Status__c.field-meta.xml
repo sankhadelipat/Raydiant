@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Account_Subscription_Status__c</fullName>
+    <externalId>false</externalId>
+    <formula>IF(CX_Product_Sum_from_Opps__c + EX_Product_Sum_from_Opp__c +  DX_Product_Sum_from_Opp__c + RX_Product_Sum_from_Opps__c &gt;0, &quot;ACTIVE SUBSCRIPTIONS&quot;, &quot;NO ACTIVE SUBSCRIPTIONS&quot;)</formula>
+    <label>Account Subscription Status</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

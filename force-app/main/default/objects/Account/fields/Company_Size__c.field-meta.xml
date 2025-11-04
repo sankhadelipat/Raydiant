@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Company_Size__c</fullName>
+    <label>Company Size</label>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Picklist</type>
+    <valueSet>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>1-10</fullName>
+                <default>false</default>
+                <label>1-10</label>
+            </value>
+            <value>
+                <fullName>11-30</fullName>
+                <default>false</default>
+                <label>11-30</label>
+            </value>
+            <value>
+                <fullName>31-100</fullName>
+                <default>false</default>
+                <label>31-100</label>
+            </value>
+            <value>
+                <fullName>101-500</fullName>
+                <default>false</default>
+                <label>101-500</label>
+            </value>
+            <value>
+                <fullName>501-2000</fullName>
+                <default>false</default>
+                <label>501-2000</label>
+            </value>
+            <value>
+                <fullName>2001+</fullName>
+                <default>false</default>
+                <label>2001+</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>FOrce_POS_Restaurant</fullName>
+    <active>false</active>
+    <errorConditionFormula>and(  CONTAINS(TEXT(Industry), &quot;Restaurant&quot;) ,
+  ISBLANK(TEXT(POS__c))
+)</errorConditionFormula>
+    <errorDisplayField>POS__c</errorDisplayField>
+    <errorMessage>Please set the POS for this Industry = Restaurant/Bar</errorMessage>
+</ValidationRule>

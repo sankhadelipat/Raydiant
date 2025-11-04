@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Trigger_Invoice_Math_REfresh__c</fullName>
+    <defaultValue>false</defaultValue>
+    <inlineHelpText>triggers a process builder to re-run the sums on all invoice categories for this account.</inlineHelpText>
+    <label>Trigger Invoice Math Refresh</label>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

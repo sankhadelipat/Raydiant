@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Dunning_Requested</fullName>
+    <booleanFilter>1 OR (2 AND 3)</booleanFilter>
+    <columns>ACCOUNT.NAME</columns>
+    <columns>CORE.USERS.LAST_NAME</columns>
+    <columns>Outstanding_AR__c</columns>
+    <columns>blng__BillToContact__c</columns>
+    <columns>Is_On_Payment_Plan__c</columns>
+    <columns>Open_AR_Case_Count__c</columns>
+    <columns>AR_Status__c</columns>
+    <columns>Dunning_Requested__c</columns>
+    <columns>Dunning_BLOCKED__c</columns>
+    <columns>Dunning_Activated__c</columns>
+    <columns>Dunning_Active__c</columns>
+    <columns>Dunning_Removed_Reversed__c</columns>
+    <columns>Days_in_Dunning__c</columns>
+    <filterScope>Everything</filterScope>
+    <filters>
+        <field>AR_Status__c</field>
+        <operation>equals</operation>
+        <value>DUNNING Requested,Dunning Activated,Considering Collections,In Collections</value>
+    </filters>
+    <filters>
+        <field>Dunning_Activated__c</field>
+        <operation>notEqual</operation>
+    </filters>
+    <filters>
+        <field>Dunning_Removed_Reversed__c</field>
+        <operation>equals</operation>
+    </filters>
+    <label>Dunning Requested</label>
+</ListView>

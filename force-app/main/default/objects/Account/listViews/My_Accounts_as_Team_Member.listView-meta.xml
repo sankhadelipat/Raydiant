@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>My_Accounts_as_Team_Member</fullName>
+    <columns>ACCOUNT.EMPLOYEES</columns>
+    <columns>ACCOUNT.NAME</columns>
+    <columns>ACCOUNT.PHONE1</columns>
+    <columns>ACCOUNT.TYPE</columns>
+    <columns>CORE.USERS.ALIAS</columns>
+    <columns>CSM_Team_Member_Added__c</columns>
+    <filterScope>Team</filterScope>
+    <label>My Accounts (as Team Member)</label>
+</ListView>

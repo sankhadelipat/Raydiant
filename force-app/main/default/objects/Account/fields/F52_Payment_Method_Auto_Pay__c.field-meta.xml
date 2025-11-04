@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>F52_Payment_Method_Auto_Pay__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>Payment Method (Auto-Pay)</description>
+    <inlineHelpText>this field is populated by a flow, when a PM is made AUTO PAY. This field is only visible to ADMINS.</inlineHelpText>
+    <label>Payment Method (Auto-Pay)</label>
+    <referenceTo>blng__PaymentMethod__c</referenceTo>
+    <relationshipLabel>Accounts</relationshipLabel>
+    <relationshipName>Accounts</relationshipName>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Lookup</type>
+</CustomField>

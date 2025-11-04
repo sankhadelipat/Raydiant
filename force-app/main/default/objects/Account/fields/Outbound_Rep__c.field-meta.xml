@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Outbound_Rep__c</fullName>
+    <label>Outbound Rep</label>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Picklist</type>
+    <valueSet>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Ash</fullName>
+                <default>false</default>
+                <label>Ash</label>
+            </value>
+            <value>
+                <fullName>Yeisy</fullName>
+                <default>false</default>
+                <label>Yeisy</label>
+            </value>
+            <value>
+                <fullName>Jojo</fullName>
+                <default>false</default>
+                <label>Jojo</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

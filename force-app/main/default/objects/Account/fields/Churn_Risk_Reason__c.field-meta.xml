@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Churn_Risk_Reason__c</fullName>
+    <label>Churn Risk Reason</label>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>MultiselectPicklist</type>
+    <valueSet>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Acquired/Merged</fullName>
+                <default>false</default>
+                <label>Acquired/Merged</label>
+            </value>
+            <value>
+                <fullName>Admin Maintenance</fullName>
+                <default>false</default>
+                <label>Admin Maintenance- UX</label>
+            </value>
+            <value>
+                <fullName>Champion Left</fullName>
+                <default>false</default>
+                <label>Champion Left</label>
+            </value>
+            <value>
+                <fullName>Competitor</fullName>
+                <default>false</default>
+                <label>Competitor</label>
+            </value>
+            <value>
+                <fullName>Didn&apos;t see Value</fullName>
+                <default>false</default>
+                <label>Low Value/ Adoption</label>
+            </value>
+            <value>
+                <fullName>Missing Feature</fullName>
+                <default>false</default>
+                <label>Missing Feature</label>
+            </value>
+            <value>
+                <fullName>No Budget</fullName>
+                <default>false</default>
+                <label>No Budget</label>
+            </value>
+            <value>
+                <fullName>Not a good fit for Hoopla</fullName>
+                <default>false</default>
+                <label>Not a good fit for Hoopla</label>
+            </value>
+            <value>
+                <fullName>Out of Business</fullName>
+                <default>false</default>
+                <label>Out of Business</label>
+            </value>
+            <value>
+                <fullName>Reduce Headcount</fullName>
+                <default>false</default>
+                <label>Reduce Headcount</label>
+            </value>
+            <value>
+                <fullName>Remote Employees</fullName>
+                <default>false</default>
+                <label>Remote Employees</label>
+            </value>
+            <value>
+                <fullName>Security</fullName>
+                <default>false</default>
+                <label>Security</label>
+            </value>
+            <value>
+                <fullName>Support Issue</fullName>
+                <default>false</default>
+                <label>Support Issue</label>
+            </value>
+            <value>
+                <fullName>Went Dark - No Response</fullName>
+                <default>false</default>
+                <label>Went Dark - No Response</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+    <visibleLines>4</visibleLines>
+</CustomField>

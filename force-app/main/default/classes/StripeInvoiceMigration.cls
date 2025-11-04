@@ -1,0 +1,354 @@
+public class StripeInvoiceMigration implements Database.Batchable<String>, Database.AllowsCallouts, Database.Stateful {
+    private static final Stripe_Details__c stripeDetails = Stripe_Details__c.getInstance('Stripe Details');
+    private static final String SECRET_KEY = stripeDetails.Serect_Key__c;
+
+    private Integer processedCount = 0;
+    private Integer successCount = 0;
+    private Integer errorCount = 0;
+    private List<String> errorMessages = new List<String>();
+    private List<String> stripeInvoiceIds;
+
+    public StripeInvoiceMigration() {
+        this.stripeInvoiceIds = new List<String>();
+    }
+
+    public Iterable<String> start(Database.BatchableContext bc) {
+        // Fetch all invoice IDs from Stripe
+        this.stripeInvoiceIds = fetchAllStripeInvoiceIds();
+        System.debug('Found ' + stripeInvoiceIds.size() + ' invoices to process');
+        return stripeInvoiceIds;
+    }
+
+    public void execute(Database.BatchableContext bc, List<String> invoiceIds) {
+        for (String invoiceId : invoiceIds) {
+            try {
+                processedCount++;
+
+                // Fetch invoice details from Stripe
+                HttpRequest req = new HttpRequest();
+                req.setEndpoint('https://api.stripe.com/v1/invoices/' + invoiceId);
+                req.setMethod('GET');
+                req.setHeader('Authorization', 'Basic ' + EncodingUtil.base64Encode(Blob.valueOf(SECRET_KEY + ':')));
+                req.setHeader('Content-Type', 'application/x-www-form-urlencoded');
+
+                Http http = new Http();
+                HttpResponse res = http.send(req);
+
+                if (res.getStatusCode() == 200) {
+                    Map<String, Object> result = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
+                    processInvoiceData(result);
+                    successCount++;
+                } else {
+                    errorCount++;
+                    errorMessages.add(
+                        'Error fetching invoice ' + invoiceId + ': ' + res.getStatusCode() + ' - ' + res.getStatus()
+                    );
+                }
+            } catch (Exception e) {
+                errorCount++;
+                errorMessages.add('Error processing invoice ' + invoiceId + ': ' + e.getMessage());
+                System.debug('Error processing invoice ' + invoiceId + ': ' + e.getStackTraceString());
+            }
+        }
+    }
+
+    public void finish(Database.BatchableContext bc) {
+        System.debug(
+            'Stripe Invoice Migration Batch Completed. Processed: ' +
+                processedCount +
+                ', Success: ' +
+                successCount +
+                ', Errors: ' +
+                errorCount
+        );
+
+        if (!errorMessages.isEmpty()) {
+            for (String errorMsg : errorMessages) {
+                System.debug(errorMsg);
+            }
+
+            Logger__c logger = new Logger__c(
+                Name = 'Stripe Invoice Migration Batch',
+                Message__c = 'Processed: ' + processedCount + ', Success: ' + successCount + ', Errors: ' + errorCount,
+                StackTrace__c = '',
+                Status__c = 'Error',
+                Apex_Class__c = 'StripeInvoiceMigration',
+                Apex_Method__c = 'execute',
+                Object_Name__c = 'Stripe_Invoice__c'
+            );
+            insert logger;
+        }
+    }
+
+    private List<String> fetchAllStripeInvoiceIds() {
+        List<String> invoiceIds = new List<String>();
+        String startingAfter = null;
+        Boolean hasMore = true;
+        Integer page = 0;
+        Integer maxPages = 100; // Safety limit to avoid infinite loops
+
+        try {
+            while (hasMore && page < maxPages) {
+                page++;
+
+                HttpRequest req = new HttpRequest();
+                String endpoint = 'https://api.stripe.com/v1/invoices?limit=100';
+                if (startingAfter != null) {
+                    endpoint += '&starting_after=' + startingAfter;
+                }
+                req.setEndpoint(endpoint);
+                req.setMethod('GET');
+                req.setHeader('Authorization', 'Basic ' + EncodingUtil.base64Encode(Blob.valueOf(SECRET_KEY + ':')));
+                req.setHeader('Content-Type', 'application/x-www-form-urlencoded');
+
+                Http http = new Http();
+                HttpResponse res = http.send(req);
+
+                if (res.getStatusCode() == 200) {
+                    Map<String, Object> response = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
+                    List<Object> invoices = (List<Object>) response.get('data');
+
+                    if (invoices.isEmpty()) {
+                        hasMore = false;
+                    } else {
+                        for (Object invoiceObj : invoices) {
+                            Map<String, Object> invoice = (Map<String, Object>) invoiceObj;
+                            String invoiceId = (String) invoice.get('id');
+                            invoiceIds.add(invoiceId);
+                            startingAfter = invoiceId; // Set for pagination
+                        }
+                        hasMore = (Boolean) response.get('has_more');
+                    }
+                } else {
+                    hasMore = false;
+                    errorMessages.add('Error fetching invoice list: ' + res.getStatusCode() + ' - ' + res.getStatus());
+                }
+
+                // Add small delay to avoid rate limiting
+                if (hasMore) {
+                    Long startTime = DateTime.now().getTime();
+                    while (DateTime.now().getTime() - startTime < 1000) {
+                        // Busy wait for 1s
+                    }
+                }
+            }
+            System.debug('Fetched ' + invoiceIds.size() + ' invoice IDs from Stripe');
+        } catch (Exception e) {
+            errorMessages.add('Error fetching invoice IDs: ' + e.getMessage());
+            System.debug('Error fetching invoice IDs: ' + e.getStackTraceString());
+        }
+
+        return invoiceIds;
+    }
+
+    private void processInvoiceData(Map<String, Object> result) {
+        try {
+            String stripeInvoiceId = (String) result.get('id');
+
+            // Extract subscription and quote information from metadata
+            String subscriptionId = null;
+            String quoteId = null;
+
+            // Check if "parent" exists (for newer Stripe API version)
+            if (result.containsKey('parent') && result.get('parent') != null) {
+                Map<String, Object> parent = (Map<String, Object>) result.get('parent');
+                if (parent.containsKey('subscription_details') && parent.get('subscription_details') != null) {
+                    Map<String, Object> subDetails = (Map<String, Object>) parent.get('subscription_details');
+                    if (subDetails.containsKey('subscription') && subDetails.get('subscription') != null) {
+                        subscriptionId = (String) subDetails.get('subscription');
+                    }
+                    if (subDetails.containsKey('metadata') && subDetails.get('metadata') != null) {
+                        Map<String, Object> metadata = (Map<String, Object>) subDetails.get('metadata');
+                        quoteId = metadata.containsKey('salesforce_quote_id')
+                            ? (String) metadata.get('salesforce_quote_id')
+                            : (metadata.containsKey('salesforce_Quote_id')
+                                  ? (String) metadata.get('salesforce_Quote_id')
+                                  : null);
+                    }
+                }
+            }
+
+            // Also check direct metadata (for older invoices)
+            if (result.containsKey('metadata') && result.get('metadata') != null) {
+                Map<String, Object> metadata = (Map<String, Object>) result.get('metadata');
+                if (quoteId == null) {
+                    quoteId = metadata.containsKey('salesforce_quote_id')
+                        ? (String) metadata.get('salesforce_quote_id')
+                        : (metadata.containsKey('salesforce_Quote_id')
+                              ? (String) metadata.get('salesforce_Quote_id')
+                              : null);
+                }
+            }
+
+            // Find related quote if subscriptionId or quoteId is available
+            Id accountId = null;
+            Id billToContactId = null;
+            Id quoteRecordId = null;
+
+            if (quoteId != null) {
+                List<SBQQ__Quote__c> quotes = [
+                    SELECT Id, SBQQ__Account__c, SBQQ__Account__r.blng__BillToContact__c
+                    FROM SBQQ__Quote__c
+                    WHERE Id = :quoteId
+                    LIMIT 1
+                ];
+                if (!quotes.isEmpty()) {
+                    accountId = quotes[0].SBQQ__Account__c;
+                    billToContactId = quotes[0].SBQQ__Account__r.blng__BillToContact__c;
+                    quoteRecordId = quotes[0].Id;
+                }
+            } else if (subscriptionId != null) {
+                List<Contract> contracts = [
+                    SELECT
+                        Id,
+                        SBQQ__Quote__c,
+                        SBQQ__Quote__r.SBQQ__Account__c,
+                        SBQQ__Quote__r.SBQQ__Account__r.blng__BillToContact__c
+                    FROM Contract
+                    WHERE Stripe_Subscription_ID__c = :subscriptionId
+                    LIMIT 1
+                ];
+                if (!contracts.isEmpty() && contracts[0].SBQQ__Quote__c != null) {
+                    accountId = contracts[0].SBQQ__Quote__r.SBQQ__Account__c;
+                    billToContactId = contracts[0].SBQQ__Quote__r.SBQQ__Account__r.blng__BillToContact__c;
+                    quoteRecordId = contracts[0].SBQQ__Quote__c;
+                }
+            }
+
+            // Create/Update Stripe Invoice record
+            Stripe_Invoice__c invoice = new Stripe_Invoice__c();
+
+            // Extract date fields
+            Long effectiveAt = result.containsKey('effective_at') ? (Long) result.get('effective_at') : null;
+            Long periodStart = result.containsKey('period_start') ? (Long) result.get('period_start') : null;
+            Long periodEnd = result.containsKey('period_end') ? (Long) result.get('period_end') : null;
+            Long webhooksDeliveredAt = result.containsKey('webhooks_delivered_at')
+                ? (Long) result.get('webhooks_delivered_at')
+                : null;
+            Long dueDate = result.containsKey('due_date') ? (Long) result.get('due_date') : null;
+            Long finalizesAt = result.containsKey('automatically_finalizes_at')
+                ? (Long) result.get('automatically_finalizes_at')
+                : null;
+            String currencyCode = (String) result.get('currency');
+
+            // Set invoice fields
+            invoice.Total_Amount__c = result.containsKey('total') ? ((Decimal) result.get('total')) / 100 : 0;
+            invoice.Total_Amount_with_Tax__c = result.containsKey('total_excluding_tax')
+                ? ((Decimal) result.get('total_excluding_tax')) / 100
+                : 0;
+            invoice.Subtotal__c = result.containsKey('subtotal') ? ((Decimal) result.get('subtotal')) / 100 : 0;
+            invoice.Amount_Paid__c = result.containsKey('amount_paid')
+                ? ((Decimal) result.get('amount_paid')) / 100
+                : 0;
+            invoice.Amount_Due__c = result.containsKey('amount_due') ? ((Decimal) result.get('amount_due')) / 100 : 0;
+            invoice.Amount_Remaining__c = result.containsKey('amount_remaining')
+                ? ((Decimal) result.get('amount_remaining')) / 100
+                : 0;
+            invoice.Tax_Rate__c = result.containsKey('tax') && result.get('tax') != null
+                ? (Decimal) result.get('tax')
+                : 0;
+            invoice.Due_Date__c = toDateTime(dueDate);
+            invoice.Automatically_Finalizes_At__c = toDateTime(finalizesAt);
+            invoice.Billing_Reason__c = (String) result.get('billing_reason');
+            invoice.CurrencyIsoCode = currencyCode != null ? currencyCode.toUpperCase() : 'USD';
+            invoice.Quote_CPQ__c = quoteRecordId;
+            invoice.Account__c = accountId;
+            invoice.Bill_to_Contact__c = billToContactId;
+            invoice.Is_Payment_Done__c = result.containsKey('paid') ? (Boolean) result.get('paid') : false;
+            invoice.Stripe_Invoice_Id__c = stripeInvoiceId;
+            invoice.Invoice_Date__c = effectiveAt != null ? date.valueof(toDateTime(effectiveAt)) : null;
+            invoice.Invoice_PDF_URL__c = (String) result.get('invoice_pdf');
+            invoice.Invoice_URL__c = (String) result.get('hosted_invoice_url');
+            invoice.Name = result.get('number') != null ? (String) result.get('number') : 'SI-DRAFT';
+            invoice.Stripe_Invoice_Period_End__c = toDateTime(periodEnd);
+            invoice.Stripe_Invoice_Period_Start__c = toDateTime(periodStart);
+            invoice.Payment_Status__c = (String) result.get('status');
+            invoice.Webhook_Delivered_At__c = toDateTime(webhooksDeliveredAt);
+
+            // Upsert the invoice
+            upsert invoice Stripe_Invoice_Id__c;
+
+            // Process line items
+            processInvoiceLineItems(result, invoice.Id);
+        } catch (Exception e) {
+            throw new InvoiceProcessingException('Error processing invoice data: ' + e.getMessage(), e);
+        }
+    }
+
+    private void processInvoiceLineItems(Map<String, Object> result, Id invoiceId) {
+        try {
+            Map<String, Object> lines = (Map<String, Object>) result.get('lines');
+            if (lines != null && lines.containsKey('data')) {
+                List<Object> lineData = (List<Object>) lines.get('data');
+                List<Stripe_Invoice_Line_Item__c> lineItems = new List<Stripe_Invoice_Line_Item__c>();
+
+                for (Object item : lineData) {
+                    Map<String, Object> lineItem = (Map<String, Object>) item;
+
+                    Decimal amount = lineItem.containsKey('amount') && lineItem.get('amount') != null
+                        ? Decimal.valueOf((Integer) lineItem.get('amount')) / 100
+                        : 0;
+                    Integer quantity = lineItem.containsKey('quantity') && lineItem.get('quantity') != null
+                        ? Integer.valueOf(lineItem.get('quantity'))
+                        : 0;
+                    Decimal unitPrice = (amount != 0 && quantity != 0) ? (amount / quantity) : 0;
+
+                    Stripe_Invoice_Line_Item__c line = new Stripe_Invoice_Line_Item__c();
+                    line.Stripe_Invoice__c = invoiceId;
+                    line.Stripe_Invoice_line_Item_Id__c = (String) lineItem.get('id');
+                    line.Quantity__c = quantity;
+                    line.Product_Name__c = (String) lineItem.get('description');
+
+                    // Period handling
+                    if (lineItem.containsKey('period')) {
+                        Map<String, Object> period = (Map<String, Object>) lineItem.get('period');
+                        Long lineStartDate = (Long) period.get('start');
+                        Long lineEndDate = (Long) period.get('end');
+                        line.Start_Date__c = toDateTime(lineStartDate);
+                        line.End_Date__c = toDateTime(lineEndDate);
+                    }
+
+                    if (lineItem.containsKey('price')) {
+                        Map<String, Object> price = (Map<String, Object>) lineItem.get('price');
+                        line.Unit_Price__c = price.containsKey('unit_amount_decimal') &&
+                            price.get('unit_amount_decimal') != null
+                            ? Decimal.valueOf((String) price.get('unit_amount_decimal')) / 100
+                            : unitPrice;
+                        line.Charge_Type__c = price.containsKey('type') ? (String) price.get('type') : null;
+                    }
+
+                    line.Total_Amount_with_Tax__c = lineItem.containsKey('unit_amount_excluding_tax') &&
+                        lineItem.get('unit_amount_excluding_tax') != null
+                        ? Decimal.valueOf((String) lineItem.get('unit_amount_excluding_tax')) / 100
+                        : null;
+
+                    lineItems.add(line);
+                }
+
+                if (!lineItems.isEmpty()) {
+                    upsert lineItems Stripe_Invoice_line_Item_Id__c;
+                }
+            }
+        } catch (Exception e) {
+            throw new InvoiceProcessingException('Error processing line items: ' + e.getMessage(), e);
+        }
+    }
+
+    private static Datetime toDateTime(Long unixTs) {
+        if (unixTs == null)
+            return null;
+        return Datetime.newInstanceGmt(1970, 1, 1, 0, 0, 0).addSeconds((Integer) unixTs);
+    }
+
+    // Custom exception class for better error handling
+    public class InvoiceProcessingException extends Exception {
+    }
+
+    /**
+     * Run this batch class from Execute Anonymous Window:
+     * StripeInvoiceMigration batch = new StripeInvoiceMigration();
+     * Database.executeBatch(batch, 1);
+     *
+     * Always run this batch one chunk at a time to avoid hitting uncommited work pending.
+     */
+}

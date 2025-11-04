@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Health_Stoplight__c</fullName>
+    <description>Triggered by Health Spotlight field and a flow</description>
+    <externalId>false</externalId>
+    <formula>IF(CONTAINS(Health_Stoplight_Color_Formula__c,&quot;Yellow&quot;),IMAGE(&quot;/img/samples/color_yellow.gif&quot;, &quot;yellow&quot;, 20, 200),
+IF(CONTAINS(Health_Stoplight_Color_Formula__c,&quot;Red&quot;),IMAGE(&quot;/img/samples/color_red.gif&quot;, &quot;red&quot;, 20, 200),
+IMAGE(&quot;/img/samples/color_green.gif&quot;, &quot;green&quot;, 20, 200
+)))</formula>
+    <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    <label>Health Stoplight</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

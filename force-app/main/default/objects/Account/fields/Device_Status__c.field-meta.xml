@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Device_Status__c</fullName>
+    <label>Device Status</label>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Picklist</type>
+    <valueSet>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Active</fullName>
+                <default>false</default>
+                <label>Active</label>
+            </value>
+            <value>
+                <fullName>Churning</fullName>
+                <default>false</default>
+                <label>Churning</label>
+            </value>
+            <value>
+                <fullName>Device received</fullName>
+                <default>false</default>
+                <label>Device received</label>
+            </value>
+            <value>
+                <fullName>Charged back</fullName>
+                <default>false</default>
+                <label>Charged back</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Dunning_Active__c</fullName>
+    <formula>IF( ISPICKVAL(AR_Status__c, &quot;Dunning Activated&quot;) , True,
+
+IF( Dunning_Activated__c &gt; Dunning_Removed_Reversed__c , TRUE, 
+
+False))</formula>
+    <label>Dunning Active</label>
+    <trackHistory>false</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

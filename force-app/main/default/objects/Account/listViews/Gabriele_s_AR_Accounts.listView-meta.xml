@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Gabriele_s_AR_Accounts</fullName>
+    <columns>ACCOUNT.NAME</columns>
+    <columns>ACCOUNT.RECORDTYPE</columns>
+    <columns>ACCOUNT.TYPE</columns>
+    <columns>blng__BillToContact__c</columns>
+    <columns>Bill_To_Email__c</columns>
+    <columns>Payment_Due__c</columns>
+    <columns>Total_Outstanding__c</columns>
+    <columns>Paid__c</columns>
+    <columns>Voided__c</columns>
+    <columns>Date_first_opp_created__c</columns>
+    <columns>AR_Status__c</columns>
+    <columns>Assets_Registered__c</columns>
+    <columns>Assets_with_Heartbeats__c</columns>
+    <filterScope>Everything</filterScope>
+    <filters>
+        <field>AR_Owner__c</field>
+        <operation>contains</operation>
+        <value>Gabriele</value>
+    </filters>
+    <label>Gabriele&apos;s AR Accounts</label>
+    <sharedTo>
+        <role>Accounts_Receivable</role>
+    </sharedTo>
+</ListView>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Banner__c</fullName>
+    <externalId>false</externalId>
+    <formula>IF(  TEXT(Type) = &quot;End User Customer&quot;,   IMAGE(&quot;/servlet/servlet.ImageServer?id=0151I0000067cmb&amp;oid=00DfY000000FYxR&amp;lastMod=1658351185000&quot;, &quot;Customer&quot;),
+IF(  TEXT(Type) = &quot;Customer&quot;,            IMAGE(&quot;/servlet/servlet.ImageServer?id=0151I0000067cmb&amp;oid=00DfY000000FYxR&amp;lastMod=1658351185000&quot;, &quot;Customer&quot;),
+IF(  TEXT(Type) = &quot;Partner&quot;,             IMAGE(&quot;/servlet/servlet.ImageServer?id=0151I0000067cnA&amp;oid=00DfY000000FYxR&amp;lastMod=1658351860000&quot;, &quot;Partner&quot;),
+IF(  TEXT(Type) = &quot;Prospect&quot;,            IMAGE(&quot;/servlet/servlet.ImageServer?id=0158W00000CqAUs&amp;oid=00DfY000000FYxR&amp;lastMod=1658351210000&quot;, &quot;Prospect&quot;),
+IF(  TEXT(Type) = &quot;Churn&quot; ,              IMAGE(&quot;/servlet/servlet.ImageServer?id=0158W00000CqAUx&amp;oid=00DfY000000FYxR&amp;lastMod=1657643576000&quot;, &quot;Churned&quot;),
+IF(  TEXT(Type) = &quot;Paused&quot; ,             IMAGE(&quot;/servlet/servlet.ImageServer?id=0158W00000CqB9g&amp;oid=00DfY000000FYxR&amp;lastMod=1658412612000&quot;, &quot;Paused&quot;),
+
+
+
+
+
+IF(  RecordType.DeveloperName  = &quot;Distributor&quot;,         IMAGE(&quot;/servlet/servlet.ImageServer?id=0151I0000067cmg&amp;oid=00DfY000000FYxR&amp;lastMod=1658351693000&quot;, &quot;Distributor&quot;),
+IF(  RecordTypeId   = &quot;0121I000000WOQw&quot;, IMAGE(&quot;/servlet/servlet.ImageServer?id=0151I0000067cn5&amp;oid=00DfY000000FYxR&amp;lastMod=1568818823000&quot;, &quot;Distributor Partner&quot;),
+
+NULL))))))))</formula>
+    <label>Banner</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

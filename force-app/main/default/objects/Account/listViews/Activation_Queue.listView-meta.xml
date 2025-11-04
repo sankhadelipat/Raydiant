@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Activation_Queue</fullName>
+    <columns>ACCOUNT.NAME</columns>
+    <columns>Segment__c</columns>
+    <columns>Date_of_First_Closed_Won__c</columns>
+    <columns>F52_Primary_Contact__c</columns>
+    <columns>Primary_Contact_Email__c</columns>
+    <columns>ACCOUNT.PHONE1</columns>
+    <columns>Total_Assets__c</columns>
+    <columns>Onb2oarding_Roadblock__c</columns>
+    <columns>Onboarding_Notes__c</columns>
+    <columns>Active_Contracts_Rollup__c</columns>
+    <columns>Assets_Registered__c</columns>
+    <columns>Today_vs_Close_Won__c</columns>
+    <filterScope>Everything</filterScope>
+    <filters>
+        <field>Today_vs_Close_Won__c</field>
+        <operation>greaterOrEqual</operation>
+        <value>30</value>
+    </filters>
+    <filters>
+        <field>Assets_Registered__c</field>
+        <operation>equals</operation>
+        <value>0</value>
+    </filters>
+    <filters>
+        <field>Active_Contracts_Rollup__c</field>
+        <operation>greaterThan</operation>
+        <value>0</value>
+    </filters>
+    <filters>
+        <field>ACCOUNT.CREATED_DATE</field>
+        <operation>greaterThan</operation>
+        <value>1/1/2023 12:00 AM</value>
+    </filters>
+    <filters>
+        <field>ACCOUNT.NAME</field>
+        <operation>notContain</operation>
+        <value>test,employee,raydaint,Hawkman</value>
+    </filters>
+    <filters>
+        <field>ACCOUNT.TYPE</field>
+        <operation>equals</operation>
+        <value>End User Customer,Customer</value>
+    </filters>
+    <label>30+ Day Activation Queue</label>
+</ListView>

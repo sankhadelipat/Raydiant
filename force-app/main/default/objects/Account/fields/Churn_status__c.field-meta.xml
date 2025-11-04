@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Churn_status__c</fullName>
+    <inlineHelpText>Churned-All subscription have been cancelled
+Part Churn sub-1 or more Raydiant monthly/annual services subscription have been cancelled
+Part Churn Other- 1 or more other than Raydiant monthly/annual services subscription have been cancelled.</inlineHelpText>
+    <label>Ray Churn status</label>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Churned</fullName>
+                <default>false</default>
+                <label>Churned</label>
+            </value>
+            <value>
+                <fullName>Partially Churned Subscription</fullName>
+                <default>false</default>
+                <label>Partially Churned Subscription</label>
+            </value>
+            <value>
+                <fullName>Partially Churned Other</fullName>
+                <default>false</default>
+                <label>Partially Churned Other</label>
+            </value>
+            <value>
+                <fullName>Normal</fullName>
+                <default>false</default>
+                <label>Normal</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

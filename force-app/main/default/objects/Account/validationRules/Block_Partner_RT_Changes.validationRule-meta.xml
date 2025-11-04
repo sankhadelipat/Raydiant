@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Block_Partner_RT_Changes</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND(
+    ISCHANGED( RecordTypeId ) ,
+ 
+    $User.ProfileId &lt;&gt; &quot;00e1I000000JVFA&quot;
+    ,
+  OR(
+     RecordTypeId = &quot;0121I000000BaIoQAK&quot;,
+     RecordTypeId = &quot;0121I000000WO7kQAG&quot;
+    )
+   )</errorConditionFormula>
+    <errorMessage>Only Admins and Partner Staff may change Account record types to</errorMessage>
+</ValidationRule>

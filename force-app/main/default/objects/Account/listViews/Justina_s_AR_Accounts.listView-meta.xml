@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Justina_s_AR_Accounts</fullName>
+    <columns>ACCOUNT.NAME</columns>
+    <columns>Banner__c</columns>
+    <columns>CORE.USERS.LAST_NAME</columns>
+    <columns>Outstanding_AR__c</columns>
+    <columns>blng__BillToContact__c</columns>
+    <columns>Is_On_Payment_Plan__c</columns>
+    <columns>Open_AR_Case_Count__c</columns>
+    <columns>AR_Status__c</columns>
+    <columns>Assets_Registered__c</columns>
+    <columns>Assets_with_Heartbeats__c</columns>
+    <columns>AR_Notes__c</columns>
+    <filterScope>Everything</filterScope>
+    <filters>
+        <field>AR_Owner__c</field>
+        <operation>contains</operation>
+        <value>justina</value>
+    </filters>
+    <label>Justina&apos;s AR Accounts</label>
+    <sharedTo>
+        <role>Accounts_Receivable</role>
+    </sharedTo>
+</ListView>

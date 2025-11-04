@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Intercom_Company_Id__c</fullName>
+    <description>intercom company id from import</description>
+    <externalId>false</externalId>
+    <inlineHelpText>intercom company id from import</inlineHelpText>
+    <label>Intercom Company Id</label>
+    <length>80</length>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

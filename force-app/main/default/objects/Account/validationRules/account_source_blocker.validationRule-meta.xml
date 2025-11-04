@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>account_source_blocker</fullName>
+    <active>false</active>
+    <errorConditionFormula>and(
+ISCHANGED( AccountSource ),
+AND(
+NOT(CONTAINS( $Profile.Name, &quot;Admin&quot;)),
+$User.ID__c &lt;&gt; &quot;0051I000007k7zH&quot;
+
+)
+)</errorConditionFormula>
+    <errorDisplayField>AccountSource</errorDisplayField>
+    <errorMessage>Only admins can edit Account Source</errorMessage>
+</ValidationRule>

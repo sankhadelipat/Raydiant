@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>BLock_Dunning_BLOCKING</fullName>
+    <active>true</active>
+    <description>Only CFO and CEO and VP Sales can place an account on the no-dunning list</description>
+    <errorConditionFormula>AND(
+ ISCHANGED( Dunning_BLOCKED__c ),
+ $User.ID__c &lt;&gt; &quot;0058W00000FudAw&quot;,
+ $User.ID__c &lt;&gt; &quot;0051I000005X7Ft&quot; 
+    )</errorConditionFormula>
+    <errorDisplayField>Dunning_BLOCKED__c</errorDisplayField>
+    <errorMessage>Only CFO and CEO can place an account on the no-dunning list</errorMessage>
+</ValidationRule>

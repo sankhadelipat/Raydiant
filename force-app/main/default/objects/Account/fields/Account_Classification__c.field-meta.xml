@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Account_Classification__c</fullName>
+    <description>Classifying accounts as A, B, or C based on ARR and User count</description>
+    <inlineHelpText>HOOPLA Field - Classifying accounts as A, B, or C based on ARR and User count</inlineHelpText>
+    <label>Account Classification</label>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetName>Account_Classification</valueSetName>
+    </valueSet>
+</CustomField>

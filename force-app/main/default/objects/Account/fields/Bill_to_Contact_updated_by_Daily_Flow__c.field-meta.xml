@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Bill_to_Contact_updated_by_Daily_Flow__c</fullName>
+    <defaultValue>false</defaultValue>
+    <inlineHelpText>This gets checked by the flow &quot;Get bill to from Primary&quot; flow.  Every night this flow runs to correct any accounts MISSING bill to data.</inlineHelpText>
+    <label>Bill to Contact updated by Daily Flow</label>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

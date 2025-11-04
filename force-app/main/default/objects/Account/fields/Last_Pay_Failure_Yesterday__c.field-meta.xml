@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Last_Pay_Failure_Yesterday__c</fullName>
+    <formula>if(Last_Payment_Failure_Date__c = (Today() - 1), True, False)</formula>
+    <label>Last Pay Failure Yesterday</label>
+    <trackHistory>false</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

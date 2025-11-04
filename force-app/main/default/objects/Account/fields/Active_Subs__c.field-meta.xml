@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Active_Subs__c</fullName>
+    <inlineHelpText>Raydiant Products only</inlineHelpText>
+    <label>Active CB Subs</label>
+    <summaryFilterItems>
+        <field>chargebeeapps__CB_Subscription__c.chargebeeapps__Subscription_status__c</field>
+        <operation>equals</operation>
+        <value>ACTIVE</value>
+    </summaryFilterItems>
+    <summaryFilterItems>
+        <field>chargebeeapps__CB_Subscription__c.Product_Line_Text__c</field>
+        <operation>contains</operation>
+        <value>Raydiant</value>
+    </summaryFilterItems>
+    <summaryForeignKey>chargebeeapps__CB_Subscription__c.chargebeeapps__Company__c</summaryForeignKey>
+    <summaryOperation>count</summaryOperation>
+    <trackHistory>false</trackHistory>
+    <type>Summary</type>
+</CustomField>

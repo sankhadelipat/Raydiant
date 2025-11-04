@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Days_in_Dunning__c</fullName>
+    <externalId>false</externalId>
+    <formula>IF( TEXT(AR_Status__c) = &quot;Dunning Activated&quot;,        TODAY() -  Dunning_Requested__c ,
+IF( TEXT(AR_Status__c) = &quot;Considering Collections&quot;,  TODAY() -  Dunning_Requested__c,
+IF( TEXT(AR_Status__c) = &quot;In Collections&quot;,           TODAY() -  Dunning_Requested__c, 
+
+
+ Dunning_Removed_Reversed__c - Dunning_Requested__c)))</formula>
+    <label>Days in Dunning</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackHistory>false</trackHistory>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

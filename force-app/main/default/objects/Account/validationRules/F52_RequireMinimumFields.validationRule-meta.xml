@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>F52_RequireMinimumFields</fullName>
+    <active>false</active>
+    <description>Make the Account Name, Industry, Billing Name DBA, full Billing/shipping addresses and Company Type fields required to save a record.</description>
+    <errorConditionFormula>AND(
+OR (
+ISBLANK( BillingStreet),
+ISBLANK( BillingCity ),
+ISBLANK( BillingState ),
+ISBLANK( BillingPostalCode ),
+ISBLANK( BillingCountry ),
+ISBLANK(  ShippingStreet ),
+ISBLANK(  ShippingCity  ),
+ISBLANK(  ShippingState  ),
+ISBLANK(  ShippingPostalCode  ),
+ISBLANK(  ShippingCountry  ),
+ISBLANK(  F52_BusinessNameDBA__c ),
+ISBLANK(  text(F52_CustomerType__c)  )),
+$Profile.Name &lt;&gt; &quot;System Administrator&quot;)</errorConditionFormula>
+    <errorMessage>Billing Name DBA, full Billing/shipping addresses and Company Type fields are  required to save a record.</errorMessage>
+</ValidationRule>

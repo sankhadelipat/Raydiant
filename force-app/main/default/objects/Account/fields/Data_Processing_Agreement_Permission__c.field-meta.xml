@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Data_Processing_Agreement_Permission__c</fullName>
+    <defaultValue>false</defaultValue>
+    <inlineHelpText>From Sightcorp Trial Form</inlineHelpText>
+    <label>Data Processing Agreement Permission</label>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

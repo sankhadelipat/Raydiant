@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Rep_working_with__c</fullName>
+    <label>Rep working with</label>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Picklist</type>
+    <valueSet>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Zied Ladhari</fullName>
+                <default>false</default>
+                <label>Zied Ladhari</label>
+            </value>
+            <value>
+                <fullName>Aaron Marsh</fullName>
+                <default>false</default>
+                <label>Aaron Marsh</label>
+            </value>
+            <value>
+                <fullName>Justin Jones</fullName>
+                <default>false</default>
+                <label>Justin Jones</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

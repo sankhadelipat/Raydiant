@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Account_Value__c</fullName>
+    <description>Sum of Subscription Monthly Value</description>
+    <inlineHelpText>Sums &apos;Monthly Value&apos; on all active subscriptions</inlineHelpText>
+    <label>Total MRR</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Currency</type>
+</CustomField>

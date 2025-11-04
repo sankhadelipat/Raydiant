@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RECURLY_V2_IN_TRIAL_C__c</fullName>
+    <defaultValue>false</defaultValue>
+    <label>RECURLY_V2__IN_TRIAL__C</label>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

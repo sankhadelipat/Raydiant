@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Marketing_Value_Calc__c</fullName>
+    <formula>MAX( Total_Monthly_Value_MRR__c  * MAX( Total_Contract_Value__c  / Total_Monthly_Value_MRR__c, 9) * IF(MOD(Total_Contract_Value__c, 10) = 0, 1.37, 1), 0)</formula>
+    <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    <label>Marketing Value Calc</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>2</scale>
+    <trackHistory>false</trackHistory>
+    <type>Currency</type>
+</CustomField>

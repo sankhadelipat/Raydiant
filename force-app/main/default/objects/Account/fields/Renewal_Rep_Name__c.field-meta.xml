@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Renewal_Rep_Name__c</fullName>
+    <externalId>false</externalId>
+    <formula>if(Renewal_Rep__c &lt;&gt; &quot;&quot;, Renewal_Rep__r.FirstName &amp; &quot; &quot; &amp; Renewal_Rep__r.LastName, &quot;&quot;)</formula>
+    <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    <label>Renewal Rep Name</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

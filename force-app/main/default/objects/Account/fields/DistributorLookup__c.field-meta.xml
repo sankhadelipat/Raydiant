@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DistributorLookup__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <label>Distributor</label>
+    <lookupFilter>
+        <active>true</active>
+        <errorMessage>Only Distributors can be entered here (Account Record Type)</errorMessage>
+        <filterItems>
+            <field>Account.RecordTypeId</field>
+            <operation>equals</operation>
+            <value>Distributor</value>
+        </filterItems>
+        <infoMessage>Only Distributors can be entered here (Account Record Type)</infoMessage>
+        <isOptional>false</isOptional>
+    </lookupFilter>
+    <referenceTo>Account</referenceTo>
+    <relationshipLabel>Dealers (Under Distribution)</relationshipLabel>
+    <relationshipName>Accounts</relationshipName>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Lookup</type>
+</CustomField>

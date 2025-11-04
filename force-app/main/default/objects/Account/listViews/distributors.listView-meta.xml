@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>distributors</fullName>
+    <columns>ACCOUNT.NAME</columns>
+    <columns>ACCOUNT.RECORDTYPE</columns>
+    <columns>DIstributor__c</columns>
+    <columns>DistributorLookup__c</columns>
+    <columns>Tier__c</columns>
+    <columns>Allbound_ID__c</columns>
+    <columns>Allbound_Status__c</columns>
+    <columns>ACCOUNT.ADDRESS1_STATE</columns>
+    <columns>Screen_Commission__c</columns>
+    <columns>CSF_Factor__c</columns>
+    <filterScope>Everything</filterScope>
+    <filters>
+        <field>ACCOUNT.RECORDTYPE</field>
+        <operation>equals</operation>
+        <value>Account.Distributor</value>
+    </filters>
+    <label>distributors</label>
+</ListView>

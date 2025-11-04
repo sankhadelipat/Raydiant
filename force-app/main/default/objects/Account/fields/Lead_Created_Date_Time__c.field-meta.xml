@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Lead_Created_Date_Time__c</fullName>
+    <inlineHelpText>This is the time stamp from the historical LEAD record creation date, If this Account was created from a LEAD. If not created from a LEAD... this field will be blank.</inlineHelpText>
+    <label>Lead Created Date/Time</label>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>DateTime</type>
+</CustomField>

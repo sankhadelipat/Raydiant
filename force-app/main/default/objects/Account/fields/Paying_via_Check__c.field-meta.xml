@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Paying_via_Check__c</fullName>
+    <defaultValue>false</defaultValue>
+    <inlineHelpText>Made for Ruta to clag account paying by cheque to the wrong address.</inlineHelpText>
+    <label>Paying via Check</label>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

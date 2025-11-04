@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Onboarding_Automation_Taken__c</fullName>
+    <externalId>false</externalId>
+    <inlineHelpText>This is used by the onboarding flow to indicate which path was taken by the opp being onboarded. We added this as the email time stamp didn&apos;t show which email was actually sent.</inlineHelpText>
+    <label>Onboarding Automation Taken</label>
+    <length>255</length>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

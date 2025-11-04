@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DIstributor__c</fullName>
+    <label>Distributor Classification</label>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Picklist</type>
+    <valueSet>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Independant</fullName>
+                <default>false</default>
+                <label>Independant</label>
+            </value>
+            <value>
+                <fullName>P10</fullName>
+                <default>false</default>
+                <label>P10</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

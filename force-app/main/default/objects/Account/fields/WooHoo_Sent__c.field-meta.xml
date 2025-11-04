@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>WooHoo_Sent__c</fullName>
+    <defaultValue>false</defaultValue>
+    <inlineHelpText>This is the congratulatory email on the first activation of a &quot;screen&quot;. This TRUE means the Flow fired and sent the email.</inlineHelpText>
+    <label>WooHoo Sent</label>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

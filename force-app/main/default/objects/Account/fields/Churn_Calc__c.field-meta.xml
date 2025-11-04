@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Churn_Calc__c</fullName>
+    <externalId>false</externalId>
+    <formula>IF(
+   AND(
+       Active_Subs__c =0,
+       Cancelled_Subs__c = 0,
+       x3rd_Party_Active__c =0,
+       X3rd_Party_Cancellations__c = 0
+      ), &quot;Inactive&quot;, 
+
+IF(AND(Active_Subs__c &gt;0,Cancelled_Subs__c = 0), &quot;Active&quot;, 
+IF(AND(Active_Subs__c &gt;0,Cancelled_Subs__c &gt; 0), &quot;Partially Churned&quot;, 
+IF(AND(Active_Subs__c =0,Cancelled_Subs__c &gt; 0), &quot;Churned&quot;, 
+
+IF(AND(x3rd_Party_Active__c &gt;0,X3rd_Party_Cancellations__c = 0), &quot;Active&quot;, 
+IF(AND(x3rd_Party_Active__c &gt;0,X3rd_Party_Cancellations__c &gt; 0), &quot;Partially Churned&quot;, 
+IF(AND(x3rd_Party_Active__c =0,X3rd_Party_Cancellations__c &gt; 0), &quot;Churned&quot;, 
+
+&quot;Confused&quot;)))))))</formula>
+    <inlineHelpText>This is a live calculation based on the current visible status&apos;s of the accounts subscriptions on file.</inlineHelpText>
+    <label>Ray Churn Calc (Currently)</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>
