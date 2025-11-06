@@ -17,13 +17,14 @@ public class StripeSubscriptionItemMigration implements Database.Batchable<SObje
                     SBQQ__Opportunity__c,
                     SBQQ__Quote__c,
                     SBQQ__Order__c,
+                    StartDate,
                     Account.Stripe_Customer_ID__c,
                     Current_Migration_Start_Date__c,
                     Current_Migration_End_Date__c,
                     Stripe_Billing_Date__c,
                     CreatedDate
                 FROM Contract
-                WHERE Stripe_Subscription_ID__c != NULL AND LastModifiedDate = TODAY
+                WHERE Contract_Migration__c = TRUE AND Stripe_Subscription_ID__c != NULL
             ]
         );
     }
@@ -130,15 +131,24 @@ public class StripeSubscriptionItemMigration implements Database.Batchable<SObje
             String customerId = (String) payload.get('customer');
             String invoiceId = (String) payload.get('latest_invoice');
             String status = (String) payload.get('status');
+            // Extract date fields as Long
             Long billingCycleAnchorUnix = payload.containsKey('billing_cycle_anchor')
                 ? (Long) payload.get('billing_cycle_anchor')
                 : null;
-            Datetime billingCycleAnchor = toDateTime(billingCycleAnchorUnix);
             Long startDateUnix = payload.containsKey('start_date') ? (Long) payload.get('start_date') : null;
-            // Determine correct start/end dates (Requirement #1)
-            Date startDate = con.Current_Migration_Start_Date__c;
-            Date endDate = con.Current_Migration_End_Date__c;
-            Date billingDate = con.Stripe_Billing_Date__c;
+            Long cancelAtUnix = payload.containsKey('cancel_at') ? (Long) payload.get('cancel_at') : null;
+            Long currentPeriodStartUnix = payload.containsKey('current_period_start')
+                ? (Long) payload.get('current_period_start')
+                : null;
+            Long currentPeriodEndUnix = payload.containsKey('current_period_end')
+                ? (Long) payload.get('current_period_end')
+                : null;
+
+            Date billingCycleAnchor = date.valueof(toDateTime(billingCycleAnchorUnix));
+            Date startDate = date.valueof(toDateTime(startDateUnix));
+            Date cancelAt = date.valueof(toDateTime(cancelAtUnix));
+            Datetime currentPeriodStart = toDateTime(currentPeriodStartUnix);
+            Datetime currentPeriodEnd = toDateTime(currentPeriodEndUnix);
 
             Contract updatedContract = new Contract(
                 Id = con.Id,
@@ -146,33 +156,30 @@ public class StripeSubscriptionItemMigration implements Database.Batchable<SObje
                 Stripe_Customer_ID__c = customerId,
                 Stripe_latest_Invoice_Id__c = invoiceId,
                 Stripe_Status__c = status,
+                Status = 'Activated',
                 Contract_Migration__c = true,
                 StartDate = startDate,
-                EndDate = endDate,
-                ContractTerm = (startDate != null && endDate != null) ? startDate.monthsBetween(endDate) : null,
-                Stripe_Billing_Date__c = billingDate,
+                EndDate = cancelAt,
+                ContractTerm = (startDate != null && cancelAt != null) ? startDate.monthsBetween(cancelAt) : null,
+                Stripe_Billing_Date__c = billingCycleAnchor,
+                Stripe_Subscription_Start_Date__c = String.valueOf(startDateUnix),
                 Created_From_Stripe__c = true,
-                Latest_Change_Reason__c = con.CreatedDate.date() == System.today()
+                Latest_Change_Reason__c = con.StartDate == null
                     ? 'Contract Migration Done From Stripe'
-                    : 'Renewable Contract Migration Done From Stripe',
-                AccountId = metadata != null && metadata.containsKey('salesforce_account_id')
-                    ? (String) metadata.get('salesforce_account_id')
-                    : con.AccountId,
-                SBQQ__Opportunity__c = metadata != null && metadata.containsKey('salesforce_opportunity_id')
-                    ? (String) metadata.get('salesforce_opportunity_id')
-                    : con.SBQQ__Opportunity__c,
-                SBQQ__Quote__c = metadata != null && metadata.containsKey('salesforce_quote_id')
-                    ? (String) metadata.get('salesforce_quote_id')
-                    : con.SBQQ__Quote__c,
-                SBQQ__Order__c = metadata != null && metadata.containsKey('salesforce_order_id')
-                    ? (String) metadata.get('salesforce_order_id')
-                    : con.SBQQ__Order__c
+                    : 'Renewable Contract Migration Done From Stripe'
+                // AccountId = metadata != null && metadata.containsKey('salesforce_account_id')
+                //     ? (String) metadata.get('salesforce_account_id')
+                //     : con.AccountId,
+                // SBQQ__Opportunity__c = metadata != null && metadata.containsKey('salesforce_opportunity_id')
+                //     ? (String) metadata.get('salesforce_opportunity_id')
+                //     : con.SBQQ__Opportunity__c,
+                // SBQQ__Quote__c = metadata != null && metadata.containsKey('salesforce_quote_id')
+                //     ? (String) metadata.get('salesforce_quote_id')
+                //     : con.SBQQ__Quote__c,
+                // SBQQ__Order__c = metadata != null && metadata.containsKey('salesforce_order_id')
+                //     ? (String) metadata.get('salesforce_order_id')
+                //     : con.SBQQ__Order__c
             );
-
-            if (payload.containsKey('billing_cycle_anchor')) {
-                Long billingAnchor = (Long) payload.get('billing_cycle_anchor');
-                updatedContract.Stripe_Billing_Date__c = toDateTime(billingAnchor).date();
-            }
 
             return updatedContract;
         } catch (Exception ex) {
@@ -263,13 +270,36 @@ public class StripeSubscriptionItemMigration implements Database.Batchable<SObje
             String interval = recurring != null ? (String) recurring.get('interval') : null;
             Integer intervalCount = recurring != null ? (Integer) recurring.get('interval_count') : 1;
 
+            Long billingCycleAnchorUnix = subscriptionData.containsKey('billing_cycle_anchor')
+                ? (Long) subscriptionData.get('billing_cycle_anchor')
+                : null;
+            Long startDateUnix = subscriptionData.containsKey('start_date')
+                ? (Long) subscriptionData.get('start_date')
+                : null;
+            Long cancelAtUnix = subscriptionData.containsKey('cancel_at')
+                ? (Long) subscriptionData.get('cancel_at')
+                : null;
+            Long currentPeriodStartUnix = subscriptionData.containsKey('current_period_start')
+                ? (Long) subscriptionData.get('current_period_start')
+                : null;
+            Long currentPeriodEndUnix = subscriptionData.containsKey('current_period_end')
+                ? (Long) subscriptionData.get('current_period_end')
+                : null;
+
+            Date billingCycleAnchor = date.valueof(toDateTime(billingCycleAnchorUnix));
+            Date startDate = date.valueof(toDateTime(startDateUnix));
+            Date cancelAt = date.valueof(toDateTime(cancelAtUnix));
+            Datetime currentPeriodStart = toDateTime(currentPeriodStartUnix);
+            Datetime currentPeriodEnd = toDateTime(currentPeriodEndUnix);
+
             Decimal unitAmount = price.containsKey('unit_amount_decimal')
                 ? Decimal.valueOf((String) price.get('unit_amount_decimal')) / 100
                 : 0;
-
             Integer quantity = item.containsKey('quantity') ? (Integer) item.get('quantity') : 1;
             Decimal stripeMRR = unitAmount * quantity;
             Decimal stripeARR = stripeMRR * 12;
+            Integer contractTerm = (startDate != null && cancelAt != null) ? startDate.monthsBetween(cancelAt) : null;
+            Decimal customerPrice = contractTerm > 0 ? (unitAmount * contractTerm).setScale(2) : null;
 
             Product2 matchingProduct = productMap.get(productId);
 
@@ -287,36 +317,19 @@ public class StripeSubscriptionItemMigration implements Database.Batchable<SObje
                 Latest_Change_Reason__c = 'Subscription Migration Done From Stripe',
                 Stripe_Start_Date__c = toDateTime((Long) item.get('current_period_start')).date(),
                 Stripe_End_Date__c = toDateTime((Long) item.get('current_period_end')).date(),
+                SBQQ__SubscriptionStartDate__c = startDate,
+                SBQQ__SubscriptionEndDate__c = cancelAt,
+                Stripe_Billing_Date__c = billingCycleAnchor,
+                Stripe_Subscription_Term__c = contractTerm,
                 Stripe_ARR__c = stripeARR,
+                SBQQ__CustomerPrice__c = customerPrice,
                 Stripe_Interval__c = interval,
                 Stripe_Activate__c = (Boolean) price.get('active'),
+                Created_From_Stripe__c = true,
                 Status__c = (String) subscriptionData.get('status'),
                 SBQQ__BillingFrequency__c = getBillingFrequency(interval, intervalCount),
                 Billing_Frequency_Override__c = getBillingFrequency(interval, intervalCount)
             );
-
-            // Set date fields
-            if (item.containsKey('current_period_start')) {
-                subscription.Stripe_Start_Date__c = toDateTime((Long) item.get('current_period_start')).date();
-            }
-
-            if (item.containsKey('current_period_end')) {
-                subscription.Stripe_End_Date__c = toDateTime((Long) item.get('current_period_end')).date();
-            }
-
-            if (subscriptionData.containsKey('current_period_start')) {
-                subscription.SBQQ__SubscriptionStartDate__c = toDateTime(
-                        (Long) subscriptionData.get('current_period_start')
-                    )
-                    .date();
-            }
-
-            if (subscriptionData.containsKey('current_period_end')) {
-                subscription.SBQQ__SubscriptionEndDate__c = toDateTime(
-                        (Long) subscriptionData.get('current_period_end')
-                    )
-                    .date();
-            }
 
             return subscription;
         } catch (Exception ex) {
