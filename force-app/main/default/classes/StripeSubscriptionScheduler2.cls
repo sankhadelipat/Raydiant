@@ -242,7 +242,7 @@ quoteLineToPriceIdMap.put(ql.Id, priceId);
             bodyParts.add('metadata[salesforce_quote_id]=' + EncodingUtil.urlEncode(quote.Id, 'UTF-8'));
             bodyParts.add('metadata[subscription_source]=salesforce');
             bodyParts.add('metadata[updated_from_salesforce]=true');
-          //  bodyParts.add('billing_mode.type=flexible');
+            //  bodyParts.add('billing_mode.type=flexible');
 
             /* Add line items
 Integer index = 0;

@@ -483,7 +483,6 @@ public class StripeSubscriptionScheduler {
                 Stripe_latest_Invoice_Id__c = latestInvoice,
                 Stripe_Subscription_Source__c = subscriptionSource,
                 Stripe_Status__c = status,
-                //Status = status=='active'?'Activated':status,
                 StartDate = startDate,
                 EndDate = cancelAt,
                 ContractTerm = calculateContractTerm(startDate, cancelAt),
@@ -497,7 +496,6 @@ public class StripeSubscriptionScheduler {
             UpdateConatrct.add(Contract);
 
             upsert UpdateConatrct Contract.Stripe_Subscription_ID__c;
-            // insert contract;
 
             // Create Subscription Items
             List<SBQQ__Subscription__c> subscriptionItemsToInsert = new List<SBQQ__Subscription__c>();
@@ -537,7 +535,7 @@ public class StripeSubscriptionScheduler {
                     SBQQ__Quantity__c = (Integer) item.get('quantity'),
                     Stripe_Interval__c = (String) recurring.get('interval'),
                     Stripe_Activate__c = (Boolean) price.get('active'),
-                    Status__c = status, //(Boolean) price.get('active') == true ? 'Activated' : 'Draft',
+                    Status__c = status,
                     Stripe_Start_Date__c = toDateTime((Long) item.get('current_period_start')).date(),
                     Stripe_End_Date__c = toDateTime((Long) item.get('current_period_end')).date(),
                     SBQQ__SubscriptionStartDate__c = startDate,
@@ -579,10 +577,7 @@ public class StripeSubscriptionScheduler {
                 System.debug('Inserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
 
                 List<Contract> contractsToUpdate = new List<Contract>();
-                Contract conToUpdate = new Contract(
-                    Id = contract.Id,
-                    Status = status == 'active' ? 'Activated' : 'Draft'
-                );
+                Contract conToUpdate = new Contract(Id = contract.Id, Status = 'Activated');
                 contractsToUpdate.add(conToUpdate);
                 update contractsToUpdate;
             } else {
@@ -685,7 +680,6 @@ public class StripeSubscriptionScheduler {
                 Stripe_latest_Invoice_Id__c = latestInvoice,
                 Stripe_Subscription_Source__c = subscriptionSource,
                 Stripe_Status__c = status,
-                // Status = status=='active'?'Activated':status,
                 StartDate = startDate,
                 EndDate = cancelAt,
                 ContractTerm = calculateContractTerm(startDate, cancelAt),
@@ -792,10 +786,7 @@ public class StripeSubscriptionScheduler {
                 System.debug('Inserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
 
                 List<Contract> contractsToUpdate = new List<Contract>();
-                Contract conToUpdate = new Contract(
-                    Id = contract.Id,
-                    Status = status == 'active' ? 'Activated' : 'Draft'
-                );
+                Contract conToUpdate = new Contract(Id = contract.Id, Status = 'Activated');
                 contractsToUpdate.add(conToUpdate);
                 update contractsToUpdate;
             } else {
@@ -843,25 +834,28 @@ public class StripeSubscriptionScheduler {
                 String status = (String) payload.get('status');
                 System.debug('Status: ' + status);
 
-                List<Contract> UpdateConatrct = new List<Contract>();
-                Contract getcontract = [
+                List<Contract> contracts = [
                     SELECT id, Stripe_Subscription_ID__c
                     FROM Contract
                     WHERE Stripe_Subscription_ID__c = :subscriptionId
                 ];
-                // Create Contract
-                Contract contract = new Contract(
-                    id = getcontract.id,
+
+                if (contracts.isEmpty()) {
+                    System.debug('No Contract found for Subscription ID: ' + subscriptionId);
+                    return;
+                }
+
+                // Update and cancel the Contract
+                Contract updatedContract = new Contract(
+                    id = contracts[0].id,
                     Stripe_Subscription_ID__c = subscriptionId,
                     Stripe_Status__c = status,
-                    Status = status == 'active' ? 'Activated' : status,
+                    Status = 'canceled',
                     Latest_Change_Reason__c = 'Cancelled From Stripe'
                 );
 
-                UpdateConatrct.add(Contract);
-
-                upsert UpdateConatrct Contract.Stripe_Subscription_ID__c;
-                // insert contract;
+                update updatedContract;
+                System.debug('Updated Contract: ' + updatedContract);
 
                 // Create Subscription Items
                 List<SBQQ__Subscription__c> subscriptionItemsToInsert = new List<SBQQ__Subscription__c>();
@@ -871,11 +865,11 @@ public class StripeSubscriptionScheduler {
                     Map<String, Object> price = (Map<String, Object>) item.get('price');
 
                     SBQQ__Subscription__c sub = new SBQQ__Subscription__c(
-                        SBQQ__Contract__c = contract.Id,
+                        SBQQ__Contract__c = updatedContract.Id,
                         //  SBQQ__Account__c = quoteList[0].SBQQ__Account__c,
                         Stripe_Subscription_ID__c = (String) item.get('id'),
                         Stripe_Activate__c = (Boolean) price.get('active'),
-                        Status__c = status, //(Boolean) price.get('active') == true ? 'Activated' : 'Draft',
+                        Status__c = status,
                         Canceled_From_Stripe__c = true,
                         Latest_Change_Reason__c = 'Subcription Item Delete From Stripe'
                     );

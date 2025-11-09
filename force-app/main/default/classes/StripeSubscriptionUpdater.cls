@@ -1,8 +1,6 @@
 public class StripeSubscriptionUpdater {
     private static final Stripe_Details__c stripeDetails = Stripe_Details__c.getInstance('Stripe Details');
     private static final String SECRET_KEY = stripeDetails.Serect_Key__c;
-    // CONTRACT Update  not in use not possible from SFDC TO Stripe
-    //Delete
 
     public static void handleStatusChanges(List<Contract> newContracts, Map<Id, Contract> oldMap) {
         List<Contract> contractsToUpdate = new List<Contract>();
@@ -12,7 +10,7 @@ public class StripeSubscriptionUpdater {
         for (Contract newContract : newContracts) {
             Contract oldContract = oldMap.get(newContract.Id);
 
-            if (oldContract.Status != newContract.Status) {
+            if (oldContract.Status != newContract.Status && newContract.Stripe_Subscription_ID__c != null) {
                 if (newContract.Status == 'Updated') {
                     contractsToUpdate.add(newContract);
                 } else if (newContract.Status == 'canceled') {
@@ -223,7 +221,6 @@ public class StripeSubscriptionUpdater {
     @TestVisible
     private static void processCancellations(List<Contract> contracts) {
         Http http = new Http();
-        List<Contract> contractsToUpdate = new List<Contract>();
 
         for (Contract con : contracts) {
             try {
@@ -236,16 +233,13 @@ public class StripeSubscriptionUpdater {
 
                 if (res.getStatusCode() == 200 || res.getStatusCode() == 204) {
                     System.debug('Subscription cancelled successfully: ' + con.Stripe_Subscription_ID__c);
-
-                    contractsToUpdate.add(
-                        new Contract(Id = con.Id, Status = 'Cancelled', Stripe_Status__c = 'canceled')
-                    );
                 } else {
                     System.debug('Error cancelling subscription: ' + res.getBody());
                     throw new CalloutException('Failed to cancel subscription: ' + res.getBody());
                 }
             } catch (Exception e) {
                 System.debug('Error cancelling subscription: ' + e.getMessage());
+
                 Logger__c logger = new Logger__c(
                     Name = 'Stripe Subscription Cancel Error',
                     Message__c = e.getMessage(),
@@ -253,16 +247,10 @@ public class StripeSubscriptionUpdater {
                     Status__c = 'Error',
                     Apex_Class__c = 'StripeSubscriptionUpdater',
                     Apex_Method__c = 'processCancellations',
-                    Object_Name__c = 'Contract',
-                    User_Email__c = UserInfo.getUserEmail()
+                    Object_Name__c = 'Contract'
                 );
                 insert logger;
             }
-        }
-
-        // Update all contracts with results
-        if (!contractsToUpdate.isEmpty()) {
-            Database.update(contractsToUpdate, false); // Allow partial success
         }
     }
 
