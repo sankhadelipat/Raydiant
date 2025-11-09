@@ -588,7 +588,7 @@ index++;
 
             bodyParts.add('cancel_at=' + String.valueOf(EndDateunixTimestamp)); //  give a date
             bodyParts.add('backdate_start_date=' + String.valueOf(unixTimestamp));
-            bodyParts.add('billing_cycle_anchor=' + String.valueOf(billingAnchor.getTime() / 1000));
+            // bodyParts.add('billing_cycle_anchor=' + String.valueOf(billingAnchor.getTime() / 1000));
             bodyParts.add('metadata[salesforce_quote_id]=' + EncodingUtil.urlEncode(quote.Id, 'UTF-8'));
             bodyParts.add('metadata[subscription_source]=salesforce');
 
