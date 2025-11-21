@@ -266,48 +266,58 @@ global without sharing class StripeWebHook {
             System.debug('manualUpdateFromSF -- ' + manualUpdateFromSF);
             System.debug('subscriptionSource -- ' + subscriptionSource);
 
-            // Check if the id is matching with the previous_attributes & the current items
-            // if (data1.containsKey('previous_attributes')) {
-            //     Map<String, Object> previousAttributes = (Map<String, Object>) data1.get('previous_attributes');
+            // Check for deleted subscription items
+            Set<String> deletedItemIds = new Set<String>();
 
-            //     if (previousAttributes.containsKey('items')) {
-            //         Map<String, Object> previousItems = (Map<String, Object>) previousAttributes.get('items');
-            //         List<Object> previousSubscriptionItems = (List<Object>) previousItems.get('data');
+            if (data1.containsKey('previous_attributes')) {
+                Map<String, Object> previousAttributes = (Map<String, Object>) data1.get('previous_attributes');
 
-            //         Map<String, Object> items = (Map<String, Object>) data2.get('items');
-            //         List<Object> subscriptionItems = (List<Object>) items.get('data');
+                if (previousAttributes.containsKey('items')) {
+                    Map<String, Object> previousItems = (Map<String, Object>) previousAttributes.get('items');
+                    List<Object> previousSubscriptionItems = (List<Object>) previousItems.get('data');
 
-            //         // Create sets for comparison
-            //         Set<String> currentItemIds = new Set<String>();
-            //         Set<String> previousItemIds = new Set<String>();
+                    Map<String, Object> currentItems = (Map<String, Object>) data2.get('items');
+                    List<Object> currentSubscriptionItems = (List<Object>) currentItems.get('data');
 
-            //         // Populate current item IDs
-            //         for (Object itemObj : subscriptionItems) {
-            //             Map<String, Object> item = (Map<String, Object>) itemObj;
-            //             String itemId = (String) item.get('id');
-            //             currentItemIds.add(itemId);
-            //         }
+                    // Create sets for comparison
+                    Set<String> currentItemIds = new Set<String>();
+                    Set<String> previousItemIds = new Set<String>();
 
-            //         // Populate previous item IDs
-            //         for (Object itemObj : previousSubscriptionItems) {
-            //             Map<String, Object> item = (Map<String, Object>) itemObj;
-            //             String itemId = (String) item.get('id');
-            //             previousItemIds.add(itemId);
-            //         }
+                    // Populate current item IDs
+                    for (Object itemObj : currentSubscriptionItems) {
+                        Map<String, Object> item = (Map<String, Object>) itemObj;
+                        String itemId = (String) item.get('id');
+                        currentItemIds.add(itemId);
+                    }
 
-            //         // Check if all item IDs match
-            //         System.debug('Current item IDs: ' + currentItemIds);
-            //         System.debug('Previous item IDs' + previousItemIds);
-            //         if (!currentItemIds.equals(previousItemIds)) {
-            //             System.debug(
-            //                 'Item ID mismatch detected: Current=' + currentItemIds + ', Previous=' + previousItemIds
-            //             );
-            //             return;
-            //         }
+                    // Populate previous item IDs
+                    for (Object itemObj : previousSubscriptionItems) {
+                        Map<String, Object> item = (Map<String, Object>) itemObj;
+                        String itemId = (String) item.get('id');
+                        previousItemIds.add(itemId);
+                    }
 
-            //         System.debug('All item IDs match between current and previous items');
-            //     }
-            // }
+                    // Find deleted item IDs (in previous but not in current)
+                    deletedItemIds = previousItemIds.clone();
+                    deletedItemIds.removeAll(currentItemIds);
+                    System.debug('Deleted Item IDs: ' + deletedItemIds);
+                }
+            }
+
+            // If there are deleted items, handle them accordingly
+            if (!deletedItemIds.isEmpty()) {
+                List<Stripe_Capture_Deleted_Subscription_Item__e> deletedItemsEvents = new List<Stripe_Capture_Deleted_Subscription_Item__e>();
+
+                for (String itemId : deletedItemIds) {
+                    Stripe_Capture_Deleted_Subscription_Item__e deletedItemEvent = new Stripe_Capture_Deleted_Subscription_Item__e();
+                    deletedItemEvent.Stripe_Subscription_ID__c = subscriptionId;
+                    deletedItemEvent.Deleted_Subscription_Item_ID__c = itemId;
+                    deletedItemsEvents.add(deletedItemEvent);
+                }
+
+                Database.SaveResult[] deleteResults = EventBus.publish(deletedItemsEvents);
+                System.debug('Deleted Items Publish Results: ' + deleteResults);
+            }
 
             if (quoteId != null && subscriptionId != null) {
                 // Publish subscription event then Event called  StripeSubscriptionScheduler2.getUpdatedSubcriptionfromStrpe
