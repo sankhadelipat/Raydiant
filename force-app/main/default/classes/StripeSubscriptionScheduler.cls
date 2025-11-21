@@ -504,9 +504,31 @@ public class StripeSubscriptionScheduler {
             for (SBQQ__QuoteLine__c ql : quoteLines) {
                 priceIdToQuoteLineMap.put(ql.Stripe_Price_ID__c, ql);
             }
-
             System.debug('Price ID to Quote Line Map: ' + priceIdToQuoteLineMap);
             System.debug('Total Quote Line Maps: ' + priceIdToQuoteLineMap.size());
+
+            // Collect all unique product IDs from subscription items
+            Set<String> stripeProductIds = new Set<String>();
+            for (Object itemObj : subscriptionItems) {
+                Map<String, Object> item = (Map<String, Object>) itemObj;
+                Map<String, Object> price = (Map<String, Object>) item.get('price');
+                String productId = (String) price.get('product');
+                stripeProductIds.add(productId);
+            }
+
+            // Query Product2 records based on collected product IDs
+            Map<String, Product2> stripeProductIdToProductMap = new Map<String, Product2>();
+            if (!stripeProductIds.isEmpty()) {
+                List<Product2> products = [
+                    SELECT Id, Name, Stripe_Product_ID__c
+                    FROM Product2
+                    WHERE Stripe_Product_ID__c IN :stripeProductIds
+                ];
+                for (Product2 prod : products) {
+                    stripeProductIdToProductMap.put(prod.Stripe_Product_ID__c, prod);
+                }
+            }
+            System.debug('Stripe Product ID to Product Map: ' + stripeProductIdToProductMap);
 
             for (Object itemObj : subscriptionItems) {
                 Map<String, Object> item = (Map<String, Object>) itemObj;
@@ -514,6 +536,15 @@ public class StripeSubscriptionScheduler {
                 Map<String, Object> recurring = (Map<String, Object>) price.get('recurring');
                 String priceId = (String) price.get('id');
                 System.debug('Processing Price ID: ' + priceId);
+                String productId = (String) price.get('product');
+                String interval = recurring != null && recurring.containsKey('interval')
+                    ? (String) recurring.get('interval')
+                    : null;
+                Integer intervalCount = recurring != null && recurring.containsKey('interval_count')
+                    ? (Integer) recurring.get('interval_count')
+                    : 1;
+                System.debug('Processing Price ID: ' + priceId);
+                System.debug('Processing Product ID: ' + productId);
 
                 Decimal unitAmount = ((Decimal) price.get('unit_amount')) / 100; // Stripe amounts are in cents
 
@@ -522,6 +553,10 @@ public class StripeSubscriptionScheduler {
                 Decimal stripeARR = stripeMRR * 12; // annual value
                 Integer contractTerm = contract.ContractTerm != null ? contract.ContractTerm : 0;
                 Decimal stripeTCV = contractTerm > 0 ? (stripeMRR * contractTerm) : null;
+                Decimal customerPrice = contractTerm > 0 ? (unitAmount * contractTerm).setScale(2) : null;
+
+                Product2 matchingProduct = stripeProductIdToProductMap.get(productId);
+                System.debug('Matching Product: ' + matchingProduct);
 
                 SBQQ__QuoteLine__c matchingQuoteLine = priceIdToQuoteLineMap.get(priceId);
                 System.debug('Matching Quote Line: ' + matchingQuoteLine);
@@ -531,9 +566,9 @@ public class StripeSubscriptionScheduler {
                     SBQQ__Account__c = quoteList[0].SBQQ__Account__c,
                     Stripe_Subscription_ID__c = (String) item.get('id'),
                     Stripe_Price_ID__c = priceId,
-                    Stripe_Product_ID__c = (String) price.get('product'),
+                    Stripe_Product_ID__c = productId,
                     SBQQ__Quantity__c = (Integer) item.get('quantity'),
-                    Stripe_Interval__c = (String) recurring.get('interval'),
+                    Stripe_Interval__c = interval,
                     Stripe_Activate__c = (Boolean) price.get('active'),
                     Status__c = status,
                     Stripe_Start_Date__c = toDateTime((Long) item.get('current_period_start')).date(),
@@ -543,27 +578,18 @@ public class StripeSubscriptionScheduler {
                     Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
                     Latest_Change_Reason__c = 'Subcription Item Update From Stripe',
                     SBQQ__NetPrice__c = unitAmount,
-                    // Stripe_Subscription_ID_Actual__c = subscriptionId,
-                    // Quote Line Reference
-                    //  SBQQ__QuoteLine__c = matchingQuoteLine.Id,
-                    // SBQQ__Product__c = matchingQuoteLine.SBQQ__Product__c,
-                    //  SBQQ__CustomerPrice__c = matchingQuoteLine.MRR__c != null ? matchingQuoteLine.MRR__c.setScale(2) : null,
-                    //  Billing_Frequency_Override__c = matchingQuoteLine.Billing_Frequency_Override__c,
-                    Stripe_Monthly_Value__c = stripeMRR, //matchingQuoteLine.MRR__c,
-                    Stripe_Subscription_Term__c = (UpdateConatrct != null && !UpdateConatrct.isEmpty())
-                        ? UpdateConatrct[0].ContractTerm
-                        : null,
-                    Stripe_ARR__c = stripeARR //matchingQuoteLine.Annual_Total__c
+                    SBQQ__Product__c = matchingProduct != null ? matchingProduct.Id : null,
+                    SBQQ__CustomerPrice__c = customerPrice,
+                    SBQQ__BillingFrequency__c = getBillingFrequency(interval, intervalCount),
+                    Billing_Frequency_Override__c = getBillingFrequency(interval, intervalCount),
+                    Stripe_Monthly_Value__c = stripeMRR,
+                    Stripe_Subscription_Term__c = contractTerm,
+                    Stripe_ARR__c = stripeARR
                 );
 
                 // Only set quote line–related fields if matchingQuoteLine exists
                 if (matchingQuoteLine != null) {
                     sub.SBQQ__QuoteLine__c = matchingQuoteLine.Id;
-                    sub.SBQQ__Product__c = matchingQuoteLine.SBQQ__Product__c;
-                    sub.SBQQ__CustomerPrice__c = matchingQuoteLine.MRR__c != null
-                        ? matchingQuoteLine.MRR__c.setScale(2)
-                        : null;
-                    sub.Billing_Frequency_Override__c = matchingQuoteLine.Billing_Frequency_Override__c;
                 }
                 subscriptionItemsToInsert.add(sub);
             }
@@ -592,6 +618,207 @@ public class StripeSubscriptionScheduler {
                 Status__c = 'Error',
                 Apex_Class__c = 'StripeSubscriptionScheduler',
                 Apex_Method__c = 'createSubscrition',
+                Object_Name__c = 'Contract'
+            );
+            insert logger;
+        }
+    }
+
+    // Create Subscription when Subscription is created manually from Stripe Portal
+    public static void createManualSubscrition(String responseBody) {
+        try {
+            Map<String, Object> payload = (Map<String, Object>) JSON.deserializeUntyped(responseBody);
+            system.debug('--payload--' + payload);
+            Map<String, Object> items = (Map<String, Object>) payload.get('items');
+            List<Object> subscriptionItems = (List<Object>) items.get('data');
+            System.debug('Subscription Items: ' + subscriptionItems);
+            System.debug('Total subscription items: ' + subscriptionItems.size());
+
+            // Extract basic fields from payload
+            String scheduleId = (String) (payload.containsKey('schedule') ? payload.get('schedule') : null);
+            System.debug('Extracted Schedule Id: ' + scheduleId);
+            String subscriptionId = (String) payload.get('id');
+            String customerId = (String) payload.get('customer');
+            String latestInvoice = (String) payload.get('latest_invoice');
+            String status = (String) payload.get('status');
+
+            // Extract date fields as Long
+            Long billingCycleAnchorUnix = payload.containsKey('billing_cycle_anchor')
+                ? (Long) payload.get('billing_cycle_anchor')
+                : null;
+            Long cancelAtUnix = payload.containsKey('cancel_at') ? (Long) payload.get('cancel_at') : null;
+            Long trialEndUnix = payload.containsKey('trial_end') ? (Long) payload.get('trial_end') : null;
+            Long canceledAtUnix = payload.containsKey('canceled_at') ? (Long) payload.get('canceled_at') : null;
+            Long createdUnix = payload.containsKey('created') ? (Long) payload.get('created') : null;
+            Long currentPeriodStartUnix = payload.containsKey('current_period_start')
+                ? (Long) payload.get('current_period_start')
+                : null;
+            Long currentPeriodEndUnix = payload.containsKey('current_period_end')
+                ? (Long) payload.get('current_period_end')
+                : null;
+            Long startDateUnix = payload.containsKey('start_date') ? (Long) payload.get('start_date') : null;
+
+            // Log extracted values
+            System.debug('Subscription ID: ' + subscriptionId);
+            System.debug('Customer ID: ' + customerId);
+            System.debug('Latest Invoice: ' + latestInvoice);
+            System.debug('Status: ' + status);
+
+            Datetime billingCycleAnchor = toDateTime(billingCycleAnchorUnix);
+            Date cancelAt = cancelAtUnix != null
+                ? date.valueof(toDateTime(cancelAtUnix))
+                : date.valueOf(toDateTime(trialEndUnix));
+            Datetime canceledAt = toDateTime(canceledAtUnix);
+            Datetime created = toDateTime(createdUnix);
+            Datetime currentPeriodStart = toDateTime(currentPeriodStartUnix);
+            Datetime currentPeriodEnd = toDateTime(currentPeriodEndUnix);
+            Date startDate = date.valueof(toDateTime(startDateUnix));
+            datetime subStartDate = toDateTime(startDateUnix);
+            System.debug('Billing Cycle Anchor: ' + billingCycleAnchor);
+            System.debug('Cancel At: ' + cancelAt);
+            System.debug('Canceled At: ' + canceledAt);
+            System.debug('Created: ' + created);
+            System.debug('Current Period Start: ' + currentPeriodStart);
+            System.debug('Current Period End: ' + currentPeriodEnd);
+            System.debug('Start Date: ' + startDate);
+
+            // Fetch Account based on Customer ID
+            List<Account> accts = [
+                SELECT Id, Name, blng__BillToContact__c
+                FROM Account
+                WHERE Stripe_Customer_ID__c = :customerId
+            ];
+            System.debug('accts--' + accts);
+
+            // Create Contract
+            List<Contract> UpdateConatrct = new List<Contract>();
+            Contract contract = new Contract(
+                AccountId = accts.size() > 0 ? accts[0].Id : null,
+                Stripe_Subscription_ID__c = subscriptionId,
+                Stripe_Customer_ID__c = customerId,
+                Stripe_latest_Invoice_Id__c = latestInvoice,
+                Stripe_Subscription_Source__c = 'stripe',
+                Stripe_Status__c = status,
+                StartDate = startDate,
+                EndDate = cancelAt,
+                ContractTerm = calculateContractTerm(startDate, cancelAt),
+                SBQQ__Evergreen__c = calculateContractTerm(startDate, cancelAt) > 0 ? false : true,
+                Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
+                CustomerSignedId = accts.size() > 0 ? accts[0].blng__BillToContact__c : null,
+                Created_From_Stripe__c = true,
+                Latest_Change_Reason__c = 'Contract Created From Stripe Manually',
+                Stripe_Subscription_Schedule_ID__c = scheduleId,
+                Stripe_Subscription_Start_Date__c = String.valueOf(startDateUnix)
+            );
+            UpdateConatrct.add(Contract);
+
+            upsert UpdateConatrct Contract.Stripe_Subscription_ID__c;
+            // insert contract;
+
+            // Create Subscription Items
+            List<SBQQ__Subscription__c> subscriptionItemsToInsert = new List<SBQQ__Subscription__c>();
+            // Collect all unique product IDs from subscription items
+            Set<String> stripeProductIds = new Set<String>();
+            for (Object itemObj : subscriptionItems) {
+                Map<String, Object> item = (Map<String, Object>) itemObj;
+                Map<String, Object> price = (Map<String, Object>) item.get('price');
+                String productId = (String) price.get('product');
+                stripeProductIds.add(productId);
+            }
+
+            // Query Product2 records based on collected product IDs
+            Map<String, Product2> stripeProductIdToProductMap = new Map<String, Product2>();
+            if (!stripeProductIds.isEmpty()) {
+                List<Product2> products = [
+                    SELECT Id, Name, Stripe_Product_ID__c
+                    FROM Product2
+                    WHERE Stripe_Product_ID__c IN :stripeProductIds
+                ];
+                for (Product2 prod : products) {
+                    stripeProductIdToProductMap.put(prod.Stripe_Product_ID__c, prod);
+                }
+            }
+            System.debug('Stripe Product ID to Product Map: ' + stripeProductIdToProductMap);
+
+            for (Object itemObj : subscriptionItems) {
+                Map<String, Object> item = (Map<String, Object>) itemObj;
+                Map<String, Object> price = (Map<String, Object>) item.get('price');
+                Map<String, Object> recurring = (Map<String, Object>) price.get('recurring');
+                String priceId = (String) price.get('id');
+                String productId = (String) price.get('product');
+                String interval = recurring != null && recurring.containsKey('interval')
+                    ? (String) recurring.get('interval')
+                    : null;
+                Integer intervalCount = recurring != null && recurring.containsKey('interval_count')
+                    ? (Integer) recurring.get('interval_count')
+                    : 1;
+                System.debug('Processing Price ID: ' + priceId);
+                System.debug('Processing Product ID: ' + productId);
+
+                Product2 matchingProduct = stripeProductIdToProductMap.get(productId);
+                System.debug('Matching Product: ' + matchingProduct);
+
+                Decimal unitAmount = ((Decimal) price.get('unit_amount')) / 100; // Stripe amounts are in cents
+                // Calculate values directly from Stripe response
+                Decimal stripeMRR = unitAmount * (Integer) item.get('quantity'); // monthly value
+                Decimal stripeARR = stripeMRR * 12; // annual value
+                Integer contractTerm = contract.ContractTerm != null ? contract.ContractTerm : null;
+                Decimal stripeTCV = contractTerm > 0 ? (stripeMRR * contractTerm) : null;
+                Decimal customerPrice = contractTerm > 0 ? (unitAmount * contractTerm).setScale(2) : null;
+
+                SBQQ__Subscription__c sub = new SBQQ__Subscription__c(
+                    SBQQ__Contract__c = contract.Id,
+                    SBQQ__Account__c = accts.size() > 0 ? accts[0].Id : null,
+                    Stripe_Subscription_ID__c = (String) item.get('id'),
+                    Stripe_Price_ID__c = priceId,
+                    Stripe_Product_ID__c = productId,
+                    SBQQ__Quantity__c = (Integer) item.get('quantity'),
+                    Stripe_Interval__c = interval,
+                    Stripe_Activate__c = (Boolean) price.get('active'),
+                    Status__c = status,
+                    Stripe_Start_Date__c = toDateTime((Long) item.get('current_period_start')).date(),
+                    Stripe_End_Date__c = toDateTime((Long) item.get('current_period_end')).date(),
+                    SBQQ__SubscriptionStartDate__c = startDate,
+                    SBQQ__SubscriptionEndDate__c = cancelAt,
+                    Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
+                    Latest_Change_Reason__c = 'Subcription Created From Stripe Manually',
+                    SBQQ__NetPrice__c = unitAmount,
+                    SBQQ__Product__c = matchingProduct != null ? matchingProduct.Id : null,
+                    SBQQ__CustomerPrice__c = customerPrice,
+                    SBQQ__BillingFrequency__c = getBillingFrequency(interval, intervalCount),
+                    Billing_Frequency_Override__c = getBillingFrequency(interval, intervalCount),
+                    Stripe_Monthly_Value__c = stripeMRR,
+                    Stripe_Subscription_Term__c = contractTerm,
+                    Stripe_ARR__c = stripeARR
+                );
+
+                subscriptionItemsToInsert.add(sub);
+            }
+
+            System.debug('Subscription Items to Insert: ' + subscriptionItemsToInsert);
+            System.debug('Total Subscription Items to Insert: ' + subscriptionItemsToInsert.size());
+
+            if (!subscriptionItemsToInsert.isEmpty()) {
+                upsert subscriptionItemsToInsert SBQQ__Subscription__c.Stripe_Subscription_ID__c;
+                // insert subscriptionItemsToInsert;
+                System.debug('Inserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
+
+                List<Contract> contractsToUpdate = new List<Contract>();
+                Contract conToUpdate = new Contract(Id = contract.Id, Status = 'Activated');
+                contractsToUpdate.add(conToUpdate);
+                update contractsToUpdate;
+            } else {
+                System.debug('No subscription records to insert');
+                throw new CalloutException('subscription records to insert: ');
+            }
+        } catch (exception ex) {
+            Logger__c logger = new Logger__c(
+                Name = 'Manually created subscription error',
+                Message__c = ex.getMessage(),
+                StackTrace__c = ex.getStackTraceString(),
+                Status__c = 'Error',
+                Apex_Class__c = 'StripeSubscriptionScheduler',
+                Apex_Method__c = 'createManualSubscrition',
                 Object_Name__c = 'Contract'
             );
             insert logger;

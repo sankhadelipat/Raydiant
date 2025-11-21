@@ -157,6 +157,89 @@ global without sharing class StripeWebHook {
                 Database.SaveResult[] results = EventBus.publish(stripePaymentList);
                 system.debug('results--' + results);
             }
+        } else if (eventType.equals('customer.subscription.created')) {
+            Map<String, Object> outerMap = (Map<String, Object>) event.get('data');
+            Map<String, Object> subscriptionObj = (Map<String, Object>) outerMap.get('object');
+
+            String subscriptionId = (String) subscriptionObj.get('id');
+            String invoiceid = (String) subscriptionObj.get('latest_invoice');
+            String customerId = (String) subscriptionObj.get('customer');
+
+            // Capture Metadata -> salesforce_quote_id
+            Map<String, Object> metadata = (Map<String, Object>) subscriptionObj.get('metadata');
+            String quoteId = (String) metadata.get('salesforce_quote_id');
+            String subscriptionSource = metadata != null &&
+                metadata.containsKey('subscription_source') &&
+                metadata.get('subscription_source') != null
+                ? String.valueOf(metadata.get('subscription_source'))
+                : null;
+            Boolean subscriptionSchedule = metadata.get('subscription_schedule') != null
+                ? Boolean.valueOf((String) metadata.get('subscription_schedule'))
+                : false;
+
+            // Debug
+            System.debug('Subscription Id: ' + subscriptionId);
+            System.debug('Invoice Id: ' + invoiceId);
+            System.debug('Quote Id: ' + quoteId);
+
+            if (subscriptionSchedule == true && quoteId != null && subscriptionId != null) {
+                //fire  StripeWebhookSubscriptionConsumer  event & call this StripeSubscriptionScheduler2.getUpdatedSubcriptionfromStrpe
+                // it will upsert new Contarct & Subscription . For Invoice creation call another QueableClass StripeInvoiceScheduler.5/09
+
+                // Publish subscription event then Event called  StripeSubscriptionScheduler2.getUpdatedSubcriptionfromStrpe
+                // method then this  StripeSubscriptionScheduler.createStripeSubscription. For Invoice creation StripeInviceSchedular Queueable class
+                List<Stripe_Capture_Subscription__e> stripePaymentList = new List<Stripe_Capture_Subscription__e>();
+
+                Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
+                stripePayment.StripeSubscriptionId__c = subscriptionId;
+                stripePayment.Salesforce_Quote_Id__c = quoteId;
+                stripePayment.Latest_invoiceId__c = invoiceid;
+                stripePayment.Subscription_Source__c = subscriptionSource;
+                stripePayment.Subscription_Schedule__c = subscriptionSchedule;
+                stripePaymentList.add(stripePayment);
+
+                Database.SaveResult[] results = EventBus.publish(stripePaymentList);
+                //turned offdue to subscription Migration
+                system.debug('results--' + results);
+            } else if (
+                (subscriptionSource == 'amazon' ||
+                subscriptionSource == 'self_service') &&
+                quoteId == null &&
+                subscriptionId != null
+            ) {
+                // this is for subscription creation from self-service portal
+                List<Stripe_Capture_Subscription__e> stripePaymentList = new List<Stripe_Capture_Subscription__e>();
+
+                Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
+                stripePayment.StripeSubscriptionId__c = subscriptionId;
+                stripePayment.Latest_invoiceId__c = invoiceid;
+                stripePayment.Subscription_Source__c = subscriptionSource;
+                stripePayment.Subscription_Schedule__c = false;
+                stripePaymentList.add(stripePayment);
+
+                Database.SaveResult[] results = EventBus.publish(stripePaymentList);
+                // turned offdue to subscription Migration
+                system.debug('results--' + results);
+            } else if (
+                (subscriptionSource == null ||
+                subscriptionSource != 'salesforce') &&
+                quoteId == null &&
+                subscriptionId != null
+            ) {
+                // this is for subscription maqnually created from stripe portal
+                List<Stripe_Capture_Subscription__e> stripePaymentList = new List<Stripe_Capture_Subscription__e>();
+
+                Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
+                stripePayment.StripeSubscriptionId__c = subscriptionId;
+                stripePayment.Latest_invoiceId__c = invoiceid;
+                stripePayment.Subscription_Source__c = 'stripe';
+                stripePayment.Subscription_Schedule__c = false;
+                stripePaymentList.add(stripePayment);
+
+                Database.SaveResult[] results = EventBus.publish(stripePaymentList);
+                // turned offdue to subscription Migration
+                system.debug('results--' + results);
+            }
         } else if (eventType.equals('customer.subscription.updated')) {
             Map<String, Object> data1 = (Map<String, Object>) event.get('data');
             system.debug(' data1 -- ' + data1);
@@ -184,47 +267,47 @@ global without sharing class StripeWebHook {
             System.debug('subscriptionSource -- ' + subscriptionSource);
 
             // Check if the id is matching with the previous_attributes & the current items
-            if (data1.containsKey('previous_attributes')) {
-                Map<String, Object> previousAttributes = (Map<String, Object>) data1.get('previous_attributes');
+            // if (data1.containsKey('previous_attributes')) {
+            //     Map<String, Object> previousAttributes = (Map<String, Object>) data1.get('previous_attributes');
 
-                if (previousAttributes.containsKey('items')) {
-                    Map<String, Object> previousItems = (Map<String, Object>) previousAttributes.get('items');
-                    List<Object> previousSubscriptionItems = (List<Object>) previousItems.get('data');
+            //     if (previousAttributes.containsKey('items')) {
+            //         Map<String, Object> previousItems = (Map<String, Object>) previousAttributes.get('items');
+            //         List<Object> previousSubscriptionItems = (List<Object>) previousItems.get('data');
 
-                    Map<String, Object> items = (Map<String, Object>) data2.get('items');
-                    List<Object> subscriptionItems = (List<Object>) items.get('data');
+            //         Map<String, Object> items = (Map<String, Object>) data2.get('items');
+            //         List<Object> subscriptionItems = (List<Object>) items.get('data');
 
-                    // Create sets for comparison
-                    Set<String> currentItemIds = new Set<String>();
-                    Set<String> previousItemIds = new Set<String>();
+            //         // Create sets for comparison
+            //         Set<String> currentItemIds = new Set<String>();
+            //         Set<String> previousItemIds = new Set<String>();
 
-                    // Populate current item IDs
-                    for (Object itemObj : subscriptionItems) {
-                        Map<String, Object> item = (Map<String, Object>) itemObj;
-                        String itemId = (String) item.get('id');
-                        currentItemIds.add(itemId);
-                    }
+            //         // Populate current item IDs
+            //         for (Object itemObj : subscriptionItems) {
+            //             Map<String, Object> item = (Map<String, Object>) itemObj;
+            //             String itemId = (String) item.get('id');
+            //             currentItemIds.add(itemId);
+            //         }
 
-                    // Populate previous item IDs
-                    for (Object itemObj : previousSubscriptionItems) {
-                        Map<String, Object> item = (Map<String, Object>) itemObj;
-                        String itemId = (String) item.get('id');
-                        previousItemIds.add(itemId);
-                    }
+            //         // Populate previous item IDs
+            //         for (Object itemObj : previousSubscriptionItems) {
+            //             Map<String, Object> item = (Map<String, Object>) itemObj;
+            //             String itemId = (String) item.get('id');
+            //             previousItemIds.add(itemId);
+            //         }
 
-                    // Check if all item IDs match
-                    System.debug('Current item IDs: ' + currentItemIds);
-                    System.debug('Previous item IDs' + previousItemIds);
-                    if (!currentItemIds.equals(previousItemIds)) {
-                        System.debug(
-                            'Item ID mismatch detected: Current=' + currentItemIds + ', Previous=' + previousItemIds
-                        );
-                        return;
-                    }
+            //         // Check if all item IDs match
+            //         System.debug('Current item IDs: ' + currentItemIds);
+            //         System.debug('Previous item IDs' + previousItemIds);
+            //         if (!currentItemIds.equals(previousItemIds)) {
+            //             System.debug(
+            //                 'Item ID mismatch detected: Current=' + currentItemIds + ', Previous=' + previousItemIds
+            //             );
+            //             return;
+            //         }
 
-                    System.debug('All item IDs match between current and previous items');
-                }
-            }
+            //         System.debug('All item IDs match between current and previous items');
+            //     }
+            // }
 
             if (quoteId != null && subscriptionId != null) {
                 // Publish subscription event then Event called  StripeSubscriptionScheduler2.getUpdatedSubcriptionfromStrpe
@@ -251,6 +334,22 @@ global without sharing class StripeWebHook {
                 Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
                 stripePayment.StripeSubscriptionId__c = subscriptionId;
                 stripePayment.Subscription_Source__c = subscriptionSource;
+                stripePaymentList.add(stripePayment);
+
+                Database.SaveResult[] results = EventBus.publish(stripePaymentList);
+                system.debug('results--' + results);
+            } else if (
+                (subscriptionSource == null ||
+                subscriptionSource != 'salesforce') &&
+                quoteId == null &&
+                subscriptionId != null
+            ) {
+                // this is for subscription maqnually created from stripe portal
+                List<Stripe_Capture_Subscription__e> stripePaymentList = new List<Stripe_Capture_Subscription__e>();
+
+                Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
+                stripePayment.StripeSubscriptionId__c = subscriptionId;
+                stripePayment.Subscription_Source__c = 'stripe';
                 stripePaymentList.add(stripePayment);
 
                 Database.SaveResult[] results = EventBus.publish(stripePaymentList);
@@ -334,72 +433,6 @@ global without sharing class StripeWebHook {
                 System.debug('stripeCustomerList--' + stripeCustomerList);
 
                 Database.saveResult[] results = EventBus.publish(stripeCustomerList);
-                system.debug('results--' + results);
-            }
-        }
-        // future Quote Start Date
-        else if (eventType.equals('customer.subscription.created')) {
-            Map<String, Object> outerMap = (Map<String, Object>) event.get('data');
-            Map<String, Object> subscriptionObj = (Map<String, Object>) outerMap.get('object');
-
-            String subscriptionId = (String) subscriptionObj.get('id');
-            String invoiceid = (String) subscriptionObj.get('latest_invoice');
-            String customerId = (String) subscriptionObj.get('customer');
-
-            // Capture Metadata -> salesforce_quote_id
-            Map<String, Object> metadata = (Map<String, Object>) subscriptionObj.get('metadata');
-            String quoteId = (String) metadata.get('salesforce_quote_id');
-            String subscriptionSource = metadata != null &&
-                metadata.containsKey('subscription_source') &&
-                metadata.get('subscription_source') != null
-                ? String.valueOf(metadata.get('subscription_source'))
-                : null;
-            Boolean subscriptionSchedule = metadata.get('subscription_schedule') != null
-                ? Boolean.valueOf((String) metadata.get('subscription_schedule'))
-                : false;
-
-            // Debug
-            System.debug('Subscription Id: ' + subscriptionId);
-            System.debug('Invoice Id: ' + invoiceId);
-            System.debug('Quote Id: ' + quoteId);
-
-            if (subscriptionSchedule == true && quoteId != null && subscriptionId != null) {
-                //fire  StripeWebhookSubscriptionConsumer  event & call this StripeSubscriptionScheduler2.getUpdatedSubcriptionfromStrpe
-                // it will upsert new Contarct & Subscription . For Invoice creation call another QueableClass StripeInvoiceScheduler.5/09
-
-                // Publish subscription event then Event called  StripeSubscriptionScheduler2.getUpdatedSubcriptionfromStrpe
-                // method then this  StripeSubscriptionScheduler.createStripeSubscription. For Invoice creation StripeInviceSchedular Queueable class
-                List<Stripe_Capture_Subscription__e> stripePaymentList = new List<Stripe_Capture_Subscription__e>();
-
-                Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
-                stripePayment.StripeSubscriptionId__c = subscriptionId;
-                stripePayment.Salesforce_Quote_Id__c = quoteId;
-                stripePayment.Latest_invoiceId__c = invoiceid;
-                stripePayment.Subscription_Source__c = subscriptionSource;
-                stripePayment.Subscription_Schedule__c = subscriptionSchedule;
-                stripePaymentList.add(stripePayment);
-
-                Database.SaveResult[] results = EventBus.publish(stripePaymentList);
-                //turned offdue to subscription Migration
-                system.debug('results--' + results);
-            } else if (
-                (subscriptionSource == 'amazon' ||
-                subscriptionSource == 'self_service') &&
-                quoteId == null &&
-                subscriptionId != null
-            ) {
-                // this is for subscription creation from self-service portal or stripe portal
-                List<Stripe_Capture_Subscription__e> stripePaymentList = new List<Stripe_Capture_Subscription__e>();
-
-                Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
-                stripePayment.StripeSubscriptionId__c = subscriptionId;
-                stripePayment.Latest_invoiceId__c = invoiceid;
-                stripePayment.Subscription_Source__c = subscriptionSource;
-                stripePayment.Subscription_Schedule__c = false;
-                stripePaymentList.add(stripePayment);
-
-                Database.SaveResult[] results = EventBus.publish(stripePaymentList);
-                // turned offdue to subscription Migration
                 system.debug('results--' + results);
             }
         }

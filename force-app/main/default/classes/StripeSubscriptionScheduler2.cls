@@ -676,6 +676,9 @@ index++;
             } else if ((subscriptionSource == 'amazon' || subscriptionSource == 'self_service') && quoteId == null) {
                 // StripeSubscriptionScheduler.createSubscritionFromSelfService(subRes.getBody());
                 System.enqueueJob(new StripeSelfServiceQueueable(subRes.getBody()), 1);
+            } else if (subscriptionSource == 'stripe' && quoteId == null) {
+                StripeSubscriptionScheduler.createManualSubscrition(subRes.getBody());
+                // System.enqueueJob(new StripeSubscriptionQueueable(subRes.getBody()), 1);
             }
         }
     }
