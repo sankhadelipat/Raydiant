@@ -484,7 +484,6 @@ public class StripeSubscriptionScheduler {
                 Stripe_Subscription_Source__c = subscriptionSource,
                 Stripe_Status__c = status,
                 StartDate = startDate,
-                EndDate = cancelAt,
                 ContractTerm = calculateContractTerm(startDate, cancelAt),
                 Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
                 CustomerSignedId = quoteList[0].SBQQ__Account__r.blng__BillToContact__c,
@@ -493,6 +492,10 @@ public class StripeSubscriptionScheduler {
                 Stripe_Subscription_Schedule_ID__c = scheduleId,
                 Stripe_Subscription_Start_Date__c = String.valueOf(startDateUnix)
             );
+
+            if (cancelAt != null) {
+                contract.EndDate = cancelAt;
+            }
             UpdateConatrct.add(Contract);
 
             upsert UpdateConatrct Contract.Stripe_Subscription_ID__c;
@@ -700,9 +703,8 @@ public class StripeSubscriptionScheduler {
                 Stripe_Subscription_Source__c = 'stripe',
                 Stripe_Status__c = status,
                 StartDate = startDate,
-                EndDate = cancelAt,
                 ContractTerm = calculateContractTerm(startDate, cancelAt),
-                SBQQ__Evergreen__c = calculateContractTerm(startDate, cancelAt) > 0 ? false : true,
+                // SBQQ__Evergreen__c = calculateContractTerm(startDate, cancelAt) > 0 ? false : true,
                 Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
                 CustomerSignedId = accts.size() > 0 ? accts[0].blng__BillToContact__c : null,
                 Created_From_Stripe__c = true,
@@ -710,6 +712,10 @@ public class StripeSubscriptionScheduler {
                 Stripe_Subscription_Schedule_ID__c = scheduleId,
                 Stripe_Subscription_Start_Date__c = String.valueOf(startDateUnix)
             );
+
+            if (cancelAt != null) {
+                contract.EndDate = cancelAt;
+            }
             UpdateConatrct.add(Contract);
 
             upsert UpdateConatrct Contract.Stripe_Subscription_ID__c;
@@ -908,9 +914,8 @@ public class StripeSubscriptionScheduler {
                 Stripe_Subscription_Source__c = subscriptionSource,
                 Stripe_Status__c = status,
                 StartDate = startDate,
-                EndDate = cancelAt,
                 ContractTerm = calculateContractTerm(startDate, cancelAt),
-                SBQQ__Evergreen__c = calculateContractTerm(startDate, cancelAt) > 0 ? false : true,
+                // SBQQ__Evergreen__c = calculateContractTerm(startDate, cancelAt) > 0 ? false : true,
                 Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
                 CustomerSignedId = accts.size() > 0 ? accts[0].blng__BillToContact__c : null,
                 Created_From_Stripe__c = true,
@@ -918,6 +923,10 @@ public class StripeSubscriptionScheduler {
                 Stripe_Subscription_Schedule_ID__c = scheduleId,
                 Stripe_Subscription_Start_Date__c = String.valueOf(startDateUnix)
             );
+
+            if (cancelAt != null) {
+                contract.EndDate = cancelAt;
+            }
             UpdateConatrct.add(Contract);
 
             upsert UpdateConatrct Contract.Stripe_Subscription_ID__c;
