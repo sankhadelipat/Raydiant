@@ -693,10 +693,16 @@ public class StripeSubscriptionScheduler {
             ];
             System.debug('accts--' + accts);
 
+            Id accountId = accts.size() > 0 ? accts[0].Id : null;
+            System.debug('Account ID: ' + accountId);
+            if (accountId == null) {
+                throw new DmlException('No Account found with Stripe Customer ID: ' + customerId);
+            }
+
             // Create Contract
             List<Contract> UpdateConatrct = new List<Contract>();
             Contract contract = new Contract(
-                AccountId = accts.size() > 0 ? accts[0].Id : null,
+                AccountId = accountId,
                 Stripe_Subscription_ID__c = subscriptionId,
                 Stripe_Customer_ID__c = customerId,
                 Stripe_latest_Invoice_Id__c = latestInvoice,
@@ -904,10 +910,16 @@ public class StripeSubscriptionScheduler {
             ];
             System.debug('accts--' + accts);
 
+            Id accountId = accts.size() > 0 ? accts[0].Id : null;
+            System.debug('Account ID: ' + accountId);
+            if (accountId == null) {
+                throw new DmlException('No Account found with Stripe Customer ID: ' + customerId);
+            }
+
             // Create Contract
             List<Contract> UpdateConatrct = new List<Contract>();
             Contract contract = new Contract(
-                AccountId = accts.size() > 0 ? accts[0].Id : null,
+                AccountId = accountId,
                 Stripe_Subscription_ID__c = subscriptionId,
                 Stripe_Customer_ID__c = customerId,
                 Stripe_latest_Invoice_Id__c = latestInvoice,
@@ -1150,7 +1162,9 @@ public class StripeSubscriptionScheduler {
         if (startDate == null || endDate == null) {
             return null;
         }
-        return startDate.monthsBetween(endDate);
+
+        Integer monthsBetween = startDate.monthsBetween(endDate);
+        return monthsBetween > 0 ? monthsBetween : null;
     }
 
     // Helper method to get billing frequency from Stripe interval and interval count
