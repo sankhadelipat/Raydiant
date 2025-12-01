@@ -4,10 +4,12 @@ public class StripeCustomerQueueable implements Queueable, Database.AllowsCallou
 
     String stripeCustomerId;
     String raydiantSignupType;
+    String eventType;
 
-    public StripeCustomerQueueable(String stripeCustomerId, String raydiantSignupType) {
+    public StripeCustomerQueueable(String stripeCustomerId, String raydiantSignupType, String eventType) {
         this.stripeCustomerId = stripeCustomerId;
         this.raydiantSignupType = raydiantSignupType;
+        this.eventType = eventType;
     }
 
     public void execute(QueueableContext context) {
@@ -35,20 +37,13 @@ public class StripeCustomerQueueable implements Queueable, Database.AllowsCallou
                     ? (Map<String, Object>) shipping.get('address')
                     : null;
 
-                stripeGC__Stripe_Account__c stripeOrgAccount = [
-                    SELECT Id, Name
-                    FROM stripeGC__Stripe_Account__c
-                    LIMIT 1
-                ];
-
                 // Create Account in Salesforce
-                Account newAccount = new Account(
+                Account acc = new Account(
                     Name = customerName != null ? customerName : 'Stripe Customer ' + stripeCustomerId,
                     Type = 'Customer',
                     Stripe_Customer_ID__c = stripeCustomerId,
                     Stripe_Customer_URL__c = 'https://dashboard.stripe.com/customers/' + stripeCustomerId,
-                    Stripe_Org_Account__c = stripeOrgAccount.Id,
-                    Created_by_Stripe__c = true,
+                    Created_by_Stripe__c = raydiantSignupType == 'salesforce' ? false : true,
                     Raydiant_Signup_Type__c = raydiantSignupType,
                     Phone = customerPhone,
                     Dashboard_Email__c = customerEmail,
@@ -66,53 +61,115 @@ public class StripeCustomerQueueable implements Queueable, Database.AllowsCallou
                     ShippingCountry = shippingAddress != null ? (String) shippingAddress.get('country') : null
                 );
 
-                insert newAccount;
+                StripeTriggerHandler.enableBypass('Account');
+                upsert acc Stripe_Customer_ID__c;
+                StripeTriggerHandler.disableBypass('Account');
 
-                // Create Contact in Salesforce
-                Contact con = new Contact(
-                    AccountId = newAccount.Id,
-                    FirstName = customerName != null ? customerName.split(' ')[0] : 'Stripe',
-                    LastName = customerName != null &&
-                        customerName.split(' ').size() > 1
-                        ? customerName.substringAfter(' ')
-                        : 'Customer ' + stripeCustomerId,
-                    Email = customerEmail,
-                    Phone = customerPhone,
-                    MailingStreet = billingAddress != null ? (String) billingAddress.get('line1') : null,
-                    MailingCity = billingAddress != null ? (String) billingAddress.get('city') : null,
-                    MailingState = billingAddress != null ? (String) billingAddress.get('state') : null,
-                    MailingPostalCode = billingAddress != null ? (String) billingAddress.get('postal_code') : null,
-                    MailingCountry = billingAddress != null ? (String) billingAddress.get('country') : null
-                );
-
-                insert con;
-
-                // Update Account with Contact
-                newAccount.blng__BillToContact__c = con.Id;
-                newAccount.F52_Primary_Contact__c = con.Id;
-                update newAccount;
-
-                // Get Account Fields
-                newAccount = [
-                    SELECT Id, Account_Record_URL__c, Account_Number__c
+                // Retrieve the Account to get additional fields
+                acc = [
+                    SELECT Id, blng__BillToContact__c, F52_Primary_Contact__c, Account_Record_URL__c, Account_Number__c
                     FROM Account
-                    WHERE Id = :newAccount.Id
+                    WHERE Id = :acc.Id
                 ];
 
+                Contact billToCon;
+
+                List<Contact> accountContacts = [
+                    SELECT Id
+                    FROM Contact
+                    WHERE Id = :acc.blng__BillToContact__c OR Id = :acc.F52_Primary_Contact__c
+                    LIMIT 1
+                ];
+
+                if (!accountContacts.isEmpty()) {
+                    billToCon = accountContacts[0];
+                } else if (accountContacts.isEmpty() && customerEmail != null) {
+                    List<Contact> contactsByEmail = [
+                        SELECT Id
+                        FROM Contact
+                        WHERE Email = :customerEmail
+                        LIMIT 1
+                    ];
+                    if (!contactsByEmail.isEmpty()) {
+                        billToCon = contactsByEmail[0];
+                    }
+                }
+
+                if (billToCon != null) {
+                    // Update existing Contact in Salesforce
+                    billToCon.AccountId = acc.Id;
+                    // billToCon.FirstName = customerName != null ? customerName.split(' ')[0] : 'Stripe';
+                    // billToCon.LastName = customerName != null &&
+                    //     customerName.split(' ').size() > 1
+                    //     ? customerName.substringAfter(' ')
+                    //     : 'Customer ' + stripeCustomerId;
+                    billToCon.Email = customerEmail;
+                    billToCon.Phone = customerPhone;
+                    // billToCon.MailingStreet = billingAddress != null ? (String) billingAddress.get('line1') : null;
+                    // billToCon.MailingCity = billingAddress != null ? (String) billingAddress.get('city') : null;
+                    // billToCon.MailingState = billingAddress != null ? (String) billingAddress.get('state') : null;
+                    // billToCon.MailingPostalCode = billingAddress != null
+                    //     ? (String) billingAddress.get('postal_code')
+                    //     : null;
+                    // billToCon.MailingCountry = billingAddress != null ? (String) billingAddress.get('country') : null;
+
+                    update billToCon;
+                    acc.blng__BillToContact__c = billToCon.Id;
+                    acc.F52_Primary_Contact__c = billToCon.Id;
+                } else if (billToCon == null && customerEmail != null) {
+                    // Create Contact in Salesforce
+                    billToCon = new Contact(
+                        AccountId = acc.Id,
+                        FirstName = customerName != null ? customerName.split(' ')[0] : 'Stripe',
+                        LastName = customerName != null &&
+                            customerName.split(' ').size() > 1
+                            ? customerName.substringAfter(' ')
+                            : 'Customer ' + stripeCustomerId,
+                        Email = customerEmail,
+                        Phone = customerPhone,
+                        MailingStreet = billingAddress != null ? (String) billingAddress.get('line1') : null,
+                        MailingCity = billingAddress != null ? (String) billingAddress.get('city') : null,
+                        MailingState = billingAddress != null ? (String) billingAddress.get('state') : null,
+                        MailingPostalCode = billingAddress != null ? (String) billingAddress.get('postal_code') : null,
+                        MailingCountry = billingAddress != null ? (String) billingAddress.get('country') : null
+                    );
+
+                    insert billToCon;
+                    acc.blng__BillToContact__c = billToCon.Id;
+                    acc.F52_Primary_Contact__c = billToCon.Id;
+                }
+
+                // Retrieve Stripe Account record
+                if (eventType == 'customer.created') {
+                    stripeGC__Stripe_Account__c stripeOrgAccount = [
+                        SELECT Id, Name
+                        FROM stripeGC__Stripe_Account__c
+                        LIMIT 1
+                    ];
+
+                    acc.Stripe_Org_Account__c = stripeOrgAccount.Id;
+                }
+
+                StripeTriggerHandler.enableBypass('Account');
+                update acc;
+                StripeTriggerHandler.disableBypass('Account');
+
                 // Update Stripe metadata
-                StripeMetadataUpdater.updateStripeCustomerMetadata(
-                    stripeCustomerId,
-                    newAccount.Account_Record_URL__c,
-                    newAccount.Id,
-                    newAccount.Account_Number__c
-                );
+                if (eventType == 'customer.created') {
+                    StripeMetadataUpdater.updateStripeCustomerMetadata(
+                        stripeCustomerId,
+                        acc.Account_Record_URL__c,
+                        acc.Id,
+                        acc.Account_Number__c
+                    );
+                }
 
                 /*// Flow inputs
                 Map<String, Object> flowInputs = new Map<String, Object>{
                     'stripeCustomerId' => stripeCustomerId,
-                    'accountRecordUrl' => newAccount.Account_URL__c,
-                    'internalId' => newAccount.Id,
-                    'accountNumber' => newAccount.Account_Number__c
+                    'accountRecordUrl' => acc.Account_URL__c,
+                    'internalId' => acc.Id,
+                    'accountNumber' => acc.Account_Number__c
                 };
                 System.debug('Flow Inputs: ' + flowInputs);
                 
@@ -125,7 +182,7 @@ public class StripeCustomerQueueable implements Queueable, Database.AllowsCallou
         } catch (Exception e) {
             System.debug('Error creating customer: ' + e.getMessage());
             Logger__c logger = new Logger__c(
-                Name = 'Stripe Customer Creation Error',
+                Name = 'Stripe Customer Upsert Error',
                 Message__c = e.getMessage(),
                 StackTrace__c = e.getStackTraceString(),
                 Status__c = 'Error',

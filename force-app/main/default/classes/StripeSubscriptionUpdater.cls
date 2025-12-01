@@ -266,9 +266,16 @@ public class StripeSubscriptionUpdater {
         }
         return String.join(encodedParams, '&');
     }
+
     private static Integer calculateContractTerm(Date startDate, Date endDate) {
-        return startDate.monthsBetween(endDate);
+        if (startDate == null || endDate == null) {
+            return null;
+        }
+
+        Integer monthsBetween = startDate.monthsBetween(endDate);
+        return monthsBetween > 0 ? monthsBetween : null;
     }
+
     private static Datetime toDateTime(Long unixTs) {
         if (unixTs == null)
             return null;

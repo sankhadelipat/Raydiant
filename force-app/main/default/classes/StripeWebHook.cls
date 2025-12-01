@@ -420,7 +420,7 @@ global without sharing class StripeWebHook {
 
             Database.SaveResult[] results = EventBus.publish(stripePaymentList);
             System.debug('results--' + results);
-        } else if (eventType.equals('customer.created')) {
+        } else if (eventType.equals('customer.created') || eventType.equals('customer.updated')) {
             Map<String, Object> data = (Map<String, Object>) event.get('data');
             Map<String, Object> customer = (Map<String, Object>) data.get('object');
             Map<String, Object> metadata = (Map<String, Object>) customer.get('metadata');
@@ -433,18 +433,17 @@ global without sharing class StripeWebHook {
                 ? String.valueOf(metadata.get('raydiant_signup_type__c'))
                 : null;
 
-            if (raydiantSignupType == 'amazon' || raydiantSignupType == 'self_service') {
-                List<Stripe_Capture_Customer__e> stripeCustomerList = new List<Stripe_Capture_Customer__e>();
+            List<Stripe_Capture_Customer__e> stripeCustomerList = new List<Stripe_Capture_Customer__e>();
 
-                Stripe_Capture_Customer__e stripeCustomer = new Stripe_Capture_Customer__e();
-                stripeCustomer.StripeCustomerId__c = stripeCustomerId;
-                stripeCustomer.Raydiant_Signup_Type__c = raydiantSignupType;
-                stripeCustomerList.add(stripeCustomer);
-                System.debug('stripeCustomerList--' + stripeCustomerList);
+            Stripe_Capture_Customer__e stripeCustomer = new Stripe_Capture_Customer__e();
+            stripeCustomer.StripeCustomerId__c = stripeCustomerId;
+            stripeCustomer.Raydiant_Signup_Type__c = raydiantSignupType;
+            stripeCustomer.Event_Type__c = eventType;
+            stripeCustomerList.add(stripeCustomer);
+            System.debug('stripeCustomerList--' + stripeCustomerList);
 
-                Database.saveResult[] results = EventBus.publish(stripeCustomerList);
-                system.debug('results--' + results);
-            }
+            Database.saveResult[] results = EventBus.publish(stripeCustomerList);
+            system.debug('results--' + results);
         }
     }
 }
