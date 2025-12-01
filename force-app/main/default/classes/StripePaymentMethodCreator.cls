@@ -97,7 +97,7 @@ public class StripePaymentMethodCreator {
         // Card-specific fields
         if (pmType == 'card' && pmData.containsKey('card')) {
             Map<String, Object> card = (Map<String, Object>) pmData.get('card');
-            pm.Name = 'CARD - ' + card.get('last4');
+            pm.Name = (String) card.get('brand') + ' - ' + (String) card.get('last4');
             pm.Card_Brand__c = (String) card.get('brand');
             pm.Card_Country__c = (String) card.get('country');
             pm.Card_Expiry_Month__c = String.valueOf(card.get('exp_month'));
@@ -108,7 +108,7 @@ public class StripePaymentMethodCreator {
         // Bank account fields
         else if (pmType == 'us_bank_account' && pmData.containsKey('us_bank_account')) {
             Map<String, Object> bank = (Map<String, Object>) pmData.get('us_bank_account');
-            pm.Name = 'BANK - ' + bank.get('last4');
+            pm.Name = (String) bank.get('bank_name') + ' - ' + (String) bank.get('last4');
             pm.Bank_Account_Type__c = (String) bank.get('account_type');
             pm.Bank_Account_Holder_Type__c = (String) bank.get('account_holder_type');
             pm.Bank_Name__c = (String) bank.get('bank_name');
