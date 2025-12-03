@@ -1,6 +1,6 @@
 public class StripeInvoiceCreateQueueable implements Queueable, Database.AllowsCallouts {
     private static final Stripe_Details__c stripeDetails = Stripe_Details__c.getInstance('Stripe Details');
-    private static final String secretKey = stripeDetails.Serect_Key__c;
+    private static final String SECRET_KEY = stripeDetails.Serect_Key__c;
 
     String stripeInvoiceId;
     String stripeSubscriptionId;
@@ -52,16 +52,10 @@ public class StripeInvoiceCreateQueueable implements Queueable, Database.AllowsC
                 ];
             }
 
-            // If no quote found, exit
-            if (quoteList.isEmpty()) {
-                System.debug('No associated quote found for the provided subscription or quote ID.');
-                return;
-            }
-
             HttpRequest req = new HttpRequest();
             req.setEndpoint('https://api.stripe.com/v1/invoices/' + stripeInvoiceId);
             req.setMethod('GET');
-            req.setHeader('Authorization', 'Basic ' + EncodingUtil.base64Encode(Blob.valueOf(secretKey + ':')));
+            req.setHeader('Authorization', 'Basic ' + EncodingUtil.base64Encode(Blob.valueOf(SECRET_KEY + ':')));
             req.setHeader('Content-Type', 'application/x-www-form-urlencoded');
 
             Http http = new Http();
@@ -69,33 +63,46 @@ public class StripeInvoiceCreateQueueable implements Queueable, Database.AllowsC
 
             if (res.getStatusCode() == 200) {
                 Map<String, Object> result = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
-
-                String subscriptionId;
-
-                // Check if "parent" exists
-                if (result.containsKey('parent') && result.get('parent') != null) {
-                    Map<String, Object> parent = (Map<String, Object>) result.get('parent');
-
-                    if (parent.containsKey('subscription_details') && parent.get('subscription_details') != null) {
-                        Map<String, Object> subDetails = (Map<String, Object>) parent.get('subscription_details');
-
-                        if (subDetails.containsKey('subscription') && subDetails.get('subscription') != null) {
-                            subscriptionId = (String) subDetails.get('subscription');
-                        }
-                    }
-                }
-
-                System.debug('Captured Subscription ID: ' + subscriptionId);
                 system.debug('result---' + result);
-                Stripe_Invoice__c invoice = new Stripe_Invoice__c();
-                long effectivedate = (long) result.get('effective_at');
-                long stratDate = (long) result.get('period_start');
-                long endDate = (long) result.get('period_end');
-                long webhoodDelivered = (long) result.get('webhooks_delivered_at');
-                long dueDate = (long) result.get('due_date');
+
+                Map<String, Object> lines = (Map<String, Object>) result.get('lines');
+                List<Object> lineData = (List<Object>) lines.get('data');
+                String customerId = result.containsKey('customer') ? (String) result.get('customer') : null;
+
+                // Fetch Account based on Customer ID
+                List<Account> accts = [
+                    SELECT Id, Name, blng__BillToContact__c
+                    FROM Account
+                    WHERE Stripe_Customer_ID__c = :customerId
+                ];
+                System.debug('accts--' + accts);
+
+                // Extract relevant fields
+                Long effectivedate = (Long) result.get('effective_at');
+                Long stratDate = (Long) result.get('period_start');
+                Long endDate = (Long) result.get('period_end');
+                Long webhoodDelivered = (Long) result.get('webhooks_delivered_at');
+                Long dueDate = (Long) result.get('due_date');
                 Long finalizesAt = (Long) result.get('automatically_finalizes_at');
                 String currencyCode = (String) result.get('currency');
+                Id accountId;
+                Id billToContactId;
 
+                if (!accts.isEmpty()) {
+                    accountId = accts[0].Id;
+                    billToContactId = accts[0].blng__BillToContact__c;
+                } else if (!quoteList.isEmpty()) {
+                    accountId = quoteList[0].SBQQ__Account__c;
+                    billToContactId = quoteList[0].Bill_To_Contact__c != null
+                        ? quoteList[0].Bill_To_Contact__c
+                        : quoteList[0].SBQQ__Account__r.blng__BillToContact__c;
+                } else {
+                    throw new DmlException('No Account found: ' + customerId);
+                }
+                System.debug('accountId--' + accountId);
+
+                // Create or Update Stripe Invoice Record
+                Stripe_Invoice__c invoice = new Stripe_Invoice__c();
                 invoice.Total_Amount__c = result.containsKey('total') ? (Decimal) result.get('total') / 100 : 0;
                 invoice.Total_Amount_with_Tax__c = result.containsKey('total_excluding_tax')
                     ? (Decimal) result.get('total_excluding_tax') / 100
@@ -115,15 +122,16 @@ public class StripeInvoiceCreateQueueable implements Queueable, Database.AllowsC
                 invoice.Automatically_Finalizes_At__c = toDateTime(finalizesAt);
                 invoice.Billing_Reason__c = (String) result.get('billing_reason');
                 invoice.CurrencyIsoCode = currencyCode.toUpperCase();
-                invoice.Quote_CPQ__c = quoteList[0].id;
-                invoice.Account__c = quoteList[0].SBQQ__Account__c;
-                invoice.Bill_to_Contact__c = quoteList[0].SBQQ__Account__r.blng__BillToContact__c;
+                invoice.Quote_CPQ__c = quoteList.isEmpty() ? null : quoteList[0].Id;
+                invoice.Account__c = accountId;
+                invoice.Bill_to_Contact__c = billToContactId;
                 invoice.Is_Payment_Done__c = result.containsKey('paid') ? (Boolean) result.get('paid') : false;
                 invoice.Stripe_Invoice_Id__c = stripeInvoiceId;
                 invoice.Invoice_Date__c = date.valueof(toDateTime(effectivedate));
                 invoice.Invoice_PDF_URL__c = (String) result.get('invoice_pdf');
                 invoice.Invoice_URL__c = (String) result.get('hosted_invoice_url');
                 invoice.Name = result.get('number') != null ? (String) result.get('number') : 'SI-DRAFT';
+                invoice.Stripe_Invoice_Number__c = (String) result.get('number');
                 invoice.Stripe_Invoice_Period_End__c = toDateTime(endDate);
                 invoice.Stripe_Invoice_Period_Start__c = toDateTime(stratDate);
                 invoice.Payment_Status__c = (String) result.get('status');
@@ -134,16 +142,50 @@ public class StripeInvoiceCreateQueueable implements Queueable, Database.AllowsC
                 Id invoiceID = invoice.Id;
                 system.debug('invoiceID--' + invoiceID);
 
-                // Proceed to Invoice Line Items
-                // Get line items
-                Map<String, Object> lines = (Map<String, Object>) result.get('lines');
-                List<Object> lineData = (List<Object>) lines.get('data');
-
+                // Create or Update Stripe Invoice Line Items
                 List<Stripe_Invoice_Line_Item__c> lineItems = new List<Stripe_Invoice_Line_Item__c>();
+
+                // Collect all unique product IDs from subscription items
+                Set<String> stripeProductIds = new Set<String>();
+                for (Object item : lineData) {
+                    Map<String, Object> lineItem = (Map<String, Object>) item;
+                    if (lineItem.containsKey('pricing')) {
+                        Map<String, Object> pricing = (Map<String, Object>) lineItem.get('pricing');
+                        if (pricing.containsKey('price_details')) {
+                            Map<String, Object> priceDetails = (Map<String, Object>) pricing.get('price_details');
+                            if (priceDetails.containsKey('product')) {
+                                stripeProductIds.add((String) priceDetails.get('product'));
+                            }
+                        }
+                    }
+                }
+
+                // Query Products based on collected Stripe Product IDs
+                Map<String, Product2> stripeProductIdToProductMap = new Map<String, Product2>();
+                if (!stripeProductIds.isEmpty()) {
+                    List<Product2> products = [
+                        SELECT Id, Stripe_Product_ID__c, Name
+                        FROM Product2
+                        WHERE Stripe_Product_ID__c IN :stripeProductIds
+                    ];
+                    for (Product2 prod : products) {
+                        stripeProductIdToProductMap.put(prod.Stripe_Product_ID__c, prod);
+                    }
+                }
+                System.debug('stripeProductIdToProductMap--' + stripeProductIdToProductMap);
 
                 for (Object item : lineData) {
                     Map<String, Object> lineItem = (Map<String, Object>) item;
 
+                    Map<String, Object> pricing = lineItem.containsKey('pricing')
+                        ? (Map<String, Object>) lineItem.get('pricing')
+                        : null;
+                    Map<String, Object> priceDetails = (pricing != null && pricing.containsKey('price_details'))
+                        ? (Map<String, Object>) pricing.get('price_details')
+                        : null;
+                    String productStripeId = (priceDetails != null && priceDetails.containsKey('product'))
+                        ? (String) priceDetails.get('product')
+                        : null;
                     Decimal amount = lineItem.containsKey('amount') && lineItem.get('amount') != null
                         ? Decimal.valueOf((Integer) lineItem.get('amount')) / 100
                         : 0;
@@ -151,14 +193,19 @@ public class StripeInvoiceCreateQueueable implements Queueable, Database.AllowsC
                         ? Integer.valueOf(lineItem.get('quantity'))
                         : 0;
                     Decimal unitPrice = (amount != 0 && quantity != 0) ? (amount / quantity) : 0;
+                    Product2 matchingProduct = stripeProductIdToProductMap.get(productStripeId);
 
                     Stripe_Invoice_Line_Item__c line = new Stripe_Invoice_Line_Item__c();
+                    line.Name = matchingProduct != null
+                        ? matchingProduct.Name
+                        : 'INV-LI-' + (String) lineItem.get('id');
                     line.Stripe_Invoice__c = invoiceID;
                     line.Stripe_Invoice_line_Item_Id__c = (String) lineItem.get('id');
                     line.Quantity__c = quantity;
-                    // line.Amount__c = toDecimal(lineItem.get('amount'));
-                    line.Product_Name__c = (String) lineItem.get('description');
-                    // line.Billing_Frequency_Override__c = quoteList[0].Billing_Frequency_Override__c;
+                    line.Unit_Price__c = unitPrice;
+                    line.Description__c = (String) lineItem.get('description');
+                    line.Product__c = matchingProduct != null ? matchingProduct.Id : null;
+                    line.Product_Name__c = matchingProduct != null ? matchingProduct.Name : null;
 
                     // Period handling
                     if (lineItem.containsKey('period')) {
@@ -169,20 +216,6 @@ public class StripeInvoiceCreateQueueable implements Queueable, Database.AllowsC
                         line.End_Date__c = toDateTime(lineEndDate);
                     }
 
-                    if (lineItem.containsKey('price')) {
-                        Map<String, Object> price = (Map<String, Object>) lineItem.get('price');
-                        line.Unit_Price__c = price.containsKey('unit_amount_decimal') &&
-                            price.get('unit_amount_decimal') != null
-                            ? Decimal.valueOf((String) price.get('unit_amount_decimal')) / 100
-                            : unitPrice;
-                        line.Charge_Type__c = price.containsKey('type') ? (String) price.get('type') : null;
-                    }
-
-                    line.Total_Amount_with_Tax__c = lineItem.containsKey('unit_amount_excluding_tax') &&
-                        lineItem.get('unit_amount_excluding_tax') != null
-                        ? Decimal.valueOf((String) lineItem.get('unit_amount_excluding_tax')) / 100
-                        : null;
-
                     lineItems.add(line);
                 }
 
@@ -190,7 +223,7 @@ public class StripeInvoiceCreateQueueable implements Queueable, Database.AllowsC
                     upsert lineItems Stripe_Invoice_line_Item_Id__c;
                 }
             } else {
-                System.debug('Failed to finalize invoice. Status: ' + res.getStatusCode() + ', Body: ' + res.getBody());
+                System.debug('Failed to fetch invoice from Stripe. Status: ' + res.getStatusCode());
                 throw new CalloutException('Failed to fetch invoice from Stripe. Status: ' + res.getStatusCode());
             }
         } catch (Exception e) {
@@ -212,11 +245,5 @@ public class StripeInvoiceCreateQueueable implements Queueable, Database.AllowsC
         if (unixTs == null)
             return null;
         return Datetime.newInstanceGmt(1970, 1, 1, 0, 0, 0).addSeconds((Integer) unixTs);
-    }
-
-    private static Decimal toDecimal(Object centsValue) {
-        if (centsValue == null)
-            return 0;
-        return ((Decimal) centsValue) / 100;
     }
 }

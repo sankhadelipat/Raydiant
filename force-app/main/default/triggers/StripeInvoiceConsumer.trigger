@@ -1,6 +1,6 @@
 trigger StripeInvoiceConsumer on Stripe_Capture_Invoice__e(after insert) {
     for (Stripe_Capture_Invoice__e evt : Trigger.New) {
-        if (String.isNotBlank(evt.Stripe_Invoice_ID__c) && String.isNotBlank(evt.Stripe_Subscription_ID__c)) {
+        if (String.isNotBlank(evt.Stripe_Invoice_ID__c)) {
             System.enqueueJob(
                 new StripeInvoiceCreateQueueable(
                     evt.Stripe_Invoice_ID__c,

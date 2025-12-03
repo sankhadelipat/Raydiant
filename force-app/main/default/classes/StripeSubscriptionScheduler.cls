@@ -474,7 +474,6 @@ public class StripeSubscriptionScheduler {
             System.debug('Start Date: ' + startDate);
 
             // Create Contract
-            List<Contract> UpdateConatrct = new List<Contract>();
             Contract contract = new Contract(
                 AccountId = quoteList[0].SBQQ__Account__c,
                 SBQQ__Quote__c = quoteid,
@@ -496,9 +495,8 @@ public class StripeSubscriptionScheduler {
             if (cancelAt != null) {
                 contract.EndDate = cancelAt;
             }
-            UpdateConatrct.add(Contract);
 
-            upsert UpdateConatrct Contract.Stripe_Subscription_ID__c;
+            upsert contract Stripe_Subscription_ID__c;
 
             // Create Subscription Items
             List<SBQQ__Subscription__c> subscriptionItemsToInsert = new List<SBQQ__Subscription__c>();
@@ -700,7 +698,6 @@ public class StripeSubscriptionScheduler {
             }
 
             // Create Contract
-            List<Contract> UpdateConatrct = new List<Contract>();
             Contract contract = new Contract(
                 AccountId = accountId,
                 Stripe_Subscription_ID__c = subscriptionId,
@@ -722,10 +719,8 @@ public class StripeSubscriptionScheduler {
             if (cancelAt != null) {
                 contract.EndDate = cancelAt;
             }
-            UpdateConatrct.add(Contract);
 
-            upsert UpdateConatrct Contract.Stripe_Subscription_ID__c;
-            // insert contract;
+            upsert contract Stripe_Subscription_ID__c;
 
             // Create Subscription Items
             List<SBQQ__Subscription__c> subscriptionItemsToInsert = new List<SBQQ__Subscription__c>();
@@ -917,7 +912,6 @@ public class StripeSubscriptionScheduler {
             }
 
             // Create Contract
-            List<Contract> UpdateConatrct = new List<Contract>();
             Contract contract = new Contract(
                 AccountId = accountId,
                 Stripe_Subscription_ID__c = subscriptionId,
@@ -939,10 +933,8 @@ public class StripeSubscriptionScheduler {
             if (cancelAt != null) {
                 contract.EndDate = cancelAt;
             }
-            UpdateConatrct.add(Contract);
 
-            upsert UpdateConatrct Contract.Stripe_Subscription_ID__c;
-            // insert contract;
+            upsert contract Stripe_Subscription_ID__c;
 
             // Create Subscription Items
             List<SBQQ__Subscription__c> subscriptionItemsToInsert = new List<SBQQ__Subscription__c>();

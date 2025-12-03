@@ -2,11 +2,15 @@ public class StripeSubscriptionScheduler2 {
     private static final Stripe_Details__c stripeDetails = Stripe_Details__c.getInstance('Stripe Details');
     private static final String SECRET_KEY = stripeDetails.Serect_Key__c;
 
-    // label ='after 1st payment done Subscrtion Created')
-    // Quote To Cash - Collection Method=> charge_automatically/
-    // Use Case of this method is  to update End date for Subscription which created after chekout session
+    /**
+     * Method to create Stripe Subscription after first payment is done
+     * Quote To Cash - Collection Method => charge_automatically
+     * Use Case of this method is  to update End date for Subscription which created after chekout session
+     * @param quoteId - Salesforce Quote Id
+     * @param subcritionId - Stripe Subscription Id
+     */
     @future(callout=true)
-    public static void createStripeSubscription(string quoteId, string subcritionId) {
+    public static void createStripeSubscription(String quoteId, String subcritionId) {
         try {
             List<SBQQ__Quote__c> quoteList = [
                 SELECT
@@ -37,104 +41,12 @@ public class StripeSubscriptionScheduler2 {
                 FROM SBQQ__QuoteLine__c
                 WHERE SBQQ__Quote__c = :quote.Id AND Stripe_Subscription_Type__c != 'One-time'
             ];
-            // Stripe_Payment_Method__c pm = [select id ,CPQ_Quote__c,Stripe_Payment_Method_ID__c from Stripe_Payment_Method__c where CPQ_Quote__c =:quote.id order by createdDate desc limit 1 ];
-
-            /* Build Stripe Products and Prices
-Map<Id, String> quoteLineToPriceIdMap = new Map<Id, String>();
-Http http = new Http();
-
-for (SBQQ__QuoteLine__c ql : quoteLines) {
-// Create Product
-HttpRequest productReq = new HttpRequest();
-productReq.setEndpoint('https://api.stripe.com/v1/products');
-productReq.setMethod('POST');
-productReq.setHeader('Authorization', 'Basic ' + EncodingUtil.base64Encode(Blob.valueOf(SECRET_KEY + ':')));
-productReq.setHeader('Content-Type', 'application/x-www-form-urlencoded');
-productReq.setBody('name=' + EncodingUtil.urlEncode(ql.SBQQ__Product__r.Name, 'UTF-8'));
-
-HttpResponse productRes = http.send(productReq);
-if (productRes.getStatusCode() != 200) continue;
-
-String productId = (String)((Map<String, Object>)JSON.deserializeUntyped(productRes.getBody())).get('id');
-string interval;
-INTEGER intervalCount ;
-if (ql.Billing_Frequency_Override__c != null) {
-String freq = ql.Billing_Frequency_Override__c.toLowerCase();
-if (freq == 'Monthly') {
-interval = 'month';
-intervalCount = 1;
-} else if (freq == 'quarterly') {
-interval = 'month';
-intervalCount = 3;
-} else if (freq == 'Annual') {
-interval = 'year';
-intervalCount = 1;
-}
-else if (freq == '2-Year') {
-interval = 'year';
-intervalCount = 2;
-}
-else if (freq == '3-Year') {
-interval = 'year';
-intervalCount = 3;
-} else {
-// Fallback default
-interval = 'month';
-intervalCount = 1;
-}
-}
-decimal  quantity = ql.Quantity_For_Stripe__c;
-decimal unitprice = ql.MRR__c /quantity;
-Decimal unitAmount;
-// Create Price based on interval and interval count
-if(interval == 'month' && intervalCount == 1) {
-unitAmount = unitprice != null ? (unitprice.setScale(2) * 100) : 0; // Monthly MRR
-} else if(interval == 'month' && intervalCount == 3) {
-unitAmount = unitprice != null ? (unitprice.setScale(2) * 3 * 100) : 0; // Quarterly MRR
-} else if(interval == 'year' && intervalCount == 1) {
-unitAmount = unitprice != null ? (unitprice.setScale(2) * 12 * 100) : 0; // Annual MRR
-} else if(interval == 'year' && intervalCount == 2) {
-unitAmount = unitprice != null ? (unitprice.setScale(2) * 24 * 100) : 0; // 2-Year MRR
-} else if(interval == 'year' && intervalCount == 3) {
-unitAmount = unitprice != null ? (unitprice.setScale(2) * 36 * 100) : 0; // 3-Year MRR
-} else {
-unitAmount = unitprice != null ? (unitprice.setScale(2) * intervalCount * 100) : 0; // Default case
-}
-
-HttpRequest priceReq = new HttpRequest();
-priceReq.setEndpoint('https://api.stripe.com/v1/prices');
-priceReq.setMethod('POST');
-priceReq.setHeader('Authorization', 'Basic ' + EncodingUtil.base64Encode(Blob.valueOf(SECRET_KEY + ':')));
-priceReq.setHeader('Content-Type', 'application/x-www-form-urlencoded');
-// check anually also
-String priceBody =
-'billing_scheme=per_unit' +
-'&currency='+ql.CurrencyIsoCode +
-'&product=' + productId +
-'&recurring[interval]='+interval +
-'&recurring[interval_count]='+intervalCount +
-'&unit_amount_decimal=' + unitAmount;
-
-priceReq.setBody(priceBody);
-
-HttpResponse priceRes = http.send(priceReq);
-if (priceRes.getStatusCode() == 200) {
-String priceId = (String)((Map<String, Object>)JSON.deserializeUntyped(priceRes.getBody())).get('id');
-quoteLineToPriceIdMap.put(ql.Id, priceId);
-}
-}*/
 
             // Prepare subscription body
             List<String> bodyParts = new List<String>();
-            // bodyParts.add('customer=' + EncodingUtil.urlEncode(quoteList[0].SBQQ__Account__r.Stripe_Customer_ID__c , 'UTF-8'));
-            //    bodyParts.add('collection_method=charge_automatically');
-            // bodyParts.add('currency='+(quoteList[0].CurrencyIsoCode));
-            bodyParts.add('proration_behavior=always_invoice');
-            //  bodyParts.add('default_payment_method='+pm.Stripe_Payment_Method_ID__c);
 
             Date startDate = quote.SBQQ__StartDate__c;
             Datetime dt = Datetime.newInstanceGMT(startDate.year(), startDate.month(), startDate.day(), 0, 0, 0);
-
             Long unixTimestamp = dt.getTime() / 1000;
             System.debug('Unix Timestamp: ' + unixTimestamp);
 
@@ -236,26 +148,16 @@ quoteLineToPriceIdMap.put(ql.Id, priceId);
 
             // Integer daysUntilDue = Date.today().daysBetween(billingAnchor.date());
 
-            bodyParts.add('cancel_at=' + String.valueOf(EndDateunixTimestamp)); //  give a date
-            //  bodyParts.add('backdate_start_date=' + String.valueOf(unixTimestamp));
-            //  bodyParts.add('billing_cycle_anchor=' + String.valueOf(billingAnchor.getTime() / 1000));
+            // bodyParts.add('collection_method=charge_automatically');
+            bodyParts.add('proration_behavior=always_invoice');
+            bodyParts.add('cancel_at=' + String.valueOf(EndDateunixTimestamp));
+            // bodyParts.add('billing_mode[type]=flexible');
+            // bodyParts.add('backdate_start_date=' + String.valueOf(unixTimestamp));
+            // bodyParts.add('billing_cycle_anchor=' + String.valueOf(billingAnchor.getTime() / 1000));
             bodyParts.add('metadata[salesforce_quote_id]=' + EncodingUtil.urlEncode(quote.Id, 'UTF-8'));
             bodyParts.add('metadata[subscription_source]=salesforce');
             bodyParts.add('metadata[updated_from_salesforce]=true');
-            //  bodyParts.add('billing_mode.type=flexible');
 
-            /* Add line items
-Integer index = 0;
-for (SBQQ__QuoteLine__c ql : quoteLines) {
-String priceId = quoteLineToPriceIdMap.get(ql.Id);
-if (String.isBlank(priceId)) continue;
-
-bodyParts.add('items[' + index + '][price]=' + EncodingUtil.urlEncode(priceId, 'UTF-8'));
-bodyParts.add('items[' + index + '][quantity]=' + String.valueOf(ql.Quantity_For_Stripe__c));
-index++;
-}*/
-
-            // Call Stripe /v1/subscriptions
             String encodedBody = String.join(bodyParts, '&');
 
             HttpRequest subReq = new HttpRequest();
@@ -272,7 +174,7 @@ index++;
                 String subscriptionId = (String) subResponse.get('id');
                 String invoiceId = (String) subResponse.get('latest_invoice');
                 System.debug('Created Stripe Subscription ID: ' + subscriptionId);
-                system.debug('Latest Invoice ID: ' + invoiceId);
+                System.debug('Latest Invoice ID: ' + invoiceId);
             } else {
                 System.debug('Stripe Subscription Error: ' + subRes.getBody());
                 throw new CalloutException('Stripe Subscription Error: ' + subRes.getBody());
@@ -286,13 +188,17 @@ index++;
                 Status__c = 'Error',
                 Apex_Class__c = 'StripeSubscriptionScheduler2',
                 Apex_Method__c = 'createStripeSubscription',
-                Object_Name__c = 'SBQQ__Quote__c',
-                User_Email__c = UserInfo.getUserEmail()
+                Object_Name__c = 'SBQQ__Quote__c'
             );
             insert logger;
         }
     }
-    // Quote To Invoice - Collection Method=> Send Invoice & Quote start date = today or Past date ///
+
+    /**
+     * Method to create Stripe Subscription for Quote to Invoice scenario
+     * Quote To Invoice - Collection Method => Send Invoice & Quote start date = today or Past date
+     * @param quoteId - Salesforce Quote Id
+     */
     @InvocableMethod(label='Quote To Invoice Subscrtion Created')
     // @future(callout=true)
     public static void createStripeSubscriptionAsync(List<Id> quoteId) {
@@ -319,10 +225,10 @@ index++;
             SBQQ__Quote__c quote = quoteList[0];
             List<id> quoteIds = new List<Id>();
             quoteIds.add(quote.Id);
+
             Long currentTimeUnix = DateTime.now().getTime() / 1000;
             Date startDate = quote.SBQQ__StartDate__c;
             Datetime dt = Datetime.newInstanceGMT(startDate.year(), startDate.month(), startDate.day(), 0, 0, 0);
-
             Long unixTimestamp = dt.getTime() / 1000;
             System.debug('Unix Timestamp: ' + unixTimestamp);
 
@@ -356,7 +262,7 @@ index++;
             ];
 
             if (quoteLines.IsEmpty()) {
-                system.debug('Enter One Time Product Calling StripeInvoiceCallout2 CLass to generate Invoice ');
+                System.debug('Enter One Time Product Calling StripeInvoiceCallout2 CLass to generate Invoice');
                 StripeInvoiceCallout2.invoiceGeneration(quoteIds, false);
                 return;
             }
@@ -623,9 +529,6 @@ index++;
                 System.debug('Created Stripe Subscription ID: ' + subscriptionId);
                 System.debug('Latest Invoice ID: ' + invoiceId);
 
-                // call suscription & Contract create method
-                // StripeSubscriptionInvoiceProcess.processInvoice(invoiceId);
-
                 List<SBQQ__QuoteLine__c> quoteLinesToUpdate = new List<SBQQ__QuoteLine__c>();
                 for (Id qlId : quoteLineToPriceIdMap.keySet()) {
                     quoteLinesToUpdate.add(
@@ -634,9 +537,8 @@ index++;
                 }
                 update quoteLinesToUpdate;
 
-                //(not call from here.will call from publish event )
-                StripeSubscriptionScheduler.createSubscrition(subRes.getBody(), quote.id);
-                System.enqueueJob(new StripeInvoiceCallout(invoiceId, quoteList[0].ID));
+                // StripeSubscriptionScheduler.createSubscrition(subRes.getBody(), quote.Id);
+                System.enqueueJob(new StripeInvoiceCallout(invoiceId, quote.Id));
             } else {
                 System.debug('Stripe Subscription Error: ' + subRes.getBody());
                 throw new CalloutException('Stripe Subscription Error: ' + subRes.getBody());
