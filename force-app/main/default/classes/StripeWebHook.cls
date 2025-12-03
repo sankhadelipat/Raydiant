@@ -44,7 +44,7 @@ global without sharing class StripeWebHook {
 
             Database.SaveResult[] results = EventBus.publish(stripePaymentList);
             System.debug('Publish results: ' + results);
-        } else if (eventType.equals('invoice.created') || eventType.equals('invoice.updated')) {
+        } else if (eventType.equals('invoice.created')) {
             Map<String, Object> data = (Map<String, Object>) event.get('data');
             system.debug('data--' + data);
             Map<String, Object> stripeInvoice = (Map<String, Object>) data.get('object');
@@ -71,6 +71,97 @@ global without sharing class StripeWebHook {
             }
             String stripeInvoiceId = (String) stripeInvoice.get('id');
             system.debug('invoice----' + stripeInvoiceId);
+
+            List<Stripe_Capture_Invoice__e> stripeInvoiceList = new List<Stripe_Capture_Invoice__e>();
+
+            Stripe_Capture_Invoice__e stripeInv = new Stripe_Capture_Invoice__e();
+            stripeInv.Stripe_Subscription_ID__c = subscriptionId;
+            stripeInv.Stripe_Invoice_ID__c = stripeInvoiceId;
+            stripeInv.Quote_ID_From_Stripe__c = parentQuoteId;
+            stripeInvoiceList.add(stripeInv);
+
+            Database.SaveResult[] results = EventBus.publish(stripeInvoiceList);
+            system.debug('results--' + results);
+        } else if (eventType.equals('invoice.updated')) {
+            Map<String, Object> data = (Map<String, Object>) event.get('data');
+            system.debug('data--' + data);
+            Map<String, Object> stripeInvoice = (Map<String, Object>) data.get('object');
+            Map<String, Object> parent = (Map<String, Object>) stripeInvoice.get('parent');
+            Map<String, Object> subscriptionDetails = parent != null
+                ? (Map<String, Object>) parent.get('subscription_details')
+                : null;
+            String subscriptionId = subscriptionDetails != null
+                ? (String) subscriptionDetails.get('subscription')
+                : null;
+            Map<String, Object> metadata = (Map<String, Object>) stripeInvoice.get('metadata');
+            String parentQuoteId = metadata.get('salesforce_quote_id') != null
+                ? (String) metadata.get('salesforce_quote_id')
+                : null;
+            Map<String, Object> parentMetadata = subscriptionDetails != null
+                ? (Map<String, Object>) subscriptionDetails.get('metadata')
+                : null;
+            if (parentQuoteId == null) {
+                parentQuoteId = parentMetadata != null
+                    ? (String) (parentMetadata.get('salesforce_quote_id') != null
+                          ? parentMetadata.get('salesforce_quote_id')
+                          : parentMetadata.get('salesforce_Quote_id'))
+                    : null;
+            }
+            String stripeInvoiceId = (String) stripeInvoice.get('id');
+            system.debug('invoice----' + stripeInvoiceId);
+
+            // Check for deleted invoice line items
+            Set<String> deletedLineItemIds = new Set<String>();
+
+            if (data.containsKey('previous_attributes')) {
+                Map<String, Object> previousAttributes = (Map<String, Object>) data.get('previous_attributes');
+
+                if (previousAttributes.containsKey('lines')) {
+                    Map<String, Object> previousLines = (Map<String, Object>) previousAttributes.get('lines');
+                    List<Object> previousLineItems = (List<Object>) previousLines.get('data');
+
+                    Map<String, Object> currentLines = (Map<String, Object>) stripeInvoice.get('lines');
+                    List<Object> currentLineItems = (List<Object>) currentLines.get('data');
+
+                    // Create sets for comparison
+                    Set<String> currentItemIds = new Set<String>();
+                    Set<String> previousItemIds = new Set<String>();
+
+                    // Populate current item IDs
+                    for (Object itemObj : currentLineItems) {
+                        Map<String, Object> item = (Map<String, Object>) itemObj;
+                        String itemId = (String) item.get('id');
+                        currentItemIds.add(itemId);
+                    }
+
+                    // Populate previous item IDs
+                    for (Object itemObj : previousLineItems) {
+                        Map<String, Object> item = (Map<String, Object>) itemObj;
+                        String itemId = (String) item.get('id');
+                        previousItemIds.add(itemId);
+                    }
+
+                    // Find deleted item IDs (in previous but not in current)
+                    deletedLineItemIds = previousItemIds.clone();
+                    deletedLineItemIds.removeAll(currentItemIds);
+                    System.debug('Deleted Line Item IDs: ' + deletedLineItemIds);
+                }
+            }
+
+            // If there are deleted line items, handle them accordingly
+            if (!deletedLineItemIds.isEmpty()) {
+                List<Stripe_Capture_Deleted_Invoice_Item__e> deletedLineItemsEvents = new List<Stripe_Capture_Deleted_Invoice_Item__e>();
+
+                for (String itemId : deletedLineItemIds) {
+                    Stripe_Capture_Deleted_Invoice_Item__e deletedItemEvent = new Stripe_Capture_Deleted_Invoice_Item__e();
+                    deletedItemEvent.Stripe_Invoice_ID__c = stripeInvoiceId;
+                    deletedItemEvent.Deleted_Invoice_Item_ID__c = itemId;
+                    deletedLineItemsEvents.add(deletedItemEvent);
+                }
+
+                Database.SaveResult[] deleteResults = EventBus.publish(deletedLineItemsEvents);
+                System.debug('Deleted Line Items Publish Results: ' + deleteResults);
+            }
 
             List<Stripe_Capture_Invoice__e> stripeInvoiceList = new List<Stripe_Capture_Invoice__e>();
 
@@ -146,14 +237,26 @@ global without sharing class StripeWebHook {
                 List<Stripe_Capture_Payment__e> stripePaymentList = new List<Stripe_Capture_Payment__e>();
 
                 Stripe_Capture_Payment__e stripePayment = new Stripe_Capture_Payment__e();
-                Stripe_Capture_Payment__e stripePaymentinv = new Stripe_Capture_Payment__e();
-                stripePaymentinv.Payment_Capture__c = false;
-                stripePaymentinv.Invoice_Capture__c = true;
-                stripePaymentinv.Stripe_Subscription_ID__c = subscriptionId;
-                stripePaymentinv.StripeInvoiceId__c = stripeInvoiceId2;
-                stripePaymentinv.stripepaymentintent_ID__c = stripepaymentintentID;
-                stripePaymentinv.Quote_Id_From_Stripe__c = parenttQuoteId;
-                stripePaymentList.add(stripePaymentinv);
+                stripePayment.Payment_Capture__c = false;
+                stripePayment.Invoice_Capture__c = true;
+                stripePayment.Stripe_Subscription_ID__c = subscriptionId;
+                stripePayment.StripeInvoiceId__c = stripeInvoiceId2;
+                stripePayment.stripepaymentintent_ID__c = stripepaymentintentID;
+                stripePayment.Quote_Id_From_Stripe__c = parenttQuoteId;
+                stripePaymentList.add(stripePayment);
+                Database.SaveResult[] results = EventBus.publish(stripePaymentList);
+                system.debug('results--' + results);
+            } else {
+                List<Stripe_Capture_Payment__e> stripePaymentList = new List<Stripe_Capture_Payment__e>();
+
+                Stripe_Capture_Payment__e stripePayment = new Stripe_Capture_Payment__e();
+                stripePayment.Payment_Capture__c = false;
+                stripePayment.Invoice_Capture__c = true;
+                stripePayment.Stripe_Subscription_ID__c = subscriptionId;
+                stripePayment.StripeInvoiceId__c = stripeInvoiceId2;
+                stripePayment.stripepaymentintent_ID__c = stripepaymentintentID;
+                stripePayment.Quote_Id_From_Stripe__c = parenttQuoteId;
+                stripePaymentList.add(stripePayment);
                 Database.SaveResult[] results = EventBus.publish(stripePaymentList);
                 system.debug('results--' + results);
             }

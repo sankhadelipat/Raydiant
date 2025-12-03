@@ -3,7 +3,12 @@ public class StripePaymentMethodCreator {
     private static final String SECRET_KEY = stripeDetails.Serect_Key__c;
 
     @future(callout=true)
-    public static void createPaymentMethod(String paymentMethodId, Id transactionId, Id quoteId, string subcritionId) {
+    public static void createPaymentMethod(
+        String paymentMethodId,
+        Id transactionId,
+        Id quoteId,
+        String stripeSubscriptionId
+    ) {
         try {
             Http http = new Http();
             HttpRequest req = new HttpRequest();
@@ -20,7 +25,8 @@ public class StripePaymentMethodCreator {
                     pmData,
                     paymentMethodId,
                     transactionId,
-                    quoteId
+                    quoteId,
+                    stripeSubscriptionId
                 );
                 upsert pm Stripe_Payment_Method_ID__c;
             } else {
@@ -46,13 +52,46 @@ public class StripePaymentMethodCreator {
         Map<String, Object> pmData,
         String pmId,
         Id transactionId,
-        Id quoteId
+        Id quoteId,
+        String stripeSubscriptionId
     ) {
-        SBQQ__Quote__c quoteList = [
-            SELECT Id, SBQQ__Account__c, Bill_To_Contact__c, Billing_Frequency_Override__c
-            FROM SBQQ__Quote__c
-            WHERE Id = :quoteId
-        ];
+        List<Contract> contracts = new List<Contract>();
+        if (stripeSubscriptionId != null) {
+            contracts = [
+                SELECT id, Stripe_Subscription_ID__c, SBQQ__Quote__c
+                FROM Contract
+                WHERE Stripe_Subscription_ID__c = :stripeSubscriptionId
+            ];
+        }
+
+        List<SBQQ__Quote__c> quoteList = new List<SBQQ__Quote__c>();
+        if (!contracts.isEmpty()) {
+            quoteList = [
+                SELECT
+                    Id,
+                    SBQQ__NetAmount__c,
+                    SBQQ__Account__c,
+                    Is_Stripe_Payment_Done__c,
+                    Bill_To_Contact__c,
+                    Stripe_Payment_Intent__c,
+                    SBQQ__Account__r.blng__BillToContact__c
+                FROM SBQQ__Quote__c
+                WHERE id = :contracts[0].SBQQ__Quote__c
+            ];
+        } else if (quoteId != null) {
+            quoteList = [
+                SELECT
+                    Id,
+                    SBQQ__NetAmount__c,
+                    SBQQ__Account__c,
+                    Is_Stripe_Payment_Done__c,
+                    Bill_To_Contact__c,
+                    Stripe_Payment_Intent__c,
+                    SBQQ__Account__r.blng__BillToContact__c
+                FROM SBQQ__Quote__c
+                WHERE Id = :quoteId
+            ];
+        }
 
         String pmType = (String) pmData.get('type');
         Map<String, Object> billingDetails = (Map<String, Object>) pmData.get('billing_details');
@@ -75,10 +114,34 @@ public class StripePaymentMethodCreator {
         String payerName = billingDetails != null ? (String) billingDetails.get('name') : null;
         DateTime createdAt = DateTime.newInstance((Long) pmData.get('created') * 1000); // Convert seconds to milliseconds
         String customerId = (String) pmData.get('customer');
+        Id accountId;
+        Id billToContactId;
+
+        // Fetch Account based on Customer ID
+        List<Account> accts = [
+            SELECT Id, Name, blng__BillToContact__c
+            FROM Account
+            WHERE Stripe_Customer_ID__c = :customerId
+        ];
+        System.debug('accts--' + accts);
+
+        // Determine Account and Bill To Contact
+        if (!accts.isEmpty()) {
+            accountId = accts[0].Id;
+            billToContactId = accts[0].blng__BillToContact__c;
+        } else if (!quoteList.isEmpty()) {
+            accountId = quoteList[0].SBQQ__Account__c;
+            billToContactId = quoteList[0].Bill_To_Contact__c != null
+                ? quoteList[0].Bill_To_Contact__c
+                : quoteList[0].SBQQ__Account__r.blng__BillToContact__c;
+        } else {
+            throw new DmlException('No Account found: ' + customerId);
+        }
+        System.debug('accountId--' + accountId);
 
         Stripe_Payment_Method__c pm = new Stripe_Payment_Method__c(
             Payment_Method_Type__c = pmType,
-            Account__c = quoteList.SBQQ__Account__c,
+            Account__c = accountId,
             Stripe_Payment_Transaction__c = transactionId,
             Stripe_Payment_Method_ID__c = pmId,
             Payer_Name__c = payerName,
