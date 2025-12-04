@@ -83,7 +83,7 @@ public class StripePaymentIntentQueueable implements Queueable, Database.AllowsC
                 String errorCode = lastPaymentError != null ? (String) lastPaymentError.get('code') : null;
                 String declineCode = lastPaymentError != null ? (String) lastPaymentError.get('decline_code') : null;
                 String currencyCode = (String) intentData.get('currency');
-                String invoiceId = (String) intentData.get('invoice');
+                String stripeInvoiceId = (String) intentData.get('invoice');
                 String stripeCustomerId = (String) intentData.get('customer');
                 String paymentMethodId = (String) intentData.get('payment_method');
                 String paymentStatus = (String) intentData.get('status');
