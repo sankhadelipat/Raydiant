@@ -113,6 +113,9 @@ public class StripeInvoiceScheduler implements Queueable, Database.AllowsCallout
                 invoice.Amount_Remaining__c = result.containsKey('amount_remaining')
                     ? (Decimal) result.get('amount_remaining') / 100
                     : 0;
+                invoice.Amount_Credited__c = result.containsKey('pre_payment_credit_notes_amount')
+                    ? (Decimal) result.get('pre_payment_credit_notes_amount') / 100
+                    : 0;
                 invoice.Tax_Rate__c = result.containsKey('tax') && result.get('tax') != null
                     ? (Decimal) result.get('tax')
                     : 0;
