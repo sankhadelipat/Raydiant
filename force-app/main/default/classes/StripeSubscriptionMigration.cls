@@ -30,18 +30,12 @@ public class StripeSubscriptionMigration implements Database.Batchable<SObject>,
                     AccountId
                 FROM Contract
                 WHERE
-                    Id IN (
-                        SELECT SBQQ__Contract__c
-                        FROM SBQQ__Subscription__c
-                        WHERE
-                            F52_Active__c = TRUE
-                            AND SBQQ__Product__r.Stripe_Product_ID__c != NULL
-                            AND Stripe_Subscription_Migration__c = TRUE
-                    )
-                    AND Contract_Migration__c = FALSE
+                    Contract_Migration__c = FALSE
+                    AND Is_Migrating__c = TRUE
                     AND Stripe_Subscription_ID__c = NULL
                     AND Current_Migration_End_Date__c != NULL
-                    AND Stripe_Billing_Date__c >= TODAY
+                    AND Current_Migration_End_Date__c > TODAY
+                    AND Current_Migration_Start_Date__c < TODAY
                 ORDER BY LastModifiedDate DESC
             ]
         );
@@ -139,6 +133,7 @@ public class StripeSubscriptionMigration implements Database.Batchable<SObject>,
 
                 bodyParts.add('days_until_due=0');
                 bodyParts.add('collection_method=send_invoice');
+                //bodyParts.add('collection_method=charge_automatically');
                 bodyParts.add('currency=' + con.CurrencyIsoCode);
                 bodyParts.add('proration_behavior=none');
                 bodyParts.add('billing_mode[type]=flexible');
@@ -146,15 +141,18 @@ public class StripeSubscriptionMigration implements Database.Batchable<SObject>,
                 // Billing anchor date
                 Date billingDate = con.Stripe_Billing_Date__c; //con.Stripe_Billing_Date__c;
 
-                Datetime billingAnchor = Datetime.newInstanceGMT(
-                    billingDate.year(),
-                    billingDate.month(),
-                    billingDate.day(),
-                    0,
-                    0,
-                    0
-                );
-                bodyParts.add('billing_cycle_anchor=' + String.valueOf(billingAnchor.getTime() / 1000));
+                if (billingDate != null) {
+                    Datetime billingAnchor = Datetime.newInstanceGMT(
+                        billingDate.year(),
+                        billingDate.month(),
+                        billingDate.day(),
+                        0,
+                        0,
+                        0
+                    );
+
+                    bodyParts.add('billing_cycle_anchor=' + String.valueOf(billingAnchor.getTime() / 1000));
+                }
 
                 // Backdate start & cancel date
                 Long startUnix = Datetime.newInstance(startDate, Time.newInstance(0, 0, 0, 0)).getTime() / 1000;
@@ -241,6 +239,7 @@ public class StripeSubscriptionMigration implements Database.Batchable<SObject>,
                                 Stripe_Customer_ID__c = customerId,
                                 Stripe_latest_Invoice_Id__c = invoiceId,
                                 Stripe_Status__c = status,
+                                Stripe_Subscription_URL__c = 'https://dashboard.stripe.com/subscriptions/' + subId,
                                 Contract_Migration__c = true,
                                 StartDate = startDate,
                                 EndDate = endDate,
@@ -329,6 +328,7 @@ public class StripeSubscriptionMigration implements Database.Batchable<SObject>,
                                 Stripe_latest_Invoice_Id__c = invoiceId,
                                 Stripe_Subscription_Source__c = 'salesforce',
                                 Stripe_Status__c = status,
+                                Stripe_Subscription_URL__c = 'https://dashboard.stripe.com/subscriptions/' + subId,
                                 Contract_Migration__c = true,
                                 Status = 'Activated',
                                 Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),

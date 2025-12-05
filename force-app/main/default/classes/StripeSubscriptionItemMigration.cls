@@ -156,6 +156,7 @@ public class StripeSubscriptionItemMigration implements Database.Batchable<SObje
                 Stripe_Customer_ID__c = customerId,
                 Stripe_latest_Invoice_Id__c = invoiceId,
                 Stripe_Status__c = status,
+                Stripe_Subscription_URL__c = 'https://dashboard.stripe.com/subscriptions/' + subId,
                 Status = 'Activated',
                 Contract_Migration__c = true,
                 StartDate = startDate,

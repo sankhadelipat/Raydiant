@@ -295,6 +295,7 @@ global without sharing class StripeWebHook {
                 stripePayment.Latest_invoiceId__c = invoiceid;
                 stripePayment.Subscription_Source__c = subscriptionSource;
                 stripePayment.Subscription_Schedule__c = subscriptionSchedule;
+                stripePayment.Event_Type__c = eventType;
                 stripePaymentList.add(stripePayment);
 
                 Database.SaveResult[] results = EventBus.publish(stripePaymentList);
@@ -313,6 +314,7 @@ global without sharing class StripeWebHook {
                 stripePayment.Latest_invoiceId__c = invoiceid;
                 stripePayment.Subscription_Source__c = subscriptionSource;
                 stripePayment.Subscription_Schedule__c = false;
+                stripePayment.Event_Type__c = eventType;
                 stripePaymentList.add(stripePayment);
 
                 Database.SaveResult[] results = EventBus.publish(stripePaymentList);
@@ -331,6 +333,7 @@ global without sharing class StripeWebHook {
                 stripePayment.Latest_invoiceId__c = invoiceid;
                 stripePayment.Subscription_Source__c = 'stripe';
                 stripePayment.Subscription_Schedule__c = false;
+                stripePayment.Event_Type__c = eventType;
                 stripePaymentList.add(stripePayment);
 
                 Database.SaveResult[] results = EventBus.publish(stripePaymentList);
@@ -423,6 +426,7 @@ global without sharing class StripeWebHook {
                 stripePayment.StripeSubscriptionId__c = subscriptionId;
                 stripePayment.Salesforce_Quote_Id__c = quoteId;
                 stripePayment.Subscription_Source__c = subscriptionSource;
+                stripePayment.Event_Type__c = eventType;
                 stripePaymentList.add(stripePayment);
 
                 Database.SaveResult[] results = EventBus.publish(stripePaymentList);
@@ -439,6 +443,7 @@ global without sharing class StripeWebHook {
                 Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
                 stripePayment.StripeSubscriptionId__c = subscriptionId;
                 stripePayment.Subscription_Source__c = subscriptionSource;
+                stripePayment.Event_Type__c = eventType;
                 stripePaymentList.add(stripePayment);
 
                 Database.SaveResult[] results = EventBus.publish(stripePaymentList);
@@ -455,6 +460,7 @@ global without sharing class StripeWebHook {
                 Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
                 stripePayment.StripeSubscriptionId__c = subscriptionId;
                 stripePayment.Subscription_Source__c = 'stripe';
+                stripePayment.Event_Type__c = eventType;
                 stripePaymentList.add(stripePayment);
 
                 Database.SaveResult[] results = EventBus.publish(stripePaymentList);

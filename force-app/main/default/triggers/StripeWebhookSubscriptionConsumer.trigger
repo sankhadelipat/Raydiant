@@ -18,5 +18,12 @@ trigger StripeWebhookSubscriptionConsumer on Stripe_Capture_Subscription__e(afte
                 1
             );
         }
+
+        if (evt.Event_Type__c == 'customer.subscription.created') {
+            System.enqueueJob(
+                new StripeSubscriptionMetadataUpdater(evt.StripeSubscriptionId__c, evt.Subscription_Source__c),
+                2
+            );
+        }
     }
 }
