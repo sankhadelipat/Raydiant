@@ -537,7 +537,7 @@ public class StripeSubscriptionScheduler2 {
                 }
                 update quoteLinesToUpdate;
 
-                // StripeSubscriptionScheduler.createSubscrition(subRes.getBody(), quote.Id);
+                StripeSubscriptionScheduler.createSubscrition(subRes.getBody(), quote.Id);
                 System.enqueueJob(new StripeInvoiceCallout(invoiceId, quote.Id));
             } else {
                 System.debug('Stripe Subscription Error: ' + subRes.getBody());

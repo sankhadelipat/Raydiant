@@ -600,16 +600,17 @@ public class StripeSubscriptionScheduler {
 
             if (!subscriptionItemsToInsert.isEmpty()) {
                 upsert subscriptionItemsToInsert SBQQ__Subscription__c.Stripe_Subscription_ID__c;
-                // insert subscriptionItemsToInsert;
-                System.debug('Inserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
+                System.debug('Upserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
 
                 List<Contract> contractsToUpdate = new List<Contract>();
                 Contract conToUpdate = new Contract(Id = contract.Id, Status = 'Activated');
                 contractsToUpdate.add(conToUpdate);
                 update contractsToUpdate;
+
+                System.enqueueJob(new StripeInvoicePreview(subscriptionId));
             } else {
                 System.debug('No subscription records to insert');
-                throw new CalloutException('subscription records to insert: ');
+                return;
             }
         } catch (exception ex) {
             Logger__c logger = new Logger__c(
@@ -807,16 +808,17 @@ public class StripeSubscriptionScheduler {
 
             if (!subscriptionItemsToInsert.isEmpty()) {
                 upsert subscriptionItemsToInsert SBQQ__Subscription__c.Stripe_Subscription_ID__c;
-                // insert subscriptionItemsToInsert;
-                System.debug('Inserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
+                System.debug('Upserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
 
                 List<Contract> contractsToUpdate = new List<Contract>();
                 Contract conToUpdate = new Contract(Id = contract.Id, Status = 'Activated');
                 contractsToUpdate.add(conToUpdate);
                 update contractsToUpdate;
+
+                System.enqueueJob(new StripeInvoicePreview(subscriptionId));
             } else {
                 System.debug('No subscription records to insert');
-                throw new CalloutException('subscription records to insert: ');
+                return;
             }
         } catch (exception ex) {
             Logger__c logger = new Logger__c(
@@ -1022,16 +1024,17 @@ public class StripeSubscriptionScheduler {
 
             if (!subscriptionItemsToInsert.isEmpty()) {
                 upsert subscriptionItemsToInsert SBQQ__Subscription__c.Stripe_Subscription_ID__c;
-                // insert subscriptionItemsToInsert;
-                System.debug('Inserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
+                System.debug('Upserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
 
                 List<Contract> contractsToUpdate = new List<Contract>();
                 Contract conToUpdate = new Contract(Id = contract.Id, Status = 'Activated');
                 contractsToUpdate.add(conToUpdate);
                 update contractsToUpdate;
+
+                System.enqueueJob(new StripeInvoicePreview(subscriptionId));
             } else {
                 System.debug('No subscription records to insert');
-                throw new CalloutException('subscription records to insert: ');
+                return;
             }
         } catch (exception ex) {
             Logger__c logger = new Logger__c(
@@ -1047,7 +1050,7 @@ public class StripeSubscriptionScheduler {
         }
     }
 
-    // CANCEL From Stripe
+    // Canceled From Stripe
     @future(callout=true)
     public static void deleteSubscrition(string subscriptionId) {
         try {

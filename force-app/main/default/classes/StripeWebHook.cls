@@ -286,11 +286,7 @@ global without sharing class StripeWebHook {
             System.debug('Quote Id: ' + quoteId);
 
             if (subscriptionSchedule == true && quoteId != null && subscriptionId != null) {
-                //fire  StripeWebhookSubscriptionConsumer  event & call this StripeSubscriptionScheduler2.getUpdatedSubcriptionfromStrpe
-                // it will upsert new Contarct & Subscription . For Invoice creation call another QueableClass StripeInvoiceScheduler.5/09
-
-                // Publish subscription event then Event called  StripeSubscriptionScheduler2.getUpdatedSubcriptionfromStrpe
-                // method then this  StripeSubscriptionScheduler.createStripeSubscription. For Invoice creation StripeInviceSchedular Queueable class
+                // This is for subscription creation from stripe which has been scheduled via Salesforce Quote
                 List<Stripe_Capture_Subscription__e> stripePaymentList = new List<Stripe_Capture_Subscription__e>();
 
                 Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
@@ -302,7 +298,6 @@ global without sharing class StripeWebHook {
                 stripePaymentList.add(stripePayment);
 
                 Database.SaveResult[] results = EventBus.publish(stripePaymentList);
-                //turned offdue to subscription Migration
                 system.debug('results--' + results);
             } else if (
                 (subscriptionSource == 'amazon' ||
@@ -310,7 +305,7 @@ global without sharing class StripeWebHook {
                 quoteId == null &&
                 subscriptionId != null
             ) {
-                // this is for subscription creation from self-service portal
+                // this is for subscription which has been created from self-service portal
                 List<Stripe_Capture_Subscription__e> stripePaymentList = new List<Stripe_Capture_Subscription__e>();
 
                 Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
@@ -321,7 +316,6 @@ global without sharing class StripeWebHook {
                 stripePaymentList.add(stripePayment);
 
                 Database.SaveResult[] results = EventBus.publish(stripePaymentList);
-                // turned offdue to subscription Migration
                 system.debug('results--' + results);
             } else if (
                 (subscriptionSource == null ||
@@ -329,7 +323,7 @@ global without sharing class StripeWebHook {
                 quoteId == null &&
                 subscriptionId != null
             ) {
-                // this is for subscription maqnually created from stripe portal
+                // this is for subscription which has been manually created from stripe dashboard
                 List<Stripe_Capture_Subscription__e> stripePaymentList = new List<Stripe_Capture_Subscription__e>();
 
                 Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
@@ -340,7 +334,6 @@ global without sharing class StripeWebHook {
                 stripePaymentList.add(stripePayment);
 
                 Database.SaveResult[] results = EventBus.publish(stripePaymentList);
-                // turned offdue to subscription Migration
                 system.debug('results--' + results);
             }
         } else if (eventType.equals('customer.subscription.updated')) {
@@ -423,8 +416,7 @@ global without sharing class StripeWebHook {
             }
 
             if (quoteId != null && subscriptionId != null) {
-                // Publish subscription event then Event called  StripeSubscriptionScheduler2.getUpdatedSubcriptionfromStrpe
-                // method then this  StripeSubscriptionScheduler.createStripeSubscription
+                // This is for subscription which has been updated & was originally created via Salesforce Quote
                 List<Stripe_Capture_Subscription__e> stripePaymentList = new List<Stripe_Capture_Subscription__e>();
 
                 Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
@@ -441,7 +433,7 @@ global without sharing class StripeWebHook {
                 quoteId == null &&
                 subscriptionId != null
             ) {
-                // this is for subscription creation from self-service portal or stripe portal
+                // this is for subscription which has been created from self-service portal
                 List<Stripe_Capture_Subscription__e> stripePaymentList = new List<Stripe_Capture_Subscription__e>();
 
                 Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
@@ -457,7 +449,7 @@ global without sharing class StripeWebHook {
                 quoteId == null &&
                 subscriptionId != null
             ) {
-                // this is for subscription maqnually created from stripe portal
+                // this is for subscription which has been manually created from stripe dashboard
                 List<Stripe_Capture_Subscription__e> stripePaymentList = new List<Stripe_Capture_Subscription__e>();
 
                 Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
