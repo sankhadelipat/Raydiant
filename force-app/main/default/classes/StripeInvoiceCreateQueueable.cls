@@ -121,7 +121,7 @@ public class StripeInvoiceCreateQueueable implements Queueable, Database.AllowsC
                 invoice.Tax_Rate__c = result.containsKey('tax') && result.get('tax') != null
                     ? (Decimal) result.get('tax')
                     : 0;
-                invoice.Due_Date__c = toDateTime(dueDate);
+                invoice.Due_Date__c = Date.valueOf(toDateTime(dueDate));
                 invoice.Automatically_Finalizes_At__c = toDateTime(finalizesAt);
                 invoice.Billing_Reason__c = (String) result.get('billing_reason');
                 invoice.CurrencyIsoCode = currencyCode.toUpperCase();
