@@ -28,7 +28,7 @@ public class StripeInvoicePreview implements Queueable, Database.AllowsCallouts 
                 if (preview.containsKey('next_payment_attempt') && preview.get('next_payment_attempt') != null) {
                     nextBillingTimestamp = (Long) preview.get('next_payment_attempt');
                 } else if (preview.containsKey('created') && preview.get('created') != null) {
-                    nextBillingTimestamp = (Long) preview.get('period_end');
+                    nextBillingTimestamp = (Long) preview.get('created');
                 } else if (preview.containsKey('period_end') && preview.get('period_end') != null) {
                     nextBillingTimestamp = (Long) preview.get('period_end');
                 } else {
