@@ -537,7 +537,7 @@ public class StripeSubscriptionScheduler2 {
                 }
                 update quoteLinesToUpdate;
 
-                StripeSubscriptionScheduler.createSubscrition(subRes.getBody(), quote.Id);
+                StripeSubscriptionScheduler.createSubscriptionWithQuote(subRes.getBody(), quote.Id);
                 System.enqueueJob(new StripeInvoiceCallout(invoiceId, quote.Id));
             } else {
                 System.debug('Stripe Subscription Error: ' + subRes.getBody());
@@ -574,13 +574,11 @@ public class StripeSubscriptionScheduler2 {
             System.debug('subResponse---' + subResponse);
 
             if (quoteId != null) {
-                StripeSubscriptionScheduler.createSubscrition(subRes.getBody(), quoteId);
+                StripeSubscriptionScheduler.createSubscriptionWithQuote(subRes.getBody(), quoteId);
             } else if ((subscriptionSource == 'amazon' || subscriptionSource == 'self_service') && quoteId == null) {
-                // StripeSubscriptionScheduler.createSubscritionFromSelfService(subRes.getBody());
                 System.enqueueJob(new StripeSelfServiceQueueable(subRes.getBody()), 1);
-            } else if (subscriptionSource == 'stripe' && quoteId == null) {
-                StripeSubscriptionScheduler.createManualSubscrition(subRes.getBody());
-                // System.enqueueJob(new StripeSubscriptionQueueable(subRes.getBody()), 1);
+            } else if (quoteId == null) {
+                StripeSubscriptionScheduler.createSubscriptionWithoutQuote(subRes.getBody());
             }
         }
     }

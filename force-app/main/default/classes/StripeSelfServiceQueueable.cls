@@ -6,6 +6,6 @@ public class StripeSelfServiceQueueable implements Queueable, Database.AllowsCal
     }
 
     public void execute(QueueableContext context) {
-        StripeSubscriptionScheduler.createSubscritionFromSelfService(responseBody);
+        StripeSubscriptionScheduler.createSubscriptionWithoutQuote(responseBody);
     }
 }

@@ -361,7 +361,7 @@ public class StripeSubscriptionScheduler {
     }
 
     // It is Used for both Create & Update Subscription
-    public static void createSubscrition(string responseBody, string quoteid) {
+    public static void createSubscriptionWithQuote(String responseBody, String quoteId) {
         try {
             List<SBQQ__Quote__c> quoteList = [
                 SELECT
@@ -407,26 +407,16 @@ public class StripeSubscriptionScheduler {
                 metadata.get('subscription_source') != null
                 ? String.valueOf(metadata.get('subscription_source'))
                 : null;
+            Boolean subscriptionSchedule = metadata.get('subscription_schedule') != null
+                ? Boolean.valueOf((String) metadata.get('subscription_schedule'))
+                : false;
+            Boolean isRenewalSubscription = metadata.get('auto_renewal') != null
+                ? Boolean.valueOf((String) metadata.get('auto_renewal'))
+                : false;
             Map<String, Object> items = (Map<String, Object>) payload.get('items');
             List<Object> subscriptionItems = (List<Object>) items.get('data');
             System.debug('Subscription Items: ' + subscriptionItems);
             System.debug('Total subscription items: ' + subscriptionItems.size());
-
-            /*if (payload.containsKey('object')) {
-                Object objVal = payload.get('object');
-                if (objVal instanceof Map<String, Object>) {
-                    Map<String, Object> subscription = (Map<String, Object>) payload.get('object');
-                    system.debug('subscription'+ JSON.serializePretty(subscription));
-                    if (subscription != null && subscription.containsKey('schedule')) {
-                        Object schedVal = subscription.get('schedule');
-                        system.debug('schedVal'+schedVal);
-                        if (schedVal != null && String.valueOf(schedVal).startsWith('sub_sched')) {
-                            scheduleId = (String) schedVal;
-                             system.debug('scheduleId'+scheduleId);
-                        }
-                    }
-                }
-            }*/
 
             // Extract basic fields from payload
             String scheduleId = (String) (payload.containsKey('schedule') ? payload.get('schedule') : null);
@@ -473,10 +463,18 @@ public class StripeSubscriptionScheduler {
             System.debug('Current Period End: ' + currentPeriodEnd);
             System.debug('Start Date: ' + startDate);
 
+            String latestChangeReason;
+
+            if (isRenewalSubscription) {
+                latestChangeReason = 'Auto Renewal Subscription Creaeted';
+            } else {
+                latestChangeReason = 'Subscription Created From Salesforce';
+            }
+
             // Create Contract
             Contract contract = new Contract(
                 AccountId = quoteList[0].SBQQ__Account__c,
-                SBQQ__Quote__c = quoteid,
+                SBQQ__Quote__c = quoteId,
                 Stripe_Subscription_ID__c = subscriptionId,
                 Stripe_Customer_ID__c = customerId,
                 Stripe_latest_Invoice_Id__c = latestInvoice,
@@ -487,8 +485,8 @@ public class StripeSubscriptionScheduler {
                 ContractTerm = calculateContractTerm(startDate, cancelAt),
                 Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
                 CustomerSignedId = quoteList[0].SBQQ__Account__r.blng__BillToContact__c,
-                Created_From_Stripe__c = true,
-                Latest_Change_Reason__c = 'Contract Term Update From Stripe',
+                Created_From_Stripe__c = subscriptionSource != 'salesforce' ? true : false,
+                Latest_Change_Reason__c = latestChangeReason,
                 Stripe_Subscription_Schedule_ID__c = scheduleId,
                 Stripe_Subscription_Start_Date__c = String.valueOf(startDateUnix)
             );
@@ -578,7 +576,7 @@ public class StripeSubscriptionScheduler {
                     SBQQ__SubscriptionStartDate__c = startDate,
                     SBQQ__SubscriptionEndDate__c = cancelAt,
                     Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
-                    Latest_Change_Reason__c = 'Subcription Item Update From Stripe',
+                    Latest_Change_Reason__c = latestChangeReason,
                     SBQQ__NetPrice__c = unitAmount,
                     SBQQ__Product__c = matchingProduct != null ? matchingProduct.Id : null,
                     SBQQ__CustomerPrice__c = customerPrice,
@@ -615,12 +613,12 @@ public class StripeSubscriptionScheduler {
             }
         } catch (exception ex) {
             Logger__c logger = new Logger__c(
-                Name = 'Stripe Subscription Update Error',
+                Name = 'Stripe Subscription Upsert Error',
                 Message__c = ex.getMessage(),
                 StackTrace__c = ex.getStackTraceString(),
                 Status__c = 'Error',
                 Apex_Class__c = 'StripeSubscriptionScheduler',
-                Apex_Method__c = 'createSubscrition',
+                Apex_Method__c = 'createSubscriptionWithQuote',
                 Object_Name__c = 'Contract'
             );
             insert logger;
@@ -628,216 +626,7 @@ public class StripeSubscriptionScheduler {
     }
 
     // Create Subscription when Subscription is created manually from Stripe Portal
-    public static void createManualSubscrition(String responseBody) {
-        try {
-            Map<String, Object> payload = (Map<String, Object>) JSON.deserializeUntyped(responseBody);
-            system.debug('--payload--' + payload);
-            Map<String, Object> items = (Map<String, Object>) payload.get('items');
-            List<Object> subscriptionItems = (List<Object>) items.get('data');
-            System.debug('Subscription Items: ' + subscriptionItems);
-            System.debug('Total subscription items: ' + subscriptionItems.size());
-
-            // Extract basic fields from payload
-            String scheduleId = (String) (payload.containsKey('schedule') ? payload.get('schedule') : null);
-            System.debug('Extracted Schedule Id: ' + scheduleId);
-            String subscriptionId = (String) payload.get('id');
-            String customerId = (String) payload.get('customer');
-            String latestInvoice = (String) payload.get('latest_invoice');
-            String status = (String) payload.get('status');
-
-            // Extract date fields as Long
-            Long billingCycleAnchorUnix = payload.containsKey('billing_cycle_anchor')
-                ? (Long) payload.get('billing_cycle_anchor')
-                : null;
-            Long cancelAtUnix = payload.containsKey('cancel_at') ? (Long) payload.get('cancel_at') : null;
-            Long trialEndUnix = payload.containsKey('trial_end') ? (Long) payload.get('trial_end') : null;
-            Long canceledAtUnix = payload.containsKey('canceled_at') ? (Long) payload.get('canceled_at') : null;
-            Long createdUnix = payload.containsKey('created') ? (Long) payload.get('created') : null;
-            Long currentPeriodStartUnix = payload.containsKey('current_period_start')
-                ? (Long) payload.get('current_period_start')
-                : null;
-            Long currentPeriodEndUnix = payload.containsKey('current_period_end')
-                ? (Long) payload.get('current_period_end')
-                : null;
-            Long startDateUnix = payload.containsKey('start_date') ? (Long) payload.get('start_date') : null;
-
-            // Log extracted values
-            System.debug('Subscription ID: ' + subscriptionId);
-            System.debug('Customer ID: ' + customerId);
-            System.debug('Latest Invoice: ' + latestInvoice);
-            System.debug('Status: ' + status);
-
-            Datetime billingCycleAnchor = toDateTime(billingCycleAnchorUnix);
-            Date cancelAt = cancelAtUnix != null
-                ? date.valueof(toDateTime(cancelAtUnix))
-                : date.valueOf(toDateTime(trialEndUnix));
-            Datetime canceledAt = toDateTime(canceledAtUnix);
-            Datetime created = toDateTime(createdUnix);
-            Datetime currentPeriodStart = toDateTime(currentPeriodStartUnix);
-            Datetime currentPeriodEnd = toDateTime(currentPeriodEndUnix);
-            Date startDate = date.valueof(toDateTime(startDateUnix));
-            datetime subStartDate = toDateTime(startDateUnix);
-            System.debug('Billing Cycle Anchor: ' + billingCycleAnchor);
-            System.debug('Cancel At: ' + cancelAt);
-            System.debug('Canceled At: ' + canceledAt);
-            System.debug('Created: ' + created);
-            System.debug('Current Period Start: ' + currentPeriodStart);
-            System.debug('Current Period End: ' + currentPeriodEnd);
-            System.debug('Start Date: ' + startDate);
-
-            // Fetch Account based on Customer ID
-            List<Account> accts = [
-                SELECT Id, Name, blng__BillToContact__c
-                FROM Account
-                WHERE Stripe_Customer_ID__c = :customerId
-            ];
-            System.debug('accts--' + accts);
-
-            Id accountId = accts.size() > 0 ? accts[0].Id : null;
-            System.debug('Account ID: ' + accountId);
-            if (accountId == null) {
-                throw new DmlException('No Account found with Stripe Customer ID: ' + customerId);
-            }
-
-            // Create Contract
-            Contract contract = new Contract(
-                AccountId = accountId,
-                Stripe_Subscription_ID__c = subscriptionId,
-                Stripe_Customer_ID__c = customerId,
-                Stripe_latest_Invoice_Id__c = latestInvoice,
-                Stripe_Subscription_Source__c = 'stripe',
-                Stripe_Status__c = status,
-                Stripe_Subscription_URL__c = 'https://dashboard.stripe.com/subscriptions/' + subscriptionId,
-                StartDate = startDate,
-                ContractTerm = calculateContractTerm(startDate, cancelAt),
-                // SBQQ__Evergreen__c = calculateContractTerm(startDate, cancelAt) > 0 ? false : true,
-                Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
-                CustomerSignedId = accts.size() > 0 ? accts[0].blng__BillToContact__c : null,
-                Created_From_Stripe__c = true,
-                Latest_Change_Reason__c = 'Contract Created From Stripe Manually',
-                Stripe_Subscription_Schedule_ID__c = scheduleId,
-                Stripe_Subscription_Start_Date__c = String.valueOf(startDateUnix)
-            );
-
-            if (cancelAt != null) {
-                contract.EndDate = cancelAt;
-            }
-
-            upsert contract Stripe_Subscription_ID__c;
-
-            // Create Subscription Items
-            List<SBQQ__Subscription__c> subscriptionItemsToInsert = new List<SBQQ__Subscription__c>();
-            // Collect all unique product IDs from subscription items
-            Set<String> stripeProductIds = new Set<String>();
-            for (Object itemObj : subscriptionItems) {
-                Map<String, Object> item = (Map<String, Object>) itemObj;
-                Map<String, Object> price = (Map<String, Object>) item.get('price');
-                String productId = (String) price.get('product');
-                stripeProductIds.add(productId);
-            }
-
-            // Query Product2 records based on collected product IDs
-            Map<String, Product2> stripeProductIdToProductMap = new Map<String, Product2>();
-            if (!stripeProductIds.isEmpty()) {
-                List<Product2> products = [
-                    SELECT Id, Name, Stripe_Product_ID__c
-                    FROM Product2
-                    WHERE Stripe_Product_ID__c IN :stripeProductIds
-                ];
-                for (Product2 prod : products) {
-                    stripeProductIdToProductMap.put(prod.Stripe_Product_ID__c, prod);
-                }
-            }
-            System.debug('Stripe Product ID to Product Map: ' + stripeProductIdToProductMap);
-
-            for (Object itemObj : subscriptionItems) {
-                Map<String, Object> item = (Map<String, Object>) itemObj;
-                Map<String, Object> price = (Map<String, Object>) item.get('price');
-                Map<String, Object> recurring = (Map<String, Object>) price.get('recurring');
-                String priceId = (String) price.get('id');
-                String productId = (String) price.get('product');
-                String interval = recurring != null && recurring.containsKey('interval')
-                    ? (String) recurring.get('interval')
-                    : null;
-                Integer intervalCount = recurring != null && recurring.containsKey('interval_count')
-                    ? (Integer) recurring.get('interval_count')
-                    : 1;
-                System.debug('Processing Price ID: ' + priceId);
-                System.debug('Processing Product ID: ' + productId);
-
-                Product2 matchingProduct = stripeProductIdToProductMap.get(productId);
-                System.debug('Matching Product: ' + matchingProduct);
-
-                Decimal unitAmount = ((Decimal) price.get('unit_amount')) / 100; // Stripe amounts are in cents
-                // Calculate values directly from Stripe response
-                Decimal stripeMRR = unitAmount * (Integer) item.get('quantity'); // monthly value
-                Decimal stripeARR = stripeMRR * 12; // annual value
-                Integer contractTerm = contract.ContractTerm != null ? contract.ContractTerm : null;
-                Decimal stripeTCV = contractTerm > 0 ? (stripeMRR * contractTerm) : null;
-                Decimal customerPrice = contractTerm > 0 ? (unitAmount * contractTerm).setScale(2) : null;
-
-                SBQQ__Subscription__c sub = new SBQQ__Subscription__c(
-                    SBQQ__Contract__c = contract.Id,
-                    SBQQ__Account__c = accts.size() > 0 ? accts[0].Id : null,
-                    Stripe_Subscription_ID__c = (String) item.get('id'),
-                    Stripe_Price_ID__c = priceId,
-                    Stripe_Product_ID__c = productId,
-                    SBQQ__Quantity__c = (Integer) item.get('quantity'),
-                    Stripe_Interval__c = interval,
-                    Stripe_Activate__c = (Boolean) price.get('active'),
-                    Status__c = status,
-                    Stripe_Start_Date__c = toDateTime((Long) item.get('current_period_start')).date(),
-                    Stripe_End_Date__c = toDateTime((Long) item.get('current_period_end')).date(),
-                    SBQQ__SubscriptionStartDate__c = startDate,
-                    SBQQ__SubscriptionEndDate__c = cancelAt,
-                    Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
-                    Latest_Change_Reason__c = 'Subcription Created From Stripe Manually',
-                    SBQQ__NetPrice__c = unitAmount,
-                    SBQQ__Product__c = matchingProduct != null ? matchingProduct.Id : null,
-                    SBQQ__CustomerPrice__c = customerPrice,
-                    SBQQ__BillingFrequency__c = getBillingFrequency(interval, intervalCount),
-                    Billing_Frequency_Override__c = getBillingFrequency(interval, intervalCount),
-                    Stripe_Monthly_Value__c = stripeMRR,
-                    Stripe_Subscription_Term__c = contractTerm,
-                    Stripe_ARR__c = stripeARR
-                );
-
-                subscriptionItemsToInsert.add(sub);
-            }
-
-            System.debug('Subscription Items to Insert: ' + subscriptionItemsToInsert);
-            System.debug('Total Subscription Items to Insert: ' + subscriptionItemsToInsert.size());
-
-            if (!subscriptionItemsToInsert.isEmpty()) {
-                upsert subscriptionItemsToInsert SBQQ__Subscription__c.Stripe_Subscription_ID__c;
-                System.debug('Upserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
-
-                List<Contract> contractsToUpdate = new List<Contract>();
-                Contract conToUpdate = new Contract(Id = contract.Id, Status = 'Activated');
-                contractsToUpdate.add(conToUpdate);
-                update contractsToUpdate;
-
-                System.enqueueJob(new StripeInvoicePreview(subscriptionId));
-            } else {
-                System.debug('No subscription records to insert');
-                return;
-            }
-        } catch (exception ex) {
-            Logger__c logger = new Logger__c(
-                Name = 'Manually created subscription error',
-                Message__c = ex.getMessage(),
-                StackTrace__c = ex.getStackTraceString(),
-                Status__c = 'Error',
-                Apex_Class__c = 'StripeSubscriptionScheduler',
-                Apex_Method__c = 'createManualSubscrition',
-                Object_Name__c = 'Contract'
-            );
-            insert logger;
-        }
-    }
-
-    // Create Subscription when Subscription is created from Self Service Portal
-    public static void createSubscritionFromSelfService(String responseBody) {
+    public static void createSubscriptionWithoutQuote(String responseBody) {
         try {
             Map<String, Object> payload = (Map<String, Object>) JSON.deserializeUntyped(responseBody);
             system.debug('--payload--' + payload);
@@ -848,6 +637,12 @@ public class StripeSubscriptionScheduler {
                 metadata.get('subscription_source') != null
                 ? String.valueOf(metadata.get('subscription_source'))
                 : null;
+            Boolean subscriptionSchedule = metadata.get('subscription_schedule') != null
+                ? Boolean.valueOf((String) metadata.get('subscription_schedule'))
+                : false;
+            Boolean isRenewalSubscription = metadata.get('auto_renewal') != null
+                ? Boolean.valueOf((String) metadata.get('auto_renewal'))
+                : false;
             Map<String, Object> items = (Map<String, Object>) payload.get('items');
             List<Object> subscriptionItems = (List<Object>) items.get('data');
             System.debug('Subscription Items: ' + subscriptionItems);
@@ -901,6 +696,22 @@ public class StripeSubscriptionScheduler {
             System.debug('Current Period End: ' + currentPeriodEnd);
             System.debug('Start Date: ' + startDate);
 
+            String latestChangeReason;
+
+            if (subscriptionSource == 'salesforce') {
+                if (isRenewalSubscription)
+                    latestChangeReason = 'Contract Renewed From Salesforce';
+                else
+                    latestChangeReason = 'Contract Created From Salesforce';
+            } else if (subscriptionSource == 'self_service' || subscriptionSource == 'amazon') {
+                latestChangeReason = 'Contract Created From Stripe Self-Service Portal';
+            } else if (subscriptionSource == null) {
+                latestChangeReason = 'Contract Created From Stripe Manually';
+            } else {
+                latestChangeReason = 'Contract Created From Stripe';
+            }
+            System.debug('Latest Change Reason: ' + latestChangeReason);
+
             // Fetch Account based on Customer ID
             List<Account> accts = [
                 SELECT Id, Name, blng__BillToContact__c
@@ -921,7 +732,7 @@ public class StripeSubscriptionScheduler {
                 Stripe_Subscription_ID__c = subscriptionId,
                 Stripe_Customer_ID__c = customerId,
                 Stripe_latest_Invoice_Id__c = latestInvoice,
-                Stripe_Subscription_Source__c = subscriptionSource,
+                Stripe_Subscription_Source__c = subscriptionSource != null ? subscriptionSource : 'stripe',
                 Stripe_Status__c = status,
                 Stripe_Subscription_URL__c = 'https://dashboard.stripe.com/subscriptions/' + subscriptionId,
                 StartDate = startDate,
@@ -929,8 +740,8 @@ public class StripeSubscriptionScheduler {
                 // SBQQ__Evergreen__c = calculateContractTerm(startDate, cancelAt) > 0 ? false : true,
                 Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
                 CustomerSignedId = accts.size() > 0 ? accts[0].blng__BillToContact__c : null,
-                Created_From_Stripe__c = true,
-                Latest_Change_Reason__c = 'Self-Service Contract Created From Stripe',
+                Created_From_Stripe__c = subscriptionSource != 'salesforce' ? true : false,
+                Latest_Change_Reason__c = latestChangeReason,
                 Stripe_Subscription_Schedule_ID__c = scheduleId,
                 Stripe_Subscription_Start_Date__c = String.valueOf(startDateUnix)
             );
@@ -1007,10 +818,9 @@ public class StripeSubscriptionScheduler {
                     SBQQ__SubscriptionStartDate__c = startDate,
                     SBQQ__SubscriptionEndDate__c = cancelAt,
                     Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
-                    Latest_Change_Reason__c = 'Self-Service Subcription Created From Stripe',
+                    Latest_Change_Reason__c = latestChangeReason,
                     SBQQ__NetPrice__c = unitAmount,
                     SBQQ__Product__c = matchingProduct != null ? matchingProduct.Id : null,
-                    // Stripe_Subscription_ID_Actual__c = subscriptionId,
                     SBQQ__CustomerPrice__c = customerPrice,
                     SBQQ__BillingFrequency__c = getBillingFrequency(interval, intervalCount),
                     Billing_Frequency_Override__c = getBillingFrequency(interval, intervalCount),
@@ -1041,12 +851,12 @@ public class StripeSubscriptionScheduler {
             }
         } catch (exception ex) {
             Logger__c logger = new Logger__c(
-                Name = 'Stripe Self-Service Subscription Error',
+                Name = 'Subscription Creation Error Without Quote',
                 Message__c = ex.getMessage(),
                 StackTrace__c = ex.getStackTraceString(),
                 Status__c = 'Error',
                 Apex_Class__c = 'StripeSubscriptionScheduler',
-                Apex_Method__c = 'createSubscritionFromSelfService',
+                Apex_Method__c = 'createSubscriptionWithoutQuote',
                 Object_Name__c = 'Contract'
             );
             insert logger;
@@ -1055,7 +865,7 @@ public class StripeSubscriptionScheduler {
 
     // Canceled From Stripe
     @future(callout=true)
-    public static void deleteSubscrition(string subscriptionId) {
+    public static void deleteSubscription(String subscriptionId) {
         try {
             Http http = new Http();
             HttpRequest req = new HttpRequest();
@@ -1081,7 +891,7 @@ public class StripeSubscriptionScheduler {
                 System.debug('Status: ' + status);
 
                 List<Contract> contracts = [
-                    SELECT id, Stripe_Subscription_ID__c
+                    SELECT Id, Stripe_Subscription_ID__c
                     FROM Contract
                     WHERE Stripe_Subscription_ID__c = :subscriptionId
                 ];
@@ -1093,17 +903,16 @@ public class StripeSubscriptionScheduler {
 
                 // Update and cancel the Contract
                 Contract updatedContract = new Contract(
-                    id = contracts[0].id,
-                    Stripe_Subscription_ID__c = subscriptionId,
+                    Id = contracts[0].Id,
                     Stripe_Status__c = status,
                     Status = 'canceled',
-                    Latest_Change_Reason__c = 'Cancelled From Stripe'
+                    Latest_Change_Reason__c = 'Subscription Canceled'
                 );
 
                 update updatedContract;
                 System.debug('Updated Contract: ' + updatedContract);
 
-                // Create Subscription Items
+                // Cancel Subscription Items
                 List<SBQQ__Subscription__c> subscriptionItemsToInsert = new List<SBQQ__Subscription__c>();
 
                 for (Object itemObj : subscriptionItems) {
@@ -1112,7 +921,6 @@ public class StripeSubscriptionScheduler {
 
                     SBQQ__Subscription__c sub = new SBQQ__Subscription__c(
                         SBQQ__Contract__c = updatedContract.Id,
-                        //  SBQQ__Account__c = quoteList[0].SBQQ__Account__c,
                         Stripe_Subscription_ID__c = (String) item.get('id'),
                         Stripe_Activate__c = (Boolean) price.get('active'),
                         Status__c = status,
@@ -1128,22 +936,21 @@ public class StripeSubscriptionScheduler {
 
                 if (!subscriptionItemsToInsert.isEmpty()) {
                     upsert subscriptionItemsToInsert SBQQ__Subscription__c.Stripe_Subscription_ID__c;
-                    // insert subscriptionItemsToInsert;
-                    System.debug('Inserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
+                    System.debug('Upserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
                 }
             } else {
                 System.debug('Stripe Subscription Retrieval Error: ' + res.getBody());
                 throw new CalloutException('Stripe Subscription Retrieval Error: ' + res.getBody());
             }
         } catch (Exception e) {
-            System.debug('Error in deleteSubscrition: ' + e.getMessage());
+            System.debug('Error in deleteSubscription: ' + e.getMessage());
             Logger__c logger = new Logger__c(
                 Name = 'Stripe Subscription Deletion Error',
                 Message__c = e.getMessage(),
                 StackTrace__c = e.getStackTraceString(),
                 Status__c = 'Error',
                 Apex_Class__c = 'StripeSubscriptionScheduler',
-                Apex_Method__c = 'deleteSubscrition',
+                Apex_Method__c = 'deleteSubscription',
                 Object_Name__c = 'Contract'
             );
             insert logger;

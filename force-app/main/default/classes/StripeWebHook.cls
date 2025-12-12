@@ -10,7 +10,7 @@ global without sharing class StripeWebHook {
         system.debug('event--' + event);
         String eventType = (String) event.get('type');
         system.debug('event Type--' + eventType);
-        // quote to cash With Subscrition
+        // quote to cash With Subscription
         if (eventType.equals('checkout.session.completed')) {
             Map<String, Object> data = (Map<String, Object>) event.get('data');
             system.debug('data--' + data);
@@ -279,66 +279,29 @@ global without sharing class StripeWebHook {
             Boolean subscriptionSchedule = metadata.get('subscription_schedule') != null
                 ? Boolean.valueOf((String) metadata.get('subscription_schedule'))
                 : false;
+            Boolean isRenewalSubscription = metadata.get('auto_renewal') != null
+                ? Boolean.valueOf((String) metadata.get('auto_renewal'))
+                : false;
 
             // Debug
             System.debug('Subscription Id: ' + subscriptionId);
             System.debug('Invoice Id: ' + invoiceId);
             System.debug('Quote Id: ' + quoteId);
 
-            if (subscriptionSchedule == true && quoteId != null && subscriptionId != null) {
-                // This is for subscription creation from stripe which has been scheduled via Salesforce Quote
-                List<Stripe_Capture_Subscription__e> stripePaymentList = new List<Stripe_Capture_Subscription__e>();
+            List<Stripe_Capture_Subscription__e> stripePaymentList = new List<Stripe_Capture_Subscription__e>();
 
-                Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
-                stripePayment.StripeSubscriptionId__c = subscriptionId;
-                stripePayment.Salesforce_Quote_Id__c = quoteId;
-                stripePayment.Latest_invoiceId__c = invoiceid;
-                stripePayment.Subscription_Source__c = subscriptionSource;
-                stripePayment.Subscription_Schedule__c = subscriptionSchedule;
-                stripePayment.Event_Type__c = eventType;
-                stripePaymentList.add(stripePayment);
+            Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
+            stripePayment.StripeSubscriptionId__c = subscriptionId;
+            stripePayment.Salesforce_Quote_Id__c = quoteId;
+            stripePayment.Latest_invoiceId__c = invoiceid;
+            stripePayment.Subscription_Source__c = subscriptionSource;
+            stripePayment.Subscription_Schedule__c = subscriptionSchedule;
+            stripePayment.Renewal_Subscription__c = isRenewalSubscription;
+            stripePayment.Event_Type__c = eventType;
+            stripePaymentList.add(stripePayment);
 
-                Database.SaveResult[] results = EventBus.publish(stripePaymentList);
-                system.debug('results--' + results);
-            } else if (
-                (subscriptionSource == 'amazon' ||
-                subscriptionSource == 'self_service') &&
-                quoteId == null &&
-                subscriptionId != null
-            ) {
-                // this is for subscription which has been created from self-service portal
-                List<Stripe_Capture_Subscription__e> stripePaymentList = new List<Stripe_Capture_Subscription__e>();
-
-                Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
-                stripePayment.StripeSubscriptionId__c = subscriptionId;
-                stripePayment.Latest_invoiceId__c = invoiceid;
-                stripePayment.Subscription_Source__c = subscriptionSource;
-                stripePayment.Subscription_Schedule__c = false;
-                stripePayment.Event_Type__c = eventType;
-                stripePaymentList.add(stripePayment);
-
-                Database.SaveResult[] results = EventBus.publish(stripePaymentList);
-                system.debug('results--' + results);
-            } else if (
-                (subscriptionSource == null ||
-                subscriptionSource != 'salesforce') &&
-                quoteId == null &&
-                subscriptionId != null
-            ) {
-                // this is for subscription which has been manually created from stripe dashboard
-                List<Stripe_Capture_Subscription__e> stripePaymentList = new List<Stripe_Capture_Subscription__e>();
-
-                Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
-                stripePayment.StripeSubscriptionId__c = subscriptionId;
-                stripePayment.Latest_invoiceId__c = invoiceid;
-                stripePayment.Subscription_Source__c = 'stripe';
-                stripePayment.Subscription_Schedule__c = false;
-                stripePayment.Event_Type__c = eventType;
-                stripePaymentList.add(stripePayment);
-
-                Database.SaveResult[] results = EventBus.publish(stripePaymentList);
-                system.debug('results--' + results);
-            }
+            Database.SaveResult[] results = EventBus.publish(stripePaymentList);
+            system.debug('results--' + results);
         } else if (eventType.equals('customer.subscription.updated')) {
             Map<String, Object> data1 = (Map<String, Object>) event.get('data');
             system.debug(' data1 -- ' + data1);
@@ -361,6 +324,12 @@ global without sharing class StripeWebHook {
                 metadata.get('subscription_source') != null
                 ? String.valueOf(metadata.get('subscription_source'))
                 : null;
+            Boolean subscriptionSchedule = metadata.get('subscription_schedule') != null
+                ? Boolean.valueOf((String) metadata.get('subscription_schedule'))
+                : false;
+            Boolean isRenewalSubscription = metadata.get('auto_renewal') != null
+                ? Boolean.valueOf((String) metadata.get('auto_renewal'))
+                : false;
 
             System.debug('manualUpdateFromSF -- ' + manualUpdateFromSF);
             System.debug('subscriptionSource -- ' + subscriptionSource);
@@ -418,54 +387,19 @@ global without sharing class StripeWebHook {
                 System.debug('Deleted Items Publish Results: ' + deleteResults);
             }
 
-            if (quoteId != null && subscriptionId != null) {
-                // This is for subscription which has been updated & was originally created via Salesforce Quote
-                List<Stripe_Capture_Subscription__e> stripePaymentList = new List<Stripe_Capture_Subscription__e>();
+            List<Stripe_Capture_Subscription__e> stripePaymentList = new List<Stripe_Capture_Subscription__e>();
 
-                Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
-                stripePayment.StripeSubscriptionId__c = subscriptionId;
-                stripePayment.Salesforce_Quote_Id__c = quoteId;
-                stripePayment.Subscription_Source__c = subscriptionSource;
-                stripePayment.Event_Type__c = eventType;
-                stripePaymentList.add(stripePayment);
+            Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
+            stripePayment.StripeSubscriptionId__c = subscriptionId;
+            stripePayment.Salesforce_Quote_Id__c = quoteId;
+            stripePayment.Subscription_Source__c = subscriptionSource;
+            stripePayment.Subscription_Schedule__c = subscriptionSchedule;
+            stripePayment.Renewal_Subscription__c = isRenewalSubscription;
+            stripePayment.Event_Type__c = eventType;
+            stripePaymentList.add(stripePayment);
 
-                Database.SaveResult[] results = EventBus.publish(stripePaymentList);
-                system.debug('results--' + results);
-            } else if (
-                (subscriptionSource == 'amazon' ||
-                subscriptionSource == 'self_service') &&
-                quoteId == null &&
-                subscriptionId != null
-            ) {
-                // this is for subscription which has been created from self-service portal
-                List<Stripe_Capture_Subscription__e> stripePaymentList = new List<Stripe_Capture_Subscription__e>();
-
-                Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
-                stripePayment.StripeSubscriptionId__c = subscriptionId;
-                stripePayment.Subscription_Source__c = subscriptionSource;
-                stripePayment.Event_Type__c = eventType;
-                stripePaymentList.add(stripePayment);
-
-                Database.SaveResult[] results = EventBus.publish(stripePaymentList);
-                system.debug('results--' + results);
-            } else if (
-                (subscriptionSource == null ||
-                subscriptionSource != 'salesforce') &&
-                quoteId == null &&
-                subscriptionId != null
-            ) {
-                // this is for subscription which has been manually created from stripe dashboard
-                List<Stripe_Capture_Subscription__e> stripePaymentList = new List<Stripe_Capture_Subscription__e>();
-
-                Stripe_Capture_Subscription__e stripePayment = new Stripe_Capture_Subscription__e();
-                stripePayment.StripeSubscriptionId__c = subscriptionId;
-                stripePayment.Subscription_Source__c = 'stripe';
-                stripePayment.Event_Type__c = eventType;
-                stripePaymentList.add(stripePayment);
-
-                Database.SaveResult[] results = EventBus.publish(stripePaymentList);
-                system.debug('results--' + results);
-            }
+            Database.SaveResult[] results = EventBus.publish(stripePaymentList);
+            system.debug('results--' + results);
         } else if (eventType.equals('customer.subscription.deleted')) {
             Map<String, Object> deletedata1 = (Map<String, Object>) event.get('data');
             system.debug(' deletedata1 -- ' + deletedata1);

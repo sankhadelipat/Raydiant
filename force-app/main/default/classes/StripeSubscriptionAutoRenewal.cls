@@ -19,6 +19,7 @@ public class StripeSubscriptionAutoRenewal implements Database.Batchable<SObject
                     Account.Stripe_Customer_ID__c,
                     Stripe_Subscription_ID__c,
                     Stripe_Subscription_Schedule_ID__c,
+                    SBQQ__Quote__c,
                     EndDate,
                     StartDate,
                     ContractTerm,
@@ -28,8 +29,7 @@ public class StripeSubscriptionAutoRenewal implements Database.Batchable<SObject
                 FROM Contract
                 WHERE
                     EndDate = :tomorrow
-                    AND (Renewed_End_Date__c = NULL
-                    OR Renewed_End_Date__c = :tomorrow)
+                    AND Renewed_End_Date__c = NULL
                     AND Status = 'Activated'
                     AND DO_NOT_RENEW__c = FALSE
                     AND Stripe_Subscription_ID__c != NULL
@@ -39,12 +39,19 @@ public class StripeSubscriptionAutoRenewal implements Database.Batchable<SObject
     }
 
     public void execute(Database.BatchableContext bc, List<Contract> scope) {
+        // Collect Contract Ids and related Quote Ids
         Set<Id> contractIds = new Set<Id>();
+        Set<Id> accountIds = new Set<Id>();
+        Set<Id> quoteIds = new Set<Id>();
         for (Contract con : scope) {
             contractIds.add(con.Id);
+            accountIds.add(con.AccountId);
+            if (con.SBQQ__Quote__c != null)
+                quoteIds.add(con.SBQQ__Quote__c);
         }
         System.debug('Processing Contracts: ' + contractIds);
 
+        // Bulk query subscriptions related to these contracts
         Map<Id, List<SBQQ__Subscription__c>> contractSubscriptionsMap = new Map<Id, List<SBQQ__Subscription__c>>();
 
         List<SBQQ__Subscription__c> allSubscriptions = [
@@ -58,6 +65,32 @@ public class StripeSubscriptionAutoRenewal implements Database.Batchable<SObject
                 contractSubscriptionsMap.put(sub.SBQQ__Contract__c, new List<SBQQ__Subscription__c>());
             }
             contractSubscriptionsMap.get(sub.SBQQ__Contract__c).add(sub);
+        }
+
+        // Bulk query quotes related to these contracts
+        Map<Id, SBQQ__Quote__c> contractQuoteMap = new Map<Id, SBQQ__Quote__c>();
+
+        List<SBQQ__Quote__c> allQuotes = [
+            SELECT Id, SBQQ__PaymentTerms__c, CurrencyIsoCode
+            FROM SBQQ__Quote__c
+            WHERE Id IN :quoteIds
+        ];
+
+        for (SBQQ__Quote__c quote : allQuotes) {
+            contractQuoteMap.put(quote.Id, quote);
+        }
+
+        Map<Id, Boolean> accountHasPaymentMethod = new Map<Id, Boolean>();
+
+        List<AggregateResult> paymentMethods = [
+            SELECT Account__c acct, COUNT(Id) cnt
+            FROM Stripe_Payment_Method__c
+            WHERE Account__c IN :accountIds
+            GROUP BY Account__c
+        ];
+
+        for (AggregateResult pm : paymentMethods) {
+            accountHasPaymentMethod.put((Id) pm.get('acct'), ((Integer) pm.get('cnt')) > 0);
         }
 
         List<Contract> contractsToUpdate = new List<Contract>();
@@ -74,41 +107,34 @@ public class StripeSubscriptionAutoRenewal implements Database.Batchable<SObject
                     continue;
                 }
 
-                String subscriptionScheduleId;
+                SBQQ__Quote__c quote = contractQuoteMap.get(contract.SBQQ__Quote__c);
+                Boolean hasPaymentMethod = accountHasPaymentMethod.get(contract.AccountId) == true;
 
-                // Check if contract already has a schedule ID
-                if (String.isNotBlank(contract.Stripe_Subscription_Schedule_ID__c)) {
-                    // Update existing schedule
-                    subscriptionScheduleId = updateExistingSchedule(
-                        subscriptionScheduleId,
-                        contract,
-                        subscriptionItems
-                    );
-                } else {
-                    // Create new schedule
-                    subscriptionScheduleId = createNewSchedule(contract);
+                // Calculate new start and end dates
+                Date newStart = contract.EndDate; // Start immediately after expiration
+                Integer daysBetween = contract.StartDate.daysBetween(contract.EndDate);
+                Date newEnd = contract.ContractTerm != null
+                    ? newStart.addMonths(contract.ContractTerm)
+                    : newStart.addDays(daysBetween);
 
-                    if (String.isBlank(subscriptionScheduleId)) {
-                        subscriptionScheduleId = updateExistingSchedule(
-                            subscriptionScheduleId,
-                            contract,
-                            subscriptionItems
-                        );
-                    }
-                }
+                // Create new subscription schedule in Stripe
+                String scheduleId = createNewSchedule(
+                    contract,
+                    subscriptionItems,
+                    quote,
+                    hasPaymentMethod,
+                    newStart,
+                    newEnd
+                );
 
-                if (String.isNotBlank(subscriptionScheduleId)) {
-                    Contract updatedContract = new Contract(
-                        Id = contract.Id,
-                        Renewed_End_Date__c = contract.EndDate.addMonths(12),
-                        Stripe_Subscription_Schedule_ID__c = subscriptionScheduleId,
-                        Latest_Change_Reason__c = 'Auto-renewed: 12-month phase scheduled in Stripe'
-                    );
+                if (scheduleId != null) {
+                    contract.Renewed_End_Date__c = newEnd;
+                    contract.DO_NOT_RENEW__c = true;
                     contractsToUpdate.add(contract);
                     successCount++;
                 } else {
                     errorCount++;
-                    errorMessages.add('Failed to create or update schedule for Contract Id: ' + contract.Id);
+                    errorMessages.add('Failed to create subscription schedule for Contract Id: ' + contract.Id);
                 }
             } catch (Exception e) {
                 errorCount++;
@@ -127,7 +153,7 @@ public class StripeSubscriptionAutoRenewal implements Database.Batchable<SObject
 
     public void finish(Database.BatchableContext bc) {
         System.debug(
-            'Subscription Schedule Batch Completed. Processed: ' +
+            'Auto-renew batch completed. Processed: ' +
                 processedCount +
                 ', Success: ' +
                 successCount +
@@ -151,166 +177,121 @@ public class StripeSubscriptionAutoRenewal implements Database.Batchable<SObject
         }
     }
 
-    private String createNewSchedule(Contract contract) {
+    private String createNewSchedule(
+        Contract contract,
+        List<SBQQ__Subscription__c> subscriptions,
+        SBQQ__Quote__c quote,
+        Boolean hasPaymentMethod,
+        Date startDate,
+        Date endDate
+    ) {
         try {
+            Long startUnix =
+                DateTime.newInstanceGmt(startDate.year(), startDate.month(), startDate.day(), 0, 0, 0).getTime() / 1000;
+            Long endUnix =
+                DateTime.newInstanceGmt(endDate.year(), endDate.month(), endDate.day(), 0, 0, 0).getTime() / 1000;
+            Integer daysUntilDue = 0;
+
+            if (quote != null) {
+                if (quote.SBQQ__PaymentTerms__c != null || String.isNotBlank(quote.SBQQ__PaymentTerms__c)) {
+                    if (quote.SBQQ__PaymentTerms__c == 'Prepayment') {
+                        daysUntilDue = 0;
+                    } else if (quote.SBQQ__PaymentTerms__c == 'Due on receipt') {
+                        daysUntilDue = 0;
+                    } else if (quote.SBQQ__PaymentTerms__c == 'Net 15') {
+                        daysUntilDue = 15;
+                    } else if (quote.SBQQ__PaymentTerms__c == 'Net 30') {
+                        daysUntilDue = 30;
+                    } else if (quote.SBQQ__PaymentTerms__c == 'Net 45') {
+                        daysUntilDue = 45;
+                    } else if (quote.SBQQ__PaymentTerms__c == 'Net 60') {
+                        daysUntilDue = 60;
+                    } else if (quote.SBQQ__PaymentTerms__c == 'Net 90') {
+                        daysUntilDue = 90;
+                    } else {
+                        daysUntilDue = 0; // Default to no due date
+                    }
+                }
+            }
+
+            List<String> bodyParts = new List<String>();
+
+            // Build request body
+            bodyParts.add('customer=' + EncodingUtil.urlEncode(contract.Account.Stripe_Customer_ID__c, 'UTF-8'));
+            bodyParts.add('start_date=' + String.valueOf(startUnix));
+            bodyParts.add('end_behavior=cancel');
+            bodyParts.add('default_settings[billing_cycle_anchor]=automatic');
+            System.debug('Payment method: ' + hasPaymentMethod);
+            if (hasPaymentMethod)
+                bodyParts.add('default_settings[collection_method]=charge_automatically');
+            else
+                bodyParts.add('default_settings[collection_method]=send_invoice');
+            if (!hasPaymentMethod)
+                bodyParts.add('default_settings[invoice_settings][days_until_due]=' + String.valueOf(daysUntilDue));
+            bodyParts.add('billing_mode[type]=flexible');
+
+            // Metadata
+            // if (quote != null)
+            //     bodyParts.add('metadata[salesforce_quote_id]=' + EncodingUtil.urlEncode(quote.Id, 'UTF-8'));
+            bodyParts.add('metadata[subscription_source]=salesforce');
+            bodyParts.add('metadata[auto_renewal]=true');
+
+            // Phase
+            bodyParts.add('phases[0][currency]=' + EncodingUtil.urlEncode(contract.CurrencyIsoCode, 'UTF-8'));
+            bodyParts.add('phases[0][end_date]=' + String.valueOf(endUnix));
+            bodyParts.add('phases[0][proration_behavior]=none');
+            // if (quote != null)
+            //     bodyParts.add('phases[0][metadata][salesforce_quote_id]=' + EncodingUtil.urlEncode(quote.Id, 'UTF-8'));
+            bodyParts.add('phases[0][metadata][subscription_source]=salesforce');
+            bodyParts.add('phases[0][metadata][subscription_schedule]=true');
+            bodyParts.add('phases[0][metadata][auto_renewal]=true');
+            bodyParts.add('phases[0][metadata][renewed_from_contract]=' + EncodingUtil.urlEncode(contract.Id, 'UTF-8'));
+            bodyParts.add(
+                'phases[0][metadata][renewal_date]=' + EncodingUtil.urlEncode(String.valueOf(Date.today()), 'UTF-8')
+            );
+
+            // Subscription Items
+            Integer index = 0;
+            for (SBQQ__Subscription__c subItem : subscriptions) {
+                bodyParts.add(
+                    'phases[0][items][' +
+                        index +
+                        '][price]=' +
+                        EncodingUtil.urlEncode(subItem.Stripe_Price_Id__c, 'UTF-8')
+                );
+                bodyParts.add(
+                    'phases[0][items][' + index + '][quantity]=' + Integer.valueOf(subItem.SBQQ__Quantity__c)
+                );
+                index++;
+            }
+
+            String requestBody = String.join(bodyParts, '&');
+
             HttpRequest req = new HttpRequest();
             req.setEndpoint('https://api.stripe.com/v1/subscription_schedules');
             req.setMethod('POST');
             req.setHeader('Authorization', 'Basic ' + EncodingUtil.base64Encode(Blob.valueOf(SECRET_KEY + ':')));
             req.setHeader('Content-Type', 'application/x-www-form-urlencoded');
-            req.setBody('from_subscription=' + contract.Stripe_Subscription_ID__c);
+            req.setBody(requestBody);
 
             Http http = new Http();
             HttpResponse res = http.send(req);
 
             if (res.getStatusCode() == 200) {
-                Map<String, Object> payload = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
-                String scheduleId = (String) payload.get('id');
-                return scheduleId;
+                System.debug('Subscription Schedule created successfully');
+                Map<String, Object> resMap = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
+                return (String) resMap.get('id');
             } else {
-                System.debug('Failed to create empty schedule: ' + res.getStatusCode() + ' - ' + res.getBody());
-                throw new CalloutException('Failed to create empty schedule: ' + res.getBody());
+                System.debug(
+                    'Failed to create Subscription Schedule. Status: ' +
+                        res.getStatusCode() +
+                        ', Body: ' +
+                        res.getBody()
+                );
+                return null;
             }
         } catch (Exception e) {
             System.debug('Error creating empty schedule: ' + e.getMessage());
-            throw e;
-        }
-    }
-
-    private String updateExistingSchedule(
-        String subscriptionScheduleId,
-        Contract contract,
-        List<SBQQ__Subscription__c> subscriptionItems
-    ) {
-        try {
-            // First get current schedule to get ALL existing phases exactly as they are
-            HttpRequest getReq = new HttpRequest();
-            getReq.setEndpoint('https://api.stripe.com/v1/subscription_schedules/' + subscriptionScheduleId);
-            getReq.setMethod('GET');
-            getReq.setHeader('Authorization', 'Basic ' + EncodingUtil.base64Encode(Blob.valueOf(SECRET_KEY + ':')));
-
-            Http http = new Http();
-            HttpResponse getRes = http.send(getReq);
-
-            if (getRes.getStatusCode() != 200) {
-                System.debug('Failed to get existing schedule: ' + getRes.getBody());
-                throw new CalloutException('Failed to get existing schedule: ' + getRes.getBody());
-            }
-
-            // Calculate phase dates
-            Long phaseStart =
-                DateTime.newInstance(contract.EndDate.addDays(1), Time.newInstance(0, 0, 0, 0)).getTime() / 1000;
-            Long phaseEnd =
-                DateTime.newInstance(contract.EndDate.addMonths(12), Time.newInstance(0, 0, 0, 0)).getTime() / 1000;
-
-            Map<String, Object> existingSchedule = (Map<String, Object>) JSON.deserializeUntyped(getRes.getBody());
-            List<Object> existingPhases = (List<Object>) existingSchedule.get('phases');
-
-            // Prepare update - include ALL existing phases exactly as they are from Stripe
-            List<String> bodyParts = new List<String>();
-
-            // Copy ALL existing phases exactly as they are
-            for (Integer i = 0; i < existingPhases.size(); i++) {
-                Map<String, Object> phase = (Map<String, Object>) existingPhases[i];
-
-                // Copy duration if exists
-                if (phase.containsKey('duration') && phase.get('duration') != null) {
-                    Map<String, Object> duration = (Map<String, Object>) phase.get('duration');
-                    bodyParts.add('phases[' + i + '][duration][interval]=' + (String) duration.get('interval'));
-                    bodyParts.add('phases[' + i + '][duration][interval_count]=' + duration.get('interval_count'));
-                }
-
-                // Copy start_date if exists
-                if (phase.containsKey('start_date') && phase.get('start_date') != null) {
-                    bodyParts.add('phases[' + i + '][start_date]=' + phase.get('start_date'));
-                }
-
-                // Copy end_date if exists
-                if (phase.containsKey('end_date') && phase.get('end_date') != null) {
-                    bodyParts.add('phases[' + i + '][end_date]=' + phase.get('end_date'));
-                }
-
-                // Copy items exactly as they are
-                if (phase.containsKey('items')) {
-                    List<Object> items = (List<Object>) phase.get('items');
-                    for (Integer j = 0; j < items.size(); j++) {
-                        Map<String, Object> item = (Map<String, Object>) items[j];
-                        bodyParts.add('phases[' + i + '][items][' + j + '][price]=' + (String) item.get('price'));
-                        bodyParts.add('phases[' + i + '][items][' + j + '][quantity]=' + item.get('quantity'));
-                    }
-                }
-
-                // Copy proration_behavior if exists
-                if (phase.containsKey('proration_behavior') && phase.get('proration_behavior') != null) {
-                    bodyParts.add('phases[' + i + '][proration_behavior]=' + (String) phase.get('proration_behavior'));
-                }
-
-                // Copy billing_cycle_anchor if exists
-                if (phase.containsKey('billing_cycle_anchor') && phase.get('billing_cycle_anchor') != null) {
-                    bodyParts.add(
-                        'phases[' + i + '][billing_cycle_anchor]=' + (String) phase.get('billing_cycle_anchor')
-                    );
-                }
-            }
-
-            // Now add the NEW 12-month phase at the end
-            Integer newPhaseIndex = existingPhases.size();
-            // bodyParts.add('phases[' + newPhaseIndex + '][start_date]=' + phaseStart);
-            // bodyParts.add('phases[' + newPhaseIndex + '][end_date]=' + phaseEnd);
-            bodyParts.add('phases[' + newPhaseIndex + '][duration][interval]=month');
-            bodyParts.add('phases[' + newPhaseIndex + '][duration][interval_count]=12');
-            bodyParts.add('phases[' + newPhaseIndex + '][proration_behavior]=none');
-            bodyParts.add('phases[' + newPhaseIndex + '][billing_cycle_anchor]=automatic');
-
-            // Add items to the new phase
-            Integer itemIndex = 0;
-            for (SBQQ__Subscription__c item : subscriptionItems) {
-                bodyParts.add(
-                    'phases[' + newPhaseIndex + '][items][' + itemIndex + '][price]=' + item.Stripe_Price_Id__c
-                );
-                bodyParts.add(
-                    'phases[' +
-                        newPhaseIndex +
-                        '][items][' +
-                        itemIndex +
-                        '][quantity]=' +
-                        Integer.valueOf(item.SBQQ__Quantity__c)
-                );
-                itemIndex++;
-            }
-
-            // Update metadata
-            Map<String, Object> existingMetadata = existingSchedule.containsKey('metadata')
-                ? (Map<String, Object>) existingSchedule.get('metadata')
-                : new Map<String, Object>();
-
-            bodyParts.add('metadata[auto_renewal]=true');
-            bodyParts.add('metadata[salesforce_contract_id]=' + contract.Id);
-            bodyParts.add('metadata[renewal_date]=' + String.valueOf(Date.today()));
-            bodyParts.add(
-                'metadata[renewal_count]=' +
-                (existingMetadata.containsKey('renewal_count')
-                    ? String.valueOf(Integer.valueOf(existingMetadata.get('renewal_count')) + 1)
-                    : '1')
-            );
-
-            HttpRequest updateReq = new HttpRequest();
-            updateReq.setEndpoint('https://api.stripe.com/v1/subscription_schedules/' + subscriptionScheduleId);
-            updateReq.setMethod('POST');
-            updateReq.setHeader('Authorization', 'Basic ' + EncodingUtil.base64Encode(Blob.valueOf(SECRET_KEY + ':')));
-            updateReq.setHeader('Content-Type', 'application/x-www-form-urlencoded');
-            updateReq.setBody(String.join(bodyParts, '&'));
-
-            HttpResponse updateRes = http.send(updateReq);
-
-            if (updateRes.getStatusCode() == 200) {
-                return subscriptionScheduleId;
-            } else {
-                System.debug('Failed to update existing schedule: ' + updateRes.getBody());
-                throw new CalloutException('Failed to update existing schedule: ' + updateRes.getBody());
-            }
-        } catch (Exception e) {
-            System.debug('Error updating existing schedule with phase: ' + e.getMessage());
             throw e;
         }
     }
