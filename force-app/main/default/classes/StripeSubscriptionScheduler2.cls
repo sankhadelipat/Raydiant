@@ -560,7 +560,12 @@ public class StripeSubscriptionScheduler2 {
     }
 
     @future(callout=true)
-    public static void getUpdatedSubcriptionfromStrpe(String quoteId, String subcriptionId, String subscriptionSource) {
+    public static void handleSubscriptionFromStripe(
+        String quoteId,
+        String subcriptionId,
+        String subscriptionSource,
+        Boolean isSchedule
+    ) {
         HttpRequest subReq = new HttpRequest();
         subReq.setEndpoint('https://api.stripe.com/v1/subscriptions/' + subcriptionId);
         subReq.setMethod('GET');
@@ -569,16 +574,83 @@ public class StripeSubscriptionScheduler2 {
 
         Http http = new Http();
         HttpResponse subRes = http.send(subReq);
+
         if (subRes.getStatusCode() == 200) {
             Map<String, Object> subResponse = (Map<String, Object>) JSON.deserializeUntyped(subRes.getBody());
             System.debug('subResponse---' + subResponse);
 
+            String subSchedId = (String) (subResponse.containsKey('schedule') ? subResponse.get('schedule') : null);
+            System.debug('subSchedId---' + subSchedId);
+
+            if (isSchedule && subSchedId != null) {
+                Contract existingContract;
+
+                List<Contract> pending = [
+                    SELECT Id, Stripe_Subscription_ID__c
+                    FROM Contract
+                    WHERE
+                        Stripe_Subscription_Schedule_ID__c = :subSchedId
+                        AND Stripe_Subscription_ID__c = NULL
+                        AND Status = 'Pending'
+                    LIMIT 1
+                ];
+
+                if (!pending.isEmpty()) {
+                    existingContract = pending[0];
+                    existingContract.Stripe_Subscription_ID__c = subcriptionId;
+                    update existingContract;
+
+                    // Delete All SBQQ_Subscription__c records related to this contract
+                    List<SBQQ__Subscription__c> subsToDelete = [
+                        SELECT Id
+                        FROM SBQQ__Subscription__c
+                        WHERE SBQQ__Contract__c = :existingContract.Id AND Stripe_Subscription_ID__c = NULL
+                    ];
+
+                    if (!subsToDelete.isEmpty()) {
+                        delete subsToDelete;
+                        System.debug('Deleted ' + subsToDelete.size() + ' SBQQ__Subscription__c records.');
+                    }
+                }
+            }
+
+            // Upsert Subscription record
             if (quoteId != null) {
                 StripeSubscriptionScheduler.createSubscriptionWithQuote(subRes.getBody(), quoteId);
             } else if ((subscriptionSource == 'amazon' || subscriptionSource == 'self_service') && quoteId == null) {
                 System.enqueueJob(new StripeSelfServiceQueueable(subRes.getBody()), 1);
             } else if (quoteId == null) {
                 StripeSubscriptionScheduler.createSubscriptionWithoutQuote(subRes.getBody());
+            }
+        }
+    }
+
+    @future(callout=true)
+    public static void handleScheduleFromStripe(
+        String quoteId,
+        String subcriptionScheduleId,
+        String subscriptionSource
+    ) {
+        HttpRequest subReq = new HttpRequest();
+        subReq.setEndpoint(
+            'https://api.stripe.com/v1/subscription_schedules/' + subcriptionScheduleId + '?expand[]=phases.items.price'
+        );
+        subReq.setMethod('GET');
+        subReq.setHeader('Authorization', 'Basic ' + EncodingUtil.base64Encode(Blob.valueOf(SECRET_KEY + ':')));
+        subReq.setHeader('Content-Type', 'application/x-www-form-urlencoded');
+
+        Http http = new Http();
+        HttpResponse subRes = http.send(subReq);
+
+        if (subRes.getStatusCode() == 200) {
+            Map<String, Object> subResponse = (Map<String, Object>) JSON.deserializeUntyped(subRes.getBody());
+            System.debug('subResponse---' + subResponse);
+
+            // Upsert Subscription record
+            if (quoteId != null) {
+                StripeSubscriptionScheduler.createScheduleWithQuote(subRes.getBody(), quoteId);
+            } else if (quoteId == null) {
+                StripeSubscriptionScheduler.createScheduleWithoutQuote(subRes.getBody());
             }
         }
     }

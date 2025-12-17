@@ -234,6 +234,7 @@ public class StripeSubscriptionAutoRenewal implements Database.Batchable<SObject
             // if (quote != null)
             //     bodyParts.add('metadata[salesforce_quote_id]=' + EncodingUtil.urlEncode(quote.Id, 'UTF-8'));
             bodyParts.add('metadata[subscription_source]=salesforce');
+            bodyParts.add('metadata[subscription_schedule]=true');
             bodyParts.add('metadata[auto_renewal]=true');
 
             // Phase

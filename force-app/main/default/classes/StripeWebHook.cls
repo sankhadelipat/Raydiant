@@ -266,7 +266,6 @@ global without sharing class StripeWebHook {
 
             String subscriptionId = (String) subscriptionObj.get('id');
             String invoiceid = (String) subscriptionObj.get('latest_invoice');
-            String customerId = (String) subscriptionObj.get('customer');
 
             // Capture Metadata -> salesforce_quote_id
             Map<String, Object> metadata = (Map<String, Object>) subscriptionObj.get('metadata');
@@ -303,22 +302,14 @@ global without sharing class StripeWebHook {
             Database.SaveResult[] results = EventBus.publish(stripePaymentList);
             system.debug('results--' + results);
         } else if (eventType.equals('customer.subscription.updated')) {
-            Map<String, Object> data1 = (Map<String, Object>) event.get('data');
-            system.debug(' data1 -- ' + data1);
-            Map<String, Object> data2 = (Map<String, Object>) data1.get('object');
-            System.debug('data2 -- ' + JSON.serializePretty(data2));
-            String responseBody = JSON.serialize(data2);
-            system.debug('response body -- ' + responseBody);
-            String subscriptionId = (String) data2.get('id');
-            Map<String, Object> metadata = (Map<String, Object>) data2.get('metadata');
-            system.debug('metadata -- ' + metadata);
+            Map<String, Object> outerMap = (Map<String, Object>) event.get('data');
+            Map<String, Object> subscriptionObj = (Map<String, Object>) outerMap.get('object');
+
+            String subscriptionId = (String) subscriptionObj.get('id');
+
+            // Capture Metadata -> salesforce_quote_id
+            Map<String, Object> metadata = (Map<String, Object>) subscriptionObj.get('metadata');
             String quoteId = (String) metadata.get('salesforce_quote_id');
-            system.debug('quoteIdStr -- ' + quoteId);
-            String manualUpdateFromSF = (metadata != null &&
-                metadata.containsKey('last_updated_from_Salesforce') &&
-                metadata.get('last_updated_from_Salesforce') != null)
-                ? String.valueOf(metadata.get('last_updated_from_Salesforce'))
-                : null;
             String subscriptionSource = metadata != null &&
                 metadata.containsKey('subscription_source') &&
                 metadata.get('subscription_source') != null
@@ -331,20 +322,20 @@ global without sharing class StripeWebHook {
                 ? Boolean.valueOf((String) metadata.get('auto_renewal'))
                 : false;
 
-            System.debug('manualUpdateFromSF -- ' + manualUpdateFromSF);
-            System.debug('subscriptionSource -- ' + subscriptionSource);
+            System.debug('subscription Source: ' + subscriptionSource);
+            System.debug('Quote Id: ' + quoteId);
 
             // Check for deleted subscription items
             Set<String> deletedItemIds = new Set<String>();
 
-            if (data1.containsKey('previous_attributes')) {
-                Map<String, Object> previousAttributes = (Map<String, Object>) data1.get('previous_attributes');
+            if (outerMap.containsKey('previous_attributes')) {
+                Map<String, Object> previousAttributes = (Map<String, Object>) outerMap.get('previous_attributes');
 
                 if (previousAttributes.containsKey('items')) {
                     Map<String, Object> previousItems = (Map<String, Object>) previousAttributes.get('items');
                     List<Object> previousSubscriptionItems = (List<Object>) previousItems.get('data');
 
-                    Map<String, Object> currentItems = (Map<String, Object>) data2.get('items');
+                    Map<String, Object> currentItems = (Map<String, Object>) subscriptionObj.get('items');
                     List<Object> currentSubscriptionItems = (List<Object>) currentItems.get('data');
 
                     // Create sets for comparison
@@ -414,6 +405,46 @@ global without sharing class StripeWebHook {
 
             Database.SaveResult[] results = EventBus.publish(stripeSubList);
             system.debug('results--' + results);
+        } else if (eventType.equals('subscription_schedule.created')) {
+            Map<String, Object> data = (Map<String, Object>) event.get('data');
+            Map<String, Object> subscriptionScheduleObj = (Map<String, Object>) data.get('object');
+
+            String subscriptionScheduleId = (String) subscriptionScheduleObj.get('id');
+            String subId = (String) subscriptionScheduleObj.get('subscription');
+
+            // Capture Metadata -> salesforce_quote_id
+            Map<String, Object> metadata = (Map<String, Object>) subscriptionScheduleObj.get('metadata');
+            String quoteId = (String) metadata.get('salesforce_quote_id');
+            String subscriptionSource = metadata != null &&
+                metadata.containsKey('subscription_source') &&
+                metadata.get('subscription_source') != null
+                ? String.valueOf(metadata.get('subscription_source'))
+                : null;
+            Boolean subscriptionSchedule = metadata.get('subscription_schedule') != null
+                ? Boolean.valueOf((String) metadata.get('subscription_schedule'))
+                : false;
+            Boolean isRenewalSubscription = metadata.get('is_renewal_subscription') != null
+                ? Boolean.valueOf((String) metadata.get('is_renewal_subscription'))
+                : false;
+
+            // Debug
+            System.debug('Subscription Schedule Id: ' + subscriptionScheduleId);
+            System.debug('Quote Id: ' + quoteId);
+
+            if (subscriptionSchedule && subId == null) {
+                List<Stripe_Capture_Subscription_Schedule__e> stripeSubScheduleList = new List<Stripe_Capture_Subscription_Schedule__e>();
+
+                Stripe_Capture_Subscription_Schedule__e stripeSubSchedule = new Stripe_Capture_Subscription_Schedule__e();
+                stripeSubSchedule.StripeSubscriptionScheduleId__c = subscriptionScheduleId;
+                stripeSubSchedule.Salesforce_Quote_Id__c = quoteId;
+                stripeSubSchedule.Subscription_Source__c = subscriptionSource;
+                stripeSubSchedule.Renewal_Subscription__c = isRenewalSubscription;
+                stripeSubSchedule.Event_Type__c = eventType;
+                stripeSubScheduleList.add(stripeSubSchedule);
+
+                Database.SaveResult[] results = EventBus.publish(stripeSubScheduleList);
+                system.debug('results--' + results);
+            }
         } else if (eventType.equals('payment_intent.payment_failed')) {
             Map<String, Object> data = (Map<String, Object>) event.get('data');
             Map<String, Object> paymentIntent = (Map<String, Object>) data.get('object');
