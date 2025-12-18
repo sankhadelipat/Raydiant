@@ -445,6 +445,35 @@ global without sharing class StripeWebHook {
                 Database.SaveResult[] results = EventBus.publish(stripeSubScheduleList);
                 system.debug('results--' + results);
             }
+        } else if (eventType.equals('subscription_schedule.canceled')) {
+            Map<String, Object> data = (Map<String, Object>) event.get('data');
+            Map<String, Object> subscriptionScheduleObj = (Map<String, Object>) data.get('object');
+
+            String subscriptionScheduleId = (String) subscriptionScheduleObj.get('id');
+            String subId = (String) subscriptionScheduleObj.get('subscription');
+
+            // Capture Metadata -> salesforce_quote_id
+            Map<String, Object> metadata = (Map<String, Object>) subscriptionScheduleObj.get('metadata');
+            Boolean subscriptionSchedule = metadata.get('subscription_schedule') != null
+                ? Boolean.valueOf((String) metadata.get('subscription_schedule'))
+                : false;
+            Boolean isRenewalSubscription = metadata.get('is_renewal_subscription') != null
+                ? Boolean.valueOf((String) metadata.get('is_renewal_subscription'))
+                : false;
+
+            // Debug
+            System.debug('Subscription Schedule Id: ' + subscriptionScheduleId);
+
+            if (subscriptionSchedule && subId == null) {
+                List<Stripe_Capture_Schedule_Deletion__e> stripeSubScheduleDelList = new List<Stripe_Capture_Schedule_Deletion__e>();
+
+                Stripe_Capture_Schedule_Deletion__e stripeSubScheduleDel = new Stripe_Capture_Schedule_Deletion__e();
+                stripeSubScheduleDel.StripeSubscriptionScheduleId__c = subscriptionScheduleId;
+                stripeSubScheduleDelList.add(stripeSubScheduleDel);
+
+                Database.SaveResult[] results = EventBus.publish(stripeSubScheduleDelList);
+                system.debug('results--' + results);
+            }
         } else if (eventType.equals('payment_intent.payment_failed')) {
             Map<String, Object> data = (Map<String, Object>) event.get('data');
             Map<String, Object> paymentIntent = (Map<String, Object>) data.get('object');

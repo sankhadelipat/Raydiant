@@ -8,8 +8,9 @@ public class StripeSubscriptionAutoRenewal implements Database.Batchable<SObject
     private List<String> errorMessages = new List<String>();
 
     public Database.QueryLocator start(Database.BatchableContext bc) {
-        // Find contracts that expire tomorrow and have auto-renewal enabled and are active
-        Date tomorrow = Date.today().addDays(1);
+        // Find contracts that is going to expire within 30 days and have do-not-renew disabled and are active
+        Date today = Date.today();
+        Date thirtyDaysFromToday = today.addDays(30);
 
         return Database.getQueryLocator(
             [
@@ -20,6 +21,7 @@ public class StripeSubscriptionAutoRenewal implements Database.Batchable<SObject
                     Stripe_Subscription_ID__c,
                     Stripe_Subscription_Schedule_ID__c,
                     SBQQ__Quote__c,
+                    Renewed_Schedule_ID__c,
                     EndDate,
                     StartDate,
                     ContractTerm,
@@ -28,10 +30,12 @@ public class StripeSubscriptionAutoRenewal implements Database.Batchable<SObject
                     Stripe_Billing_Date__c
                 FROM Contract
                 WHERE
-                    EndDate = :tomorrow
-                    AND Renewed_End_Date__c = NULL
+                    EndDate > :today
+                    AND EndDate <= :thirtyDaysFromToday
                     AND Status = 'Activated'
                     AND DO_NOT_RENEW__c = FALSE
+                    AND Renewed_Schedule_ID__c = NULL
+                    AND Renewal_Scheduled__c = FALSE
                     AND Stripe_Subscription_ID__c != NULL
                     AND Account.Stripe_Customer_ID__c != NULL
             ]
@@ -128,8 +132,7 @@ public class StripeSubscriptionAutoRenewal implements Database.Batchable<SObject
                 );
 
                 if (scheduleId != null) {
-                    contract.Renewed_End_Date__c = newEnd;
-                    contract.DO_NOT_RENEW__c = true;
+                    contract.Renewed_Schedule_ID__c = scheduleId;
                     contractsToUpdate.add(contract);
                     successCount++;
                 } else {

@@ -934,6 +934,9 @@ public class StripeSubscriptionScheduler {
             Boolean isRenewalSubscription = phaseMetadata != null && phaseMetadata.containsKey('auto_renewal')
                 ? Boolean.valueOf((String) phaseMetadata.get('auto_renewal'))
                 : false;
+            String renewedFromContract = phaseMetadata != null && phaseMetadata.containsKey('renewed_from_contract')
+                ? String.valueOf(phaseMetadata.get('renewed_from_contract'))
+                : null;
 
             List<Object> subscriptionItems = (List<Object>) phase.get('items');
             System.debug('Subscription Items: ' + subscriptionItems);
@@ -968,6 +971,9 @@ public class StripeSubscriptionScheduler {
 
             if (endDate != null) {
                 contract.EndDate = endDate;
+            }
+            if (isRenewalSubscription) {
+                contract.Renewed_From_Contract__c = renewedFromContract;
             }
 
             upsert contract Stripe_Subscription_Schedule_ID__c;
@@ -1127,6 +1133,9 @@ public class StripeSubscriptionScheduler {
             Boolean isRenewalSubscription = phaseMetadata != null && phaseMetadata.containsKey('auto_renewal')
                 ? Boolean.valueOf((String) phaseMetadata.get('auto_renewal'))
                 : false;
+            String renewedFromContract = phaseMetadata != null && phaseMetadata.containsKey('renewed_from_contract')
+                ? String.valueOf(phaseMetadata.get('renewed_from_contract'))
+                : null;
 
             List<Object> subscriptionItems = (List<Object>) phase.get('items');
             System.debug('Subscription Items: ' + subscriptionItems);
@@ -1174,6 +1183,9 @@ public class StripeSubscriptionScheduler {
 
             if (endDate != null) {
                 contract.EndDate = endDate;
+            }
+            if (isRenewalSubscription) {
+                contract.Renewed_From_Contract__c = renewedFromContract;
             }
 
             upsert contract Stripe_Subscription_Schedule_ID__c;
@@ -1373,6 +1385,34 @@ public class StripeSubscriptionScheduler {
                 Object_Name__c = 'Contract'
             );
             insert logger;
+        }
+    }
+
+    public static void deleteSchedule(String scheduleId) {
+        try {
+            List<Contract> pendingContracts = [
+                SELECT Id
+                FROM Contract
+                WHERE Stripe_Subscription_Schedule_ID__c = :scheduleId AND Status = 'Pending'
+            ];
+
+            if (!pendingContracts.isEmpty()) {
+                delete pendingContracts;
+                System.debug('Deleted pending contracts for Stripe Schedule: ' + scheduleId);
+            } else {
+                System.debug('No pending contracts found for Stripe Schedule: ' + scheduleId);
+            }
+        } catch (Exception e) {
+            System.debug('Error deleting pending contracts for schedule ' + scheduleId + ': ' + e.getMessage());
+
+            insert new Logger__c(
+                Name = 'Stripe Schedule Deletion Error',
+                Message__c = e.getMessage(),
+                Status__c = 'Error',
+                Apex_Class__c = 'StripeSubscriptionScheduler',
+                Apex_Method__c = 'deleteSchedule',
+                Object_Name__c = 'Contract'
+            );
         }
     }
 
