@@ -67,7 +67,7 @@ public class StripeDeleteInvoiceItems_Test {
         ];
         System.assertEquals(0, deletedItems.size(), 'Invoice items should be deleted');
     }
-
+    
     @IsTest
     static void testStripeDeleteInvoiceItemsWithoutParentInvoice() {
         // Prepare test data with non-existing invoice ID

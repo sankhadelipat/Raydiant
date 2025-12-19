@@ -43,6 +43,7 @@ public class StripeCustomerCreateBatch_Test {
             //Bill_To_Email__c = 'test@example.com',
             Phone = '1234567890',
             Description = 'Test description'
+
             //Account_Number__c = 'ACC123',
             //Account_Record_URL__c = 'https://test.com/account/123'
         );

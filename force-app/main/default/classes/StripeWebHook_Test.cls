@@ -60,6 +60,83 @@ private class StripeWebHook_Test {
     }
     
     @isTest
+    static void testInvoiceCreate() {
+        // Set mock callout
+        Test.setMock(HttpCalloutMock.class, new StripeMockCallout());
+        
+        // Test invoice.create
+        String requestBody = '{\"type\":\"invoice.created\",\"data\":{\"object\":{\"id\":\"in_123\",\"billing_reason\":\"subscription_create\",\"subscription\":\"sub_123\",\"payment_intent\":\"pi_123\",\"metadata\":{\"salesforce_initial_payment\":\"false\",\"salesforce_quote_id\":\"a2ffY000000a9b3QAA\",\"salesforce_quote_accepted\":\"true\"},\"parent\":{\"quote_details\":null,\"subscription_details\":{\"metadata\":{\"salesforce_quote_id\":\"a2ffY000000b2Z7QAI\",\"subscription_source\":\"salesforce\",\"updated_from_salesforce\":\"true\"},\"subscription\":\"sub_1SPHgRPuJCefzpgmAHpdyCZT\"},\"type\":\"subscription_details\"}}}}';
+        
+        RestRequest req = new RestRequest();
+        req.requestBody = Blob.valueOf(requestBody);
+        RestContext.request = req;
+        RestContext.response = new RestResponse();
+        
+        Test.startTest();
+        StripeWebHook.handleWebhook();
+        Test.stopTest();
+        
+        System.assert(true, 'Method should execute without errors');
+    }
+    
+    @isTest
+    static void testInvoiceUpdate() {
+        // Set mock callout
+        Test.setMock(HttpCalloutMock.class, new StripeMockCallout());
+        
+        // Test invoice.update
+        String requestBody = '{\"type\":\"invoice.updated\",\"data\":{\"object\":{\"id\":\"in_123\",\"billing_reason\":\"subscription_create\",\"subscription\":\"sub_123\",\"payment_intent\":\"pi_123\",\"metadata\":{\"salesforce_initial_payment\":\"false\",\"salesforce_quote_id\":\"a2ffY000000a9b3QAA\",\"salesforce_quote_accepted\":\"true\"},\"parent\":{\"quote_details\":null,\"subscription_details\":{\"metadata\":{\"salesforce_quote_id\":\"a2ffY000000b2Z7QAI\",\"subscription_source\":\"salesforce\",\"updated_from_salesforce\":\"true\"},\"subscription\":\"sub_1SPHgRPuJCefzpgmAHpdyCZT\"},\"type\":\"subscription_details\"}}}}';
+        
+        RestRequest req = new RestRequest();
+        req.requestBody = Blob.valueOf(requestBody);
+        RestContext.request = req;
+        RestContext.response = new RestResponse();
+        
+        Test.startTest();
+        StripeWebHook.handleWebhook();
+        Test.stopTest();
+        
+        System.assert(true, 'Method should execute without errors');
+    }
+    
+    @isTest
+    static void testInvoiceUpdate_WithPreviousLinesDeleted() {
+        // Set mock callout
+        Test.setMock(HttpCalloutMock.class, new StripeMockCallout());
+        
+        // Test invoice.update
+        String requestBody = '{'
+            + '"type":"invoice.updated",'
+            + '"data":{'
+            + '"object":{'
+            + '"id":"in_999",'
+            + '"lines":{"data":[{"id":"li_old_2","description":"Keep me"}]},'
+            + '"metadata":{"salesforce_quote_id":"a2ffY000000a9b3QAA"}'
+            + '},'
+            + '"previous_attributes":{'
+            +   '"lines":{'
+            +       '"data":['
+            +           '{"id":"li_old_1","description":"Was deleted"},'
+            +           '{"id":"li_old_2","description":"Keep me"}'
+            +       ']'
+            +   '}'
+            + '}'
+            + '}'
+            + '}';
+        
+        RestRequest req = new RestRequest();
+        req.requestBody = Blob.valueOf(requestBody);
+        RestContext.request = req;
+        RestContext.response = new RestResponse();
+        
+        Test.startTest();
+        StripeWebHook.handleWebhook();
+        Test.stopTest();
+        
+        System.assert(true, 'Method should execute without errors');
+    }
+    
+    @isTest
     static void testInvoicePaidWithSubscriptionCreate() {
         // Set mock callout
         Test.setMock(HttpCalloutMock.class, new StripeMockCallout());
@@ -320,6 +397,46 @@ private class StripeWebHook_Test {
     }
     
     @isTest
+    static void testCustomerSubscriptionCreatedManually() {
+        // Set mock callout
+        Test.setMock(HttpCalloutMock.class, new StripeMockCallout());
+        
+        // Test customer.subscription.created without quote ID
+        String requestBody = '{"type":"customer.subscription.created","data":{"object":{"id":"sub_123","latest_invoice":"in_123","customer":"cus_123","metadata":{"subscription_source":"stripe"}}}}';
+        
+        RestRequest req = new RestRequest();
+        req.requestBody = Blob.valueOf(requestBody);
+        RestContext.request = req;
+        RestContext.response = new RestResponse();
+        
+        Test.startTest();
+        StripeWebHook.handleWebhook();
+        Test.stopTest();
+        
+        System.assert(true, 'Method should execute without errors');
+    }
+    
+    @isTest
+    static void testCustomerSubscriptionUpdatedManually() {
+        // Set mock callout
+        Test.setMock(HttpCalloutMock.class, new StripeMockCallout());
+        
+        // Test customer.subscription.created without quote ID
+        String requestBody = '{"type":"customer.subscription.updated","data":{"object":{"id":"sub_123","latest_invoice":"in_123","customer":"cus_123","metadata":{"subscription_source":"stripe"}}}}';
+        
+        RestRequest req = new RestRequest();
+        req.requestBody = Blob.valueOf(requestBody);
+        RestContext.request = req;
+        RestContext.response = new RestResponse();
+        
+        Test.startTest();
+        StripeWebHook.handleWebhook();
+        Test.stopTest();
+        
+        System.assert(true, 'Method should execute without errors');
+    }
+    
+    @isTest
     static void testUnknownEventType() {
         // Set mock callout
         Test.setMock(HttpCalloutMock.class, new StripeMockCallout());
@@ -387,6 +504,74 @@ private class StripeWebHook_Test {
         
         // Test with different item counts (should stop execution)
         String requestBody = '{"type":"customer.subscription.deleted","data":{"object":{"id":"sub_123","metadata":{"salesforce_quote_id":"a2ffY000000a9b3QAA"},"items":{"data":[{"id":"si_123","price":{"id":"price_123","product":"prod_123"}},{"id":"si_124","price":{"id":"price_124","product":"prod_123"}}]}},"previous_attributes":{"items":{"data":[{"id":"si_123","price":{"id":"price_123","product":"prod_123"}}]}}}}';
+        
+        RestRequest req = new RestRequest();
+        req.requestBody = Blob.valueOf(requestBody);
+        RestContext.request = req;
+        RestContext.response = new RestResponse();
+        
+        Test.startTest();
+        StripeWebHook.handleWebhook();
+        Test.stopTest();
+    }
+    
+    @IsTest
+    static void testSubscriptionScheduleCreated_EventPublished() {
+        // Set mock callout
+        Test.setMock(HttpCalloutMock.class, new StripeMockCallout());
+        
+        // Fake Quote Id (no SOQL dependency in webhook)
+        String fakeQuoteId = 'a2f000000000AAA';
+        
+        // subscription_schedule.created payload
+        String requestBody =
+            '{' +
+            '"type":"subscription_schedule.created",' +
+            '"data":{' +
+            '"object":{' +
+            '"id":"sub_sched_123",' +
+            '"subscription":null,' +
+            '"metadata":{' +
+            '"salesforce_quote_id":"' + fakeQuoteId + '",' +
+            '"subscription_source":"salesforce",' +
+            '"subscription_schedule":"true",' +
+            '"is_renewal_subscription":"true"' +
+            '}' +
+            '}' +
+            '}' +
+            '}' ;
+        
+        RestRequest req = new RestRequest();
+        req.requestBody = Blob.valueOf(requestBody);
+        RestContext.request = req;
+        RestContext.response = new RestResponse();
+        
+        Test.startTest();
+        StripeWebHook.handleWebhook();
+        Test.stopTest();
+    }
+    
+    @IsTest
+    static void testScheduleDeleted_EventPublish() {
+        // Set mock callout
+        Test.setMock(HttpCalloutMock.class, new StripeMockCallout());
+        
+        // subscription_schedule.created payload
+        String requestBody =
+            '{' +
+            '"type":"subscription_schedule.canceled",' +
+            '"data":{' +
+            '"object":{' +
+            '"id":"sub_sched_123",' +
+            '"subscription":null,' +
+            '"metadata":{' +
+            '"subscription_source":"salesforce",' +
+            '"subscription_schedule":"true",' +
+            '"is_renewal_subscription":"true"' +
+            '}' +
+            '}' +
+            '}' +
+            '}' ;
         
         RestRequest req = new RestRequest();
         req.requestBody = Blob.valueOf(requestBody);

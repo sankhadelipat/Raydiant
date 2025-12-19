@@ -1,24 +1,23 @@
 /**
  * @name : QuoteCalculator
  * @description: CPQ API Models: 
- * The Quote Calculator API takes a Quote model and performs pricing calculations on it. The Quote Calculator API returns the updated Quote model.
+ * The Calculate Quote API calculates the prices of a CPQ quote.
  * 
-
  **/
-public with sharing class QuoteCalculator {
-  
-  public void calculate(QuoteModel quote, String callbackClass) {
-    QuoteCalculatorContext ctx = new QuoteCalculatorContext(quote, callbackClass);
-    SBQQ.ServiceRouter.load('SBQQ.QuoteAPI.QuoteCalculator', null, JSON.serialize(ctx));
-  }
-  
-  private class QuoteCalculatorContext {
-    private QuoteModel quote;             //The quote and callbackClass properties are called in the API code by the exact names seen here.
-    private String callbackClass;         //Altering these property names will cause calculator API calls to fail.
-    
-    private QuoteCalculatorContext(QuoteModel quote, String callbackClass) {
-      this.quote = quote;
-      this.callbackClass = callbackClass;
+public without sharing class QuoteCalculator {
+
+    public void calculate(QuoteModel quote, String callbackClass) {
+        QuoteCalculatorContext ctx = new QuoteCalculatorContext(quote, callbackClass);
+        SBQQ.ServiceRouter.load('SBQQ.QuoteAPI.QuoteCalculator', null, JSON.serialize(ctx));
     }
-  }
+
+    private class QuoteCalculatorContext {
+        private QuoteModel quote; //The quote and callbackClass properties are called in the API code by the exact names seen here.
+        private String callbackClass; //Altering these property names will cause calculator API calls to fail.
+
+        private QuoteCalculatorContext(QuoteModel quote, String callbackClass) {
+            this.quote = quote;
+            this.callbackClass = callbackClass;
+        }
+    }
 }

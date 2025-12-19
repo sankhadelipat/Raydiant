@@ -30,6 +30,7 @@ public class StripeInvoiceLineItemQueueable implements Queueable, Database.Allow
                 Map<String, Object> item = (Map<String, Object>) o;
                 
                 Stripe_Invoice_Line_Item__c line = new Stripe_Invoice_Line_Item__c();
+                line.Stripe_Invoice__c = invoiceRecordId;
                 // line.Name = String.valueOf(item.get('id'));
                 // line.Description__c = String.valueOf(item.get('description'));
                 //   line.Amount__c = Decimal.valueOf(String.valueOf(item.get('amount'))) / 100;

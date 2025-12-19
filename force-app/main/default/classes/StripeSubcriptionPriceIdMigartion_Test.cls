@@ -159,7 +159,8 @@ private class StripeSubcriptionPriceIdMigartion_Test {
             SBQQ__Quote__c = quote.Id,
             Stripe_Billing_Date__c = Date.today(),
             Stripe_Subscription_ID__c = null,
-            Stripe_Customer_ID__c = acc.Stripe_Customer_ID__c
+            Stripe_Customer_ID__c = acc.Stripe_Customer_ID__c,
+            Is_Migrating__c = true
         ); 
         insert con;
         

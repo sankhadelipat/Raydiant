@@ -4,10 +4,12 @@ public class StripeTransactionQueueable implements Queueable, Database.AllowsCal
     
     String paymentIntentId;
     String quoteId;
+    String customerId;
     
-    public StripeTransactionQueueable(String paymentIntentId, String quoteId) {
+    public StripeTransactionQueueable(String paymentIntentId, String quoteId, String customerId) {
         this.paymentIntentId = paymentIntentId;
         this.quoteId = quoteId;
+        this.customerId = customerId;
     }
     
     public void execute(QueueableContext context) {
@@ -32,11 +34,14 @@ public class StripeTransactionQueueable implements Queueable, Database.AllowsCal
                 // Process the intentData as needed
                 System.debug('Payment Intent Data: ' + intentData);
                 
-                List<SBQQ__Quote__c> quoteList = [SELECT Id, SBQQ__Account__c, Bill_To_Contact__c FROM SBQQ__Quote__c WHERE Id = :quoteId LIMIT 1];
-                
+                List<SBQQ__Quote__c> quoteList = [SELECT Id FROM SBQQ__Quote__c WHERE Id = :quoteId LIMIT 1];
+                List<Account> accountList = [SELECT Id FROM Account WHERE Stripe_Customer_ID__c = :customerId];
+
                 if (quoteList.isEmpty()) {
                     System.debug('No quote found for ID: ' + quoteId);
-                    return;
+                }
+                if (accountList.isEmpty()) {
+                    System.debug('No customer found for ID: ' + customerId);
                 }
                 
                 Payment_Transaction__c pt = new Payment_Transaction__c();
@@ -48,8 +53,8 @@ public class StripeTransactionQueueable implements Queueable, Database.AllowsCal
                 pt.Stripe_Payment_Status__c = (String)intentData.get('status');
                 pt.Status__c = (String)intentData.get('status') == 'succeeded' ? 'Success' : 'Failed';
                 pt.Payment_Date__c = Date.valueOf(paymentDate);
-                pt.Quote_CPQ__c = quoteList[0].Id;
-                pt.Account__c = quoteList[0].SBQQ__Account__c;
+                pt.Quote_CPQ__c = quoteList.isEmpty() ? null : quoteList[0].Id;
+                pt.Account__c = accountList.isEmpty() ? null : accountList[0].Id;
                 pt.Error_Message__c = errorMessage;
                 pt.Error_Code__c = errorCode;
                 pt.Decline_Code__c = declineCode;
@@ -70,8 +75,7 @@ public class StripeTransactionQueueable implements Queueable, Database.AllowsCal
             Status__c = 'Error',
             Apex_Class__c = 'StripeTransactionQueueable',
             Apex_Method__c = 'execute',
-            Object_Name__c = 'Payment_Transaction__c',
-            User_Email__c = UserInfo.getUserEmail()
+            Object_Name__c = 'Payment_Transaction__c'
                 );
             insert logger;
         }

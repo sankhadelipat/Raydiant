@@ -61,7 +61,7 @@ public class StripeCustomerQueueable_Test {
         Test.setMock(HttpCalloutMock.class, new StripeCustomerMock());
         
         // Enqueue the job
-        System.enqueueJob(new StripeCustomerQueueable('cus_test123'));
+        System.enqueueJob(new StripeCustomerQueueable('cus_test123', 'lite', 'customer.created'));
         
         Test.stopTest();
         
@@ -95,7 +95,7 @@ public class StripeCustomerQueueable_Test {
         Test.startTest();
         Test.setMock(HttpCalloutMock.class, new StripeErrorMock());
         
-        System.enqueueJob(new StripeCustomerQueueable('cus_invalid'));
+        System.enqueueJob(new StripeCustomerQueueable('cus_invalid', 'sales', 'customer.created'));
         
         Test.stopTest();
         

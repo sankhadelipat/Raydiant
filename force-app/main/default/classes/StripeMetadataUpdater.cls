@@ -46,7 +46,7 @@ public with sharing class StripeMetadataUpdater {
 
                 Http http = new Http();
                 HttpResponse res = http.send(req);
-
+                
                 if (res.getStatusCode() >= 400) {
                     System.debug('Stripe Metadata Update Failed: ' + res.getBody());
                     throw new CalloutException('Stripe API error: ' + res.getBody());

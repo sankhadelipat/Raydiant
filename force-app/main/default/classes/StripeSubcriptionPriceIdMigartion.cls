@@ -29,9 +29,8 @@ public class StripeSubcriptionPriceIdMigartion implements Database.Batchable<SOb
                 FROM SBQQ__Subscription__c
                 WHERE
                     F52_Active__c = TRUE
-                    AND SBQQ__SubscriptionType__c != NULL
                     AND SBQQ__Product__r.Stripe_Product_ID__c != NULL
-                    AND Stripe_Subscription_Migration__c = TRUE
+                    AND SBQQ__Contract__r.Is_Migrating__c = TRUE
             ]
         );
     }

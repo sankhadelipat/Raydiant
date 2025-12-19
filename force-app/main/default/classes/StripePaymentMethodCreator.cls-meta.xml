@@ -6,5 +6,10 @@
         <minorNumber>0</minorNumber>
         <namespace>SBQQ</namespace>
     </packageVersions>
+    <packageVersions>
+        <majorNumber>258</majorNumber>
+        <minorNumber>0</minorNumber>
+        <namespace>blng</namespace>
+    </packageVersions>
     <status>Active</status>
 </ApexClass>
