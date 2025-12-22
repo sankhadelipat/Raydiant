@@ -374,7 +374,8 @@ public class StripeSubscriptionScheduler {
                     SBQQ__Account__c,
                     Bill_To_Contact__c,
                     SBQQ__SubscriptionTerm__c,
-                    SBQQ__Account__r.blng__BillToContact__c
+                    SBQQ__Account__r.blng__BillToContact__c,
+                    SBQQ__Opportunity2__c
                 FROM SBQQ__Quote__c
                 WHERE Id = :quoteId
                 LIMIT 1
@@ -476,6 +477,7 @@ public class StripeSubscriptionScheduler {
             Contract contract = new Contract(
                 AccountId = quoteList[0].SBQQ__Account__c,
                 SBQQ__Quote__c = quoteId,
+                SBQQ__Opportunity__c = quoteList[0].SBQQ__Opportunity2__c,
                 Stripe_Subscription_ID__c = subscriptionId,
                 Stripe_Customer_ID__c = customerId,
                 Stripe_latest_Invoice_Id__c = latestInvoice,
@@ -876,7 +878,8 @@ public class StripeSubscriptionScheduler {
                     SBQQ__Account__c,
                     Bill_To_Contact__c,
                     SBQQ__SubscriptionTerm__c,
-                    SBQQ__Account__r.blng__BillToContact__c
+                    SBQQ__Account__r.blng__BillToContact__c,
+                    SBQQ__Opportunity2__c
                 FROM SBQQ__Quote__c
                 WHERE Id = :quoteId
                 LIMIT 1
@@ -954,6 +957,7 @@ public class StripeSubscriptionScheduler {
             Contract contract = new Contract(
                 AccountId = quoteList[0].SBQQ__Account__c,
                 SBQQ__Quote__c = quoteId,
+                SBQQ__Opportunity__c = quoteList[0].SBQQ__Opportunity2__c,
                 Stripe_Customer_ID__c = customerId,
                 Stripe_Subscription_Schedule_ID__c = scheduleId,
                 Stripe_Subscription_Source__c = subscriptionSource,
