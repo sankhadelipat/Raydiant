@@ -125,7 +125,6 @@ public class StripeSubscriptionUpdater {
             Map<String, String> params = new Map<String, String>{
                 'proration_behavior' => 'create_prorations',
                 'payment_behavior' => 'default_incomplete',
-                'metadata[salesforce_contract_id]' => con.Id,
                 'metadata[last_updated]' => String.valueOf(System.now()),
                 'metadata[last_updated_from_Salesforce]' => 'true'
             };
@@ -172,7 +171,6 @@ public class StripeSubscriptionUpdater {
             List<String> bodyParts = new List<String>();
 
             // Metadata
-            bodyParts.add('metadata[salesforce_contract_id]=' + EncodingUtil.urlEncode(con.Id, 'UTF-8'));
             bodyParts.add('metadata[last_updated]=' + EncodingUtil.urlEncode(String.valueOf(System.now()), 'UTF-8'));
             bodyParts.add('metadata[last_updated_from_Salesforce]=true');
 
@@ -180,14 +178,11 @@ public class StripeSubscriptionUpdater {
             if (endDateUnix != null) {
                 bodyParts.add('phases[0][end_date]=' + String.valueOf(endDateUnix));
             }
+            bodyParts.add('phases[0][start_date]=' + String.valueOf(con.Stripe_Subscription_Start_Date__c));
 
             // Now add phases[0][items] from QuoteLines
             Integer index = 0;
             for (SBQQ__Subscription__c ql : sublist) {
-                // Always define billing_cycle_anchor or start_date if you’re overriding
-                // bodyParts.add('phases[0][billing_cycle_anchor]=automatic');
-
-                // Add price + quantity
                 bodyParts.add(
                     'phases[0][items][' + index + '][price]=' + EncodingUtil.urlEncode(ql.Stripe_Price_ID__c, 'UTF-8')
                 );
@@ -197,8 +192,6 @@ public class StripeSubscriptionUpdater {
                         '][quantity]=' +
                         String.valueOf(ql.SBQQ__Quantity__c.setScale(0, RoundingMode.HALF_UP))
                 );
-                bodyParts.add('phases[0][start_date]=' + String.valueOf(con.Stripe_Subscription_Start_Date__c));
-                // bodyParts.add('phases[0][start_date]=1755858007');
                 index++;
             }
 
@@ -232,7 +225,33 @@ public class StripeSubscriptionUpdater {
                 HttpResponse res = http.send(req);
 
                 if (res.getStatusCode() == 200 || res.getStatusCode() == 204) {
+                    Contract updatedCon = new Contract(
+                        Id = con.Id,
+                        Stripe_Status__c = 'canceled',
+                        Latest_Change_Reason__c = 'Subscription Canceled from Salesforce'
+                    );
+                    update updatedCon;
+
                     System.debug('Subscription cancelled successfully: ' + con.Stripe_Subscription_ID__c);
+
+                    // Cancel related subscription items
+                    List<SBQQ__Subscription__c> subsToCancel = [
+                        SELECT Id, Status__c
+                        FROM SBQQ__Subscription__c
+                        WHERE SBQQ__Contract__c = :con.Id
+                    ];
+
+                    for (SBQQ__Subscription__c sub : subsToCancel) {
+                        sub.Status__c = 'canceled';
+                        sub.Latest_Change_Reason__c = 'Subscription Item Canceled Due to Contract Cancellation';
+                    }
+
+                    if (!subsToCancel.isEmpty()) {
+                        StripeTriggerHandler.enableBypass('SBQQ__Subscription__c');
+                        update subsToCancel;
+                        StripeTriggerHandler.disableBypass('SBQQ__Subscription__c');
+                        System.debug('Canceled ' + subsToCancel.size() + ' SBQQ__Subscription__c records');
+                    }
                 } else {
                     System.debug('Error cancelling subscription: ' + res.getBody());
                     throw new CalloutException('Failed to cancel subscription: ' + res.getBody());

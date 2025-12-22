@@ -1302,83 +1302,49 @@ public class StripeSubscriptionScheduler {
     @future(callout=true)
     public static void deleteSubscription(String subscriptionId) {
         try {
-            Http http = new Http();
-            HttpRequest req = new HttpRequest();
-            req.setEndpoint('https://api.stripe.com/v1/subscriptions/' + subscriptionId);
-            req.setMethod('GET');
-            req.setHeader('Authorization', 'Basic ' + EncodingUtil.base64Encode(Blob.valueOf(SECRET_KEY + ':')));
-            req.setHeader('Content-Type', 'application/x-www-form-urlencoded');
+            List<Contract> activeContracts = [
+                SELECT Id
+                FROM Contract
+                WHERE Stripe_Subscription_ID__c = :subscriptionId AND Status = 'Activated'
+            ];
 
-            HttpResponse res = http.send(req);
-
-            if (res.getstatusCode() == 200) {
-                String responseBody = res.getBody();
-                System.debug('Stripe Subscription Response: ' + responseBody);
-                Map<String, Object> payload = (Map<String, Object>) JSON.deserializeUntyped(responseBody);
-                system.debug('--payload-' + payload);
-                Map<String, Object> items = (Map<String, Object>) payload.get('items');
-                List<Object> subscriptionItems = (List<Object>) items.get('data');
-                System.debug('Subscription Items: ' + subscriptionItems);
-                System.debug('Total subscription items: ' + subscriptionItems.size());
-
-                // Extract basic fields from payload
-                String status = (String) payload.get('status');
-                System.debug('Status: ' + status);
-
-                List<Contract> contracts = [
-                    SELECT Id, Stripe_Subscription_ID__c
-                    FROM Contract
-                    WHERE Stripe_Subscription_ID__c = :subscriptionId
-                ];
-
-                if (contracts.isEmpty()) {
-                    System.debug('No Contract found for Subscription ID: ' + subscriptionId);
-                    return;
-                }
-
+            if (!activeContracts.isEmpty()) {
                 // Update and cancel the Contract
                 Contract updatedContract = new Contract(
-                    Id = contracts[0].Id,
-                    Stripe_Status__c = status,
+                    Id = activeContracts[0].Id,
+                    Stripe_Status__c = 'canceled',
                     Status = 'canceled',
                     Latest_Change_Reason__c = 'Subscription Canceled'
                 );
 
+                StripeTriggerHandler.enableBypass('Contract');
                 update updatedContract;
+                StripeTriggerHandler.disableBypass('Contract');
                 System.debug('Updated Contract: ' + updatedContract);
 
-                // Cancel Subscription Items
-                List<SBQQ__Subscription__c> subscriptionItemsToInsert = new List<SBQQ__Subscription__c>();
+                // Cancel related subscription items
+                List<SBQQ__Subscription__c> subsToCancel = [
+                    SELECT Id, Status__c
+                    FROM SBQQ__Subscription__c
+                    WHERE SBQQ__Contract__c = :updatedContract.Id
+                ];
 
-                for (Object itemObj : subscriptionItems) {
-                    Map<String, Object> item = (Map<String, Object>) itemObj;
-                    Map<String, Object> price = (Map<String, Object>) item.get('price');
-
-                    SBQQ__Subscription__c sub = new SBQQ__Subscription__c(
-                        SBQQ__Contract__c = updatedContract.Id,
-                        Stripe_Subscription_ID__c = (String) item.get('id'),
-                        Stripe_Activate__c = (Boolean) price.get('active'),
-                        Status__c = status,
-                        Canceled_From_Stripe__c = true,
-                        Latest_Change_Reason__c = 'Subcription Item Delete From Stripe'
-                    );
-
-                    subscriptionItemsToInsert.add(sub);
+                for (SBQQ__Subscription__c sub : subsToCancel) {
+                    sub.Status__c = 'canceled';
+                    sub.Canceled_From_Stripe__c = true;
+                    sub.Latest_Change_Reason__c = 'Subscription Item Canceled Due to Contract Cancellation';
                 }
 
-                System.debug('Subscription Items to Insert: ' + subscriptionItemsToInsert);
-                System.debug('Total Subscription Items to Insert: ' + subscriptionItemsToInsert.size());
-
-                if (!subscriptionItemsToInsert.isEmpty()) {
-                    upsert subscriptionItemsToInsert SBQQ__Subscription__c.Stripe_Subscription_ID__c;
-                    System.debug('Upserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
+                if (!subsToCancel.isEmpty()) {
+                    update subsToCancel;
+                    System.debug('Canceled ' + subsToCancel.size() + ' SBQQ__Subscription__c records');
                 }
             } else {
-                System.debug('Stripe Subscription Retrieval Error: ' + res.getBody());
-                throw new CalloutException('Stripe Subscription Retrieval Error: ' + res.getBody());
+                System.debug('No active contracts found for Stripe Subscription: ' + subscriptionId);
             }
         } catch (Exception e) {
             System.debug('Error in deleteSubscription: ' + e.getMessage());
+
             Logger__c logger = new Logger__c(
                 Name = 'Stripe Subscription Deletion Error',
                 Message__c = e.getMessage(),
@@ -1401,8 +1367,36 @@ public class StripeSubscriptionScheduler {
             ];
 
             if (!pendingContracts.isEmpty()) {
-                delete pendingContracts;
-                System.debug('Deleted pending contracts for Stripe Schedule: ' + scheduleId);
+                // Update and cancel the Contract
+                Contract updatedContract = new Contract(
+                    Id = pendingContracts[0].Id,
+                    Stripe_Status__c = 'canceled',
+                    Status = 'canceled',
+                    Latest_Change_Reason__c = 'Subscription Canceled'
+                );
+
+                StripeTriggerHandler.enableBypass('Contract');
+                update updatedContract;
+                StripeTriggerHandler.disableBypass('Contract');
+                System.debug('Updated Contract: ' + updatedContract);
+
+                // Cancel related subscription items
+                List<SBQQ__Subscription__c> subsToCancel = [
+                    SELECT Id, Status__c
+                    FROM SBQQ__Subscription__c
+                    WHERE SBQQ__Contract__c = :updatedContract.Id
+                ];
+
+                for (SBQQ__Subscription__c sub : subsToCancel) {
+                    sub.Status__c = 'canceled';
+                    sub.Canceled_From_Stripe__c = true;
+                    sub.Latest_Change_Reason__c = 'Subscription Item Canceled Due to Schedule Cancellation';
+                }
+
+                if (!subsToCancel.isEmpty()) {
+                    update subsToCancel;
+                    System.debug('Canceled ' + subsToCancel.size() + ' SBQQ__Subscription__c records');
+                }
             } else {
                 System.debug('No pending contracts found for Stripe Schedule: ' + scheduleId);
             }
@@ -1412,6 +1406,7 @@ public class StripeSubscriptionScheduler {
             insert new Logger__c(
                 Name = 'Stripe Schedule Deletion Error',
                 Message__c = e.getMessage(),
+                StackTrace__c = e.getStackTraceString(),
                 Status__c = 'Error',
                 Apex_Class__c = 'StripeSubscriptionScheduler',
                 Apex_Method__c = 'deleteSchedule',
