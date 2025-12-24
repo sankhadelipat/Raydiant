@@ -146,7 +146,6 @@ public class StripePaymentIntentQueueable implements Queueable, Database.AllowsC
 
                 insert pt;
 
-                //  System.enqueueJob(new StripeInvoiceQueueable(invoiceId, quoteList[0].id));
                 if (paymentMethodId != null) {
                     StripePaymentMethodCreator.createPaymentMethod(
                         paymentMethodId,

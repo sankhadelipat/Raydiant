@@ -44,10 +44,20 @@ global without sharing class StripeWebHook {
 
             Database.SaveResult[] results = EventBus.publish(stripePaymentList);
             System.debug('Publish results: ' + results);
-        } else if (eventType.equals('invoice.created')) {
+        } else if (
+            eventType.equals('invoice.created') ||
+            eventType.equals('invoice.finalized') ||
+            eventType.equals('invoice.overdue') ||
+            eventType.equals('invoice.voided')
+        ) {
             Map<String, Object> data = (Map<String, Object>) event.get('data');
             system.debug('data--' + data);
             Map<String, Object> stripeInvoice = (Map<String, Object>) data.get('object');
+
+            String stripeInvoiceId = (String) stripeInvoice.get('id');
+            String status = (String) stripeInvoice.get('status');
+            system.debug('invoice----' + stripeInvoiceId);
+
             Map<String, Object> parent = (Map<String, Object>) stripeInvoice.get('parent');
             Map<String, Object> subscriptionDetails = parent != null
                 ? (Map<String, Object>) parent.get('subscription_details')
@@ -69,23 +79,29 @@ global without sharing class StripeWebHook {
                           : parentMetadata.get('salesforce_Quote_id'))
                     : null;
             }
-            String stripeInvoiceId = (String) stripeInvoice.get('id');
-            system.debug('invoice----' + stripeInvoiceId);
 
-            List<Stripe_Capture_Invoice__e> stripeInvoiceList = new List<Stripe_Capture_Invoice__e>();
+            if (status != 'draft') {
+                List<Stripe_Capture_Invoice__e> stripeInvoiceList = new List<Stripe_Capture_Invoice__e>();
 
-            Stripe_Capture_Invoice__e stripeInv = new Stripe_Capture_Invoice__e();
-            stripeInv.Stripe_Subscription_ID__c = subscriptionId;
-            stripeInv.Stripe_Invoice_ID__c = stripeInvoiceId;
-            stripeInv.Quote_ID_From_Stripe__c = parentQuoteId;
-            stripeInvoiceList.add(stripeInv);
+                Stripe_Capture_Invoice__e stripeInv = new Stripe_Capture_Invoice__e();
+                stripeInv.Stripe_Subscription_ID__c = subscriptionId;
+                stripeInv.Stripe_Invoice_ID__c = stripeInvoiceId;
+                stripeInv.Quote_ID_From_Stripe__c = parentQuoteId;
+                stripeInv.Event_Type__c = eventType;
+                stripeInvoiceList.add(stripeInv);
 
-            Database.SaveResult[] results = EventBus.publish(stripeInvoiceList);
-            system.debug('results--' + results);
+                Database.SaveResult[] results = EventBus.publish(stripeInvoiceList);
+                system.debug('results--' + results);
+            }
         } else if (eventType.equals('invoice.updated')) {
             Map<String, Object> data = (Map<String, Object>) event.get('data');
             system.debug('data--' + data);
             Map<String, Object> stripeInvoice = (Map<String, Object>) data.get('object');
+
+            String stripeInvoiceId = (String) stripeInvoice.get('id');
+            String status = (String) stripeInvoice.get('status');
+            system.debug('invoice----' + stripeInvoiceId);
+
             Map<String, Object> parent = (Map<String, Object>) stripeInvoice.get('parent');
             Map<String, Object> subscriptionDetails = parent != null
                 ? (Map<String, Object>) parent.get('subscription_details')
@@ -107,8 +123,6 @@ global without sharing class StripeWebHook {
                           : parentMetadata.get('salesforce_Quote_id'))
                     : null;
             }
-            String stripeInvoiceId = (String) stripeInvoice.get('id');
-            system.debug('invoice----' + stripeInvoiceId);
 
             // Check for deleted invoice line items
             Set<String> deletedLineItemIds = new Set<String>();
@@ -163,16 +177,19 @@ global without sharing class StripeWebHook {
                 System.debug('Deleted Line Items Publish Results: ' + deleteResults);
             }
 
-            List<Stripe_Capture_Invoice__e> stripeInvoiceList = new List<Stripe_Capture_Invoice__e>();
+            if (status != 'draft') {
+                List<Stripe_Capture_Invoice__e> stripeInvoiceList = new List<Stripe_Capture_Invoice__e>();
 
-            Stripe_Capture_Invoice__e stripeInv = new Stripe_Capture_Invoice__e();
-            stripeInv.Stripe_Subscription_ID__c = subscriptionId;
-            stripeInv.Stripe_Invoice_ID__c = stripeInvoiceId;
-            stripeInv.Quote_ID_From_Stripe__c = parentQuoteId;
-            stripeInvoiceList.add(stripeInv);
+                Stripe_Capture_Invoice__e stripeInv = new Stripe_Capture_Invoice__e();
+                stripeInv.Stripe_Subscription_ID__c = subscriptionId;
+                stripeInv.Stripe_Invoice_ID__c = stripeInvoiceId;
+                stripeInv.Quote_ID_From_Stripe__c = parentQuoteId;
+                stripeInv.Event_Type__c = eventType;
+                stripeInvoiceList.add(stripeInv);
 
-            Database.SaveResult[] results = EventBus.publish(stripeInvoiceList);
-            system.debug('results--' + results);
+                Database.SaveResult[] results = EventBus.publish(stripeInvoiceList);
+                system.debug('results--' + results);
+            }
         } else if (eventType.equals('invoice.paid')) {
             Map<String, Object> data1 = (Map<String, Object>) event.get('data');
             system.debug('data1--' + data1);
@@ -258,6 +275,29 @@ global without sharing class StripeWebHook {
                 stripePayment.Quote_Id_From_Stripe__c = parenttQuoteId;
                 stripePaymentList.add(stripePayment);
                 Database.SaveResult[] results = EventBus.publish(stripePaymentList);
+                system.debug('results--' + results);
+            }
+        } else if (eventType.equals('charge.refunded')) {
+            Map<String, Object> data = (Map<String, Object>) event.get('data');
+            Map<String, Object> chargeObj = (Map<String, Object>) data.get('object');
+
+            String chargeId = (String) chargeObj.get('id');
+            String paymentIntentId = (String) chargeObj.get('payment_intent');
+            Decimal amountRefunded = chargeObj.get('amount_refunded') != null
+                ? (Decimal) chargeObj.get('amount_refunded') / 100
+                : 0;
+            System.debug('paymentIntentId--' + paymentIntentId);
+            System.debug('amountRefunded--' + amountRefunded);
+
+            if (String.isNotBlank(paymentIntentId)) {
+                List<Stripe_Capture_Refund__e> stripeRefundList = new List<Stripe_Capture_Refund__e>();
+                Stripe_Capture_Refund__e stripeRefund = new Stripe_Capture_Refund__e();
+                stripeRefund.StripeChargeId__c = chargeId;
+                stripeRefund.StripePaymentIntentId__c = paymentIntentId;
+                stripeRefund.RefundedAmount__c = amountRefunded;
+                stripeRefundList.add(stripeRefund);
+
+                Database.SaveResult[] results = EventBus.publish(stripeRefundList);
                 system.debug('results--' + results);
             }
         } else if (eventType.equals('customer.subscription.created')) {

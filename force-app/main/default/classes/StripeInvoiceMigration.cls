@@ -230,6 +230,20 @@ public class StripeInvoiceMigration implements Database.Batchable<String>, Datab
                 ? (Long) result.get('automatically_finalizes_at')
                 : null;
             String currencyCode = (String) result.get('currency');
+            String status = (String) result.get('status');
+            String invoiceStatus;
+
+            if (status == 'open') {
+                invoiceStatus = 'Open';
+            } else if (status == 'paid') {
+                invoiceStatus = 'Paid';
+            } else if (status == 'void') {
+                invoiceStatus = 'Void';
+            } else if (status == 'draft') {
+                invoiceStatus = 'Draft';
+            } else {
+                invoiceStatus = status != null ? status.capitalize() : 'Open';
+            }
 
             // Set invoice fields
             invoice.Total_Amount__c = result.containsKey('total') ? ((Decimal) result.get('total')) / 100 : 0;
@@ -257,7 +271,7 @@ public class StripeInvoiceMigration implements Database.Batchable<String>, Datab
             invoice.Quote_CPQ__c = quoteRecordId;
             invoice.Account__c = accountId;
             invoice.Bill_to_Contact__c = billToContactId;
-            invoice.Is_Payment_Done__c = result.containsKey('paid') ? (Boolean) result.get('paid') : false;
+            invoice.Is_Payment_Done__c = status == 'paid' ? true : false;
             invoice.Stripe_Invoice_Id__c = stripeInvoiceId;
             invoice.Invoice_Date__c = effectiveAt != null ? date.valueof(toDateTime(effectiveAt)) : null;
             invoice.Invoice_PDF_URL__c = (String) result.get('invoice_pdf');
@@ -265,7 +279,7 @@ public class StripeInvoiceMigration implements Database.Batchable<String>, Datab
             invoice.Name = result.get('number') != null ? (String) result.get('number') : 'SI-DRAFT';
             invoice.Stripe_Invoice_Period_End__c = toDateTime(periodEnd);
             invoice.Stripe_Invoice_Period_Start__c = toDateTime(periodStart);
-            invoice.Payment_Status__c = (String) result.get('status');
+            invoice.Status__c = invoiceStatus;
             invoice.Webhook_Delivered_At__c = toDateTime(webhooksDeliveredAt);
 
             // Upsert the invoice

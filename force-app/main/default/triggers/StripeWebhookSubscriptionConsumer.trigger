@@ -9,17 +9,6 @@ trigger StripeWebhookSubscriptionConsumer on Stripe_Capture_Subscription__e(afte
             );
         }
 
-        if (String.isNotBlank(evt.Latest_invoiceId__c)) {
-            System.enqueueJob(
-                new StripeInvoiceCreateQueueable(
-                    evt.Latest_invoiceId__c,
-                    evt.StripeSubscriptionId__c,
-                    evt.Salesforce_Quote_Id__c
-                ),
-                1
-            );
-        }
-
         if (evt.Event_Type__c == 'customer.subscription.created') {
             System.enqueueJob(
                 new StripeSubscriptionMetadataUpdater(evt.StripeSubscriptionId__c, evt.Subscription_Source__c),

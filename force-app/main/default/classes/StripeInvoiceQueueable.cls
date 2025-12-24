@@ -94,10 +94,24 @@ public class StripeInvoiceQueueable implements Queueable, Database.AllowsCallout
                 Long dueDate = (Long) result.get('due_date');
                 Long finalizesAt = (Long) result.get('automatically_finalizes_at');
                 String currencyCode = (String) result.get('currency');
+                String status = (String) result.get('status');
+                String invoiceStatus;
                 Id accountId;
                 Id billToContactId;
                 String paymentIntentId;
                 String subscriptionId;
+
+                if (status == 'open') {
+                    invoiceStatus = 'Open';
+                } else if (status == 'paid') {
+                    invoiceStatus = 'Paid';
+                } else if (status == 'void') {
+                    invoiceStatus = 'Void';
+                } else if (status == 'draft') {
+                    invoiceStatus = 'Draft';
+                } else {
+                    invoiceStatus = status != null ? status.capitalize() : 'Open';
+                }
 
                 // Determine Account and Bill To Contact
                 if (!accts.isEmpty()) {
@@ -179,7 +193,7 @@ public class StripeInvoiceQueueable implements Queueable, Database.AllowsCallout
                 invoice.Quote_CPQ__c = quoteList.isEmpty() ? null : quoteList[0].Id;
                 invoice.Account__c = accountId;
                 invoice.Bill_to_Contact__c = billToContactId;
-                invoice.Is_Payment_Done__c = result.containsKey('paid') ? (Boolean) result.get('paid') : false;
+                invoice.Is_Payment_Done__c = status == 'paid' ? true : false;
                 invoice.Stripe_Invoice_Id__c = stripeInvoiceId;
                 invoice.Invoice_Date__c = date.valueof(toDateTime(effectivedate));
                 invoice.Invoice_PDF_URL__c = (String) result.get('invoice_pdf');
@@ -188,7 +202,7 @@ public class StripeInvoiceQueueable implements Queueable, Database.AllowsCallout
                 invoice.Stripe_Invoice_Number__c = (String) result.get('number');
                 invoice.Stripe_Invoice_Period_End__c = toDateTime(endDate);
                 invoice.Stripe_Invoice_Period_Start__c = toDateTime(stratDate);
-                invoice.Payment_Status__c = (String) result.get('status');
+                invoice.Status__c = invoiceStatus;
                 invoice.Webhook_Delivered_At__c = toDateTime(webhoodDelivered);
 
                 upsert invoice Stripe_Invoice_Id__c;
