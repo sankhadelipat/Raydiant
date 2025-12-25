@@ -85,6 +85,7 @@ public class StripeInvoiceCreateQueueable implements Queueable, Database.AllowsC
                 System.debug('accts--' + accts);
 
                 // Extract relevant fields
+                Long currentTimeUnix = DateTime.now().getTime() / 1000;
                 Long effectivedate = (Long) result.get('effective_at');
                 Long stratDate = (Long) result.get('period_start');
                 Long endDate = (Long) result.get('period_end');
@@ -98,6 +99,8 @@ public class StripeInvoiceCreateQueueable implements Queueable, Database.AllowsC
                 Id billToContactId;
 
                 if (eventType == 'invoice.overdue') {
+                    invoiceStatus = 'Past Due';
+                } else if (status == 'open' && dueDate != null && dueDate < currentTimeUnix) {
                     invoiceStatus = 'Past Due';
                 } else {
                     if (status == 'open') {
