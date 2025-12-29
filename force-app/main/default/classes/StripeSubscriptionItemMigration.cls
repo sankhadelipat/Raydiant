@@ -362,6 +362,6 @@ public class StripeSubscriptionItemMigration implements Database.Batchable<SObje
     public static Datetime toDateTime(Long unixTs) {
         if (unixTs == null)
             return null;
-        return Datetime.newInstanceGmt(1970, 1, 1, 0, 0, 0).addSeconds((Integer) unixTs);
+        return Datetime.newInstance(unixTs * 1000);
     }
 }

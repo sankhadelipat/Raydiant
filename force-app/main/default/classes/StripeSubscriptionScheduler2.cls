@@ -46,18 +46,16 @@ public class StripeSubscriptionScheduler2 {
             List<String> bodyParts = new List<String>();
 
             Date startDate = quote.SBQQ__StartDate__c;
-            Datetime dt = Datetime.newInstanceGMT(startDate.year(), startDate.month(), startDate.day(), 0, 0, 0);
+            Datetime dt = Datetime.newInstance(startDate.year(), startDate.month(), startDate.day(), 0, 0, 0);
             Long unixTimestamp = dt.getTime() / 1000;
             System.debug('Unix Timestamp: ' + unixTimestamp);
 
             Date EndDate = startDate.addMonths(INTEGER.VALUEOF(quote.SBQQ__SubscriptionTerm__c)).addDays(-1);
             System.debug('EndDate--' + EndDate);
-            Datetime EndDatedt = Datetime.newInstanceGMT(EndDate.year(), EndDate.month(), EndDate.day(), 0, 0, 0);
+            Datetime EndDatedt = Datetime.newInstance(EndDate.year(), EndDate.month(), EndDate.day(), 0, 0, 0);
             Long EndDateunixTimestamp = EndDatedt.getTime() / 1000;
             System.debug('Unix Timestamp: ' + EndDateunixTimestamp);
 
-            // Date firstOfNextMonth = Date.newInstance(startDate.addMonths(1).year(), startDate.addMonths(1).month(), 1);
-            // Date firstOfNextQuarter = Date.newInstance(startDate.addMonths(3).year(), startDate.addMonths(3).month(), 1);
             Date dateOfNextMonth = Date.newInstance(
                 startDate.addMonths(1).year(),
                 startDate.addMonths(1).month(),
@@ -89,7 +87,7 @@ public class StripeSubscriptionScheduler2 {
             if (quote.Billing_Frequency_Override__c != null) {
                 String freq = quote.Billing_Frequency_Override__c.toLowerCase();
                 if (freq == 'Monthly') {
-                    billingAnchor = Datetime.newInstanceGMT(
+                    billingAnchor = Datetime.newInstance(
                         dateOfNextMonth.year(),
                         dateOfNextMonth.month(),
                         dateOfNextMonth.day(),
@@ -98,7 +96,7 @@ public class StripeSubscriptionScheduler2 {
                         0
                     );
                 } else if (freq == 'Quarterly') {
-                    billingAnchor = Datetime.newInstanceGMT(
+                    billingAnchor = Datetime.newInstance(
                         dateOfNextQuarter.year(),
                         dateOfNextQuarter.month(),
                         dateOfNextQuarter.day(),
@@ -107,7 +105,7 @@ public class StripeSubscriptionScheduler2 {
                         0
                     );
                 } else if (freq == 'Annual') {
-                    billingAnchor = Datetime.newInstanceGMT(
+                    billingAnchor = Datetime.newInstance(
                         dateOfNextYear.year(),
                         dateOfNextYear.month(),
                         dateOfNextYear.day(),
@@ -116,7 +114,7 @@ public class StripeSubscriptionScheduler2 {
                         0
                     );
                 } else if (freq == '2-Year') {
-                    billingAnchor = Datetime.newInstanceGMT(
+                    billingAnchor = Datetime.newInstance(
                         dateOfNext2Year.year(),
                         dateOfNext2Year.month(),
                         dateOfNext2Year.day(),
@@ -125,7 +123,7 @@ public class StripeSubscriptionScheduler2 {
                         0
                     );
                 } else if (freq == '3-Year') {
-                    billingAnchor = Datetime.newInstanceGMT(
+                    billingAnchor = Datetime.newInstance(
                         dateOfNext3Year.year(),
                         dateOfNext3Year.month(),
                         dateOfNext3Year.day(),
@@ -135,7 +133,7 @@ public class StripeSubscriptionScheduler2 {
                     );
                 } else {
                     // Default to monthly
-                    billingAnchor = Datetime.newInstanceGMT(
+                    billingAnchor = Datetime.newInstance(
                         dateOfNextMonth.year(),
                         dateOfNextMonth.month(),
                         dateOfNextMonth.day(),
@@ -228,13 +226,13 @@ public class StripeSubscriptionScheduler2 {
 
             Long currentTimeUnix = DateTime.now().getTime() / 1000;
             Date startDate = quote.SBQQ__StartDate__c;
-            Datetime dt = Datetime.newInstanceGMT(startDate.year(), startDate.month(), startDate.day(), 0, 0, 0);
+            Datetime dt = Datetime.newInstance(startDate.year(), startDate.month(), startDate.day(), 0, 0, 0);
             Long unixTimestamp = dt.getTime() / 1000;
             System.debug('Unix Timestamp: ' + unixTimestamp);
 
             Date EndDate = startDate.addMonths(INTEGER.VALUEOF(quote.SBQQ__SubscriptionTerm__c)).addDays(-1);
             system.debug('EndDate--' + EndDate);
-            Datetime EndDatedt = Datetime.newInstanceGMT(EndDate.year(), EndDate.month(), EndDate.day(), 0, 0, 0);
+            Datetime EndDatedt = Datetime.newInstance(EndDate.year(), EndDate.month(), EndDate.day(), 0, 0, 0);
             Long EndDateunixTimestamp = EndDatedt.getTime() / 1000;
             System.debug('Unix Timestamp: ' + EndDateunixTimestamp);
 
@@ -400,8 +398,6 @@ public class StripeSubscriptionScheduler2 {
             bodyParts.add('proration_behavior=always_invoice');
             bodyParts.add('billing_mode[type]=flexible');
 
-            // Date firstOfNextMonth = Date.newInstance(startDate.addMonths(1).year(), startDate.addMonths(1).month(), 1);
-            // Date firstOfNextQuarter = Date.newInstance(startDate.addMonths(3).year(), startDate.addMonths(3).month(), 1);
             Date dateOfNextMonth = Date.newInstance(
                 startDate.addMonths(1).year(),
                 startDate.addMonths(1).month(),
@@ -433,7 +429,7 @@ public class StripeSubscriptionScheduler2 {
             if (quote.Billing_Frequency_Override__c != null) {
                 String freq = quote.Billing_Frequency_Override__c.toLowerCase();
                 if (freq == 'Monthly') {
-                    billingAnchor = Datetime.newInstanceGMT(
+                    billingAnchor = Datetime.newInstance(
                         dateOfNextMonth.year(),
                         dateOfNextMonth.month(),
                         dateOfNextMonth.day(),
@@ -442,7 +438,7 @@ public class StripeSubscriptionScheduler2 {
                         0
                     );
                 } else if (freq == 'Quarterly') {
-                    billingAnchor = Datetime.newInstanceGMT(
+                    billingAnchor = Datetime.newInstance(
                         dateOfNextQuarter.year(),
                         dateOfNextQuarter.month(),
                         dateOfNextQuarter.day(),
@@ -451,7 +447,7 @@ public class StripeSubscriptionScheduler2 {
                         0
                     );
                 } else if (freq == 'Annual') {
-                    billingAnchor = Datetime.newInstanceGMT(
+                    billingAnchor = Datetime.newInstance(
                         dateOfNextYear.year(),
                         dateOfNextYear.month(),
                         dateOfNextYear.day(),
@@ -460,7 +456,7 @@ public class StripeSubscriptionScheduler2 {
                         0
                     );
                 } else if (freq == '2-Year') {
-                    billingAnchor = Datetime.newInstanceGMT(
+                    billingAnchor = Datetime.newInstance(
                         dateOfNext2Year.year(),
                         dateOfNext2Year.month(),
                         dateOfNext2Year.day(),
@@ -469,7 +465,7 @@ public class StripeSubscriptionScheduler2 {
                         0
                     );
                 } else if (freq == '3-Year') {
-                    billingAnchor = Datetime.newInstanceGMT(
+                    billingAnchor = Datetime.newInstance(
                         dateOfNext3Year.year(),
                         dateOfNext3Year.month(),
                         dateOfNext3Year.day(),
@@ -479,7 +475,7 @@ public class StripeSubscriptionScheduler2 {
                     );
                 } else {
                     // Default to monthly
-                    billingAnchor = Datetime.newInstanceGMT(
+                    billingAnchor = Datetime.newInstance(
                         dateOfNextMonth.year(),
                         dateOfNextMonth.month(),
                         dateOfNextMonth.day(),

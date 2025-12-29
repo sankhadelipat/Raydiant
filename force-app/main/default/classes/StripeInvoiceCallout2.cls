@@ -94,7 +94,7 @@ public class StripeInvoiceCallout2 {
             }
 
             // Use user's timezone to compute UTC seconds for the midnight of the date
-            Datetime userLocalStart = Datetime.newInstanceGMT(
+            Datetime userLocalStart = Datetime.newInstance(
                 startDate.year(),
                 startDate.month(),
                 startDate.day(),
@@ -333,6 +333,6 @@ public class StripeInvoiceCallout2 {
     private static Datetime toDateTime(Long unixTs) {
         if (unixTs == null)
             return null;
-        return Datetime.newInstanceGmt(1970, 1, 1, 0, 0, 0).addSeconds((Integer) unixTs);
+        return Datetime.newInstance(unixTs * 1000);
     }
 }

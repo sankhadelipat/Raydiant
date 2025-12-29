@@ -240,7 +240,7 @@ public class StripeInvoiceCallout implements Queueable, Database.AllowsCallouts 
 
             if (startDate != null) {
                 // Create datetime at midnight in user's local time
-                Datetime userLocalStart = Datetime.newInstanceGMT(
+                Datetime userLocalStart = Datetime.newInstance(
                     startDate.year(),
                     startDate.month(),
                     startDate.day(),
@@ -254,23 +254,13 @@ public class StripeInvoiceCallout implements Queueable, Database.AllowsCallouts 
             }
 
             if (dueDate != null) {
-                Datetime userLocalDue = Datetime.newInstanceGMT(
-                    dueDate.year(),
-                    dueDate.month(),
-                    dueDate.day(),
-                    0,
-                    0,
-                    0
-                );
-                // Datetime utcDue = userLocalDue.addSeconds(-tz.getOffset(userLocalDue) / 1000);
+                Datetime userLocalDue = Datetime.newInstance(dueDate.year(), dueDate.month(), dueDate.day(), 0, 0, 0);
                 unixDueDate = userLocalDue.getTime() / 1000;
             }
 
             System.debug('unixStartDate (user TZ adjusted): ' + unixStartDate);
             System.debug('unixDueDate (user TZ adjusted): ' + unixDueDate);
-            // Long unixStartDate = startDate != null ? Datetime.newInstance(startDate, Time.newInstance(0, 0, 0, 0)).getTime() / 1000 : null;
-            //  Long unixDueDate = dueDate != null ? Datetime.newInstance(dueDate, Time.newInstance(0, 0, 0, 0)).getTime() / 1000 : null;
-
+            
             List<String> bodyParts = new List<String>();
             // bodyParts.add('customer=' + EncodingUtil.urlEncode(quoteList[0].SBQQ__Account__r.Stripe_Customer_ID__c, 'UTF-8'));
             //  bodyParts.add('collection_method=send_invoice');
@@ -325,6 +315,6 @@ public class StripeInvoiceCallout implements Queueable, Database.AllowsCallouts 
     private static Datetime toDateTime(Long unixTs) {
         if (unixTs == null)
             return null;
-        return Datetime.newInstanceGmt(1970, 1, 1, 0, 0, 0).addSeconds((Integer) unixTs);
+        return Datetime.newInstance(unixTs * 1000);
     }
 }

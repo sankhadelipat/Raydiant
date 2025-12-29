@@ -149,12 +149,12 @@ public class StripeSubscriptionScheduler {
             List<String> bodyParts = new List<String>();
 
             Date StartDate = quote.SBQQ__StartDate__c;
-            Datetime dt = Datetime.newInstanceGMT(startDate.year(), startDate.month(), startDate.day(), 0, 0, 0);
+            Datetime dt = Datetime.newInstance(startDate.year(), startDate.month(), startDate.day(), 0, 0, 0);
             Long unixTimestamp = dt.getTime() / 1000;
             System.debug('Unix Timestamp: ' + unixTimestamp);
 
             Date EndDate = startDate.addMonths(INTEGER.VALUEOF(quote.SBQQ__SubscriptionTerm__c)).addDays(-1);
-            Datetime EndDatedt = Datetime.newInstanceGMT(EndDate.year(), EndDate.month(), EndDate.day(), 0, 0, 0);
+            Datetime EndDatedt = Datetime.newInstance(EndDate.year(), EndDate.month(), EndDate.day(), 0, 0, 0);
             Long EndDateunixTimestamp = EndDatedt.getTime() / 1000;
             System.debug('Unix Timestamp: ' + EndDateunixTimestamp);
 
@@ -189,7 +189,7 @@ public class StripeSubscriptionScheduler {
             if (quote.Billing_Frequency_Override__c != null) {
                 String freq = quote.Billing_Frequency_Override__c;
                 if (freq == 'Monthly') {
-                    billingAnchor = Datetime.newInstanceGMT(
+                    billingAnchor = Datetime.newInstance(
                         dateOfNextMonth.year(),
                         dateOfNextMonth.month(),
                         dateOfNextMonth.day(),
@@ -198,7 +198,7 @@ public class StripeSubscriptionScheduler {
                         0
                     );
                 } else if (freq == 'Quarterly') {
-                    billingAnchor = Datetime.newInstanceGMT(
+                    billingAnchor = Datetime.newInstance(
                         dateOfNextQuarter.year(),
                         dateOfNextQuarter.month(),
                         dateOfNextQuarter.day(),
@@ -207,7 +207,7 @@ public class StripeSubscriptionScheduler {
                         0
                     );
                 } else if (freq == 'Annual') {
-                    billingAnchor = Datetime.newInstanceGMT(
+                    billingAnchor = Datetime.newInstance(
                         dateOfNextYear.year(),
                         dateOfNextYear.month(),
                         dateOfNextYear.day(),
@@ -216,7 +216,7 @@ public class StripeSubscriptionScheduler {
                         0
                     );
                 } else if (freq == '2-Year') {
-                    billingAnchor = Datetime.newInstanceGMT(
+                    billingAnchor = Datetime.newInstance(
                         dateOfNext2Year.year(),
                         dateOfNext2Year.month(),
                         dateOfNext2Year.day(),
@@ -225,7 +225,7 @@ public class StripeSubscriptionScheduler {
                         0
                     );
                 } else if (freq == '3-Year') {
-                    billingAnchor = Datetime.newInstanceGMT(
+                    billingAnchor = Datetime.newInstance(
                         dateOfNext3Year.year(),
                         dateOfNext3Year.month(),
                         dateOfNext3Year.day(),
@@ -235,7 +235,7 @@ public class StripeSubscriptionScheduler {
                     );
                 } else {
                     // Default to monthly
-                    billingAnchor = Datetime.newInstanceGMT(
+                    billingAnchor = Datetime.newInstance(
                         dateOfNextMonth.year(),
                         dateOfNextMonth.month(),
                         dateOfNextMonth.day(),
@@ -1418,7 +1418,7 @@ public class StripeSubscriptionScheduler {
     private static Datetime toDateTime(Long unixTs) {
         if (unixTs == null)
             return null;
-        return Datetime.newInstanceGmt(1970, 1, 1, 0, 0, 0).addSeconds((Integer) unixTs);
+        return Datetime.newInstance(unixTs * 1000);
     }
 
     private static Integer calculateContractTerm(Date startDate, Date endDate) {

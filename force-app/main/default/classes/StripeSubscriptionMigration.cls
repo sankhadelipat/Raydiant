@@ -142,7 +142,7 @@ public class StripeSubscriptionMigration implements Database.Batchable<SObject>,
                 Date billingDate = con.Stripe_Billing_Date__c; //con.Stripe_Billing_Date__c;
 
                 if (billingDate != null) {
-                    Datetime billingAnchor = Datetime.newInstanceGMT(
+                    Datetime billingAnchor = Datetime.newInstance(
                         billingDate.year(),
                         billingDate.month(),
                         billingDate.day(),
@@ -512,6 +512,6 @@ public class StripeSubscriptionMigration implements Database.Batchable<SObject>,
     public static Datetime toDateTime(Long unixTs) {
         if (unixTs == null)
             return null;
-        return Datetime.newInstanceGmt(1970, 1, 1, 0, 0, 0).addSeconds((Integer) unixTs);
+        return Datetime.newInstance(unixTs * 1000);
     }
 }

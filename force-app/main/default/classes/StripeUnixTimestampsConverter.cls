@@ -47,6 +47,6 @@ public class StripeUnixTimestampsConverter {
 
     private static Datetime convertUnix(Long timestamp) {
         if (timestamp == null) return null;
-        return Datetime.newInstanceGmt(1970, 1, 1, 0, 0, 0).addSeconds((Integer)timestamp);
+        return Datetime.newInstance(timestamp * 1000);
     }
 }

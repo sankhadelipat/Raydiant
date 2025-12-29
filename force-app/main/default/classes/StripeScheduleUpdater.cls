@@ -68,7 +68,7 @@ public class StripeScheduleUpdater {
                     Long endDateUnix = null;
 
                     if (con.StartDate != null) {
-                        Datetime startDt = Datetime.newInstanceGmt(
+                        Datetime startDt = Datetime.newInstance(
                             con.StartDate.year(),
                             con.StartDate.month(),
                             con.StartDate.day(),

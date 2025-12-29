@@ -190,9 +190,9 @@ public class StripeSubscriptionAutoRenewal implements Database.Batchable<SObject
     ) {
         try {
             Long startUnix =
-                DateTime.newInstanceGmt(startDate.year(), startDate.month(), startDate.day(), 0, 0, 0).getTime() / 1000;
+                DateTime.newInstance(startDate.year(), startDate.month(), startDate.day(), 0, 0, 0).getTime() / 1000;
             Long endUnix =
-                DateTime.newInstanceGmt(endDate.year(), endDate.month(), endDate.day(), 0, 0, 0).getTime() / 1000;
+                DateTime.newInstance(endDate.year(), endDate.month(), endDate.day(), 0, 0, 0).getTime() / 1000;
             Integer daysUntilDue = 0;
 
             if (quote != null) {
