@@ -3,13 +3,9 @@ public class StripePaymentMethodQueueable implements Queueable, Database.AllowsC
     private static final String SECRET_KEY = stripeDetails.Serect_Key__c;
 
     String paymentMethodId;
-    Id transactionId;
-    Id quoteId;
 
-    public StripePaymentMethodQueueable(String paymentMethodId, Id transactionId, Id quoteId) {
+    public StripePaymentMethodQueueable(String paymentMethodId) {
         this.paymentMethodId = paymentMethodId;
-        this.transactionId = transactionId;
-        this.quoteId = quoteId;
     }
 
     public void execute(QueueableContext context) {
@@ -25,12 +21,7 @@ public class StripePaymentMethodQueueable implements Queueable, Database.AllowsC
             if (res.getStatusCode() == 200) {
                 Map<String, Object> pmData = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
 
-                Stripe_Payment_Method__c pm = buildPayementMethodRecord(
-                    pmData,
-                    paymentMethodId,
-                    transactionId,
-                    quoteId
-                );
+                Stripe_Payment_Method__c pm = buildPayementMethodRecord(pmData);
                 upsert pm Stripe_Payment_Method_ID__c;
             } else {
                 System.debug('Failed to retrieve payment method: ' + res.getBody());
@@ -51,18 +42,8 @@ public class StripePaymentMethodQueueable implements Queueable, Database.AllowsC
         }
     }
 
-    private static Stripe_Payment_Method__c buildPayementMethodRecord(
-        Map<String, Object> pmData,
-        String pmId,
-        Id transactionId,
-        Id quoteId
-    ) {
-        SBQQ__Quote__c quoteList = [
-            SELECT Id, SBQQ__Account__c, Bill_To_Contact__c, Billing_Frequency_Override__c
-            FROM SBQQ__Quote__c
-            WHERE Id = :quoteId
-        ];
-
+    private static Stripe_Payment_Method__c buildPayementMethodRecord(Map<String, Object> pmData) {
+        String pmId = (String) pmData.get('id');
         String pmType = (String) pmData.get('type');
         Map<String, Object> billingDetails = (Map<String, Object>) pmData.get('billing_details');
 
@@ -82,14 +63,32 @@ public class StripePaymentMethodQueueable implements Queueable, Database.AllowsC
         String payerEmail = billingDetails != null ? (String) billingDetails.get('email') : null;
         String payerPhone = billingDetails != null ? (String) billingDetails.get('phone') : null;
         String payerName = billingDetails != null ? (String) billingDetails.get('name') : null;
-        DateTime createdAt = DateTime.newInstance((Long) pmData.get('created') * 1000); // Convert seconds to milliseconds
+        Datetime createdAt = DateTime.newInstance((Long) pmData.get('created') * 1000);
         String customerId = (String) pmData.get('customer');
+        Id accountId;
+        Id billToContactId;
+
+        // Fetch Account based on Customer ID
+        List<Account> accts = [
+            SELECT Id, Name, blng__BillToContact__c
+            FROM Account
+            WHERE Stripe_Customer_ID__c = :customerId
+        ];
+        System.debug('accts--' + accts);
+
+        // Determine Account and Bill To Contact
+        if (!accts.isEmpty()) {
+            accountId = accts[0].Id;
+            billToContactId = accts[0].blng__BillToContact__c;
+        } else {
+            throw new DmlException('No Account found: ' + customerId);
+        }
+        System.debug('accountId--' + accountId);
 
         Stripe_Payment_Method__c pm = new Stripe_Payment_Method__c(
             Payment_Method_Type__c = pmType,
-            Account__c = quoteList.SBQQ__Account__c,
-            Stripe_Payment_Transaction__c = transactionId,
             Stripe_Payment_Method_ID__c = pmId,
+            Account__c = accountId,
             Payer_Name__c = payerName,
             Payer_Email__c = payerEmail,
             Payer_Phone__c = payerPhone,
@@ -98,9 +97,7 @@ public class StripePaymentMethodQueueable implements Queueable, Database.AllowsC
             Billing_Address__City__s = address.get('city'),
             Billing_Address__PostalCode__s = address.get('postal_code'),
             Billing_Address__Street__s = address.get('line1'),
-            Payment_Method_Created__c = createdAt,
-            Stripe_Customer_ID__c = customerId,
-            CPQ_Quote__c = quoteId
+            Payment_Method_Created__c = createdAt
         );
 
         // Card-specific fields

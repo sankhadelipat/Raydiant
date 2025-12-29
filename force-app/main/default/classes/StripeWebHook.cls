@@ -579,6 +579,24 @@ global without sharing class StripeWebHook {
 
             Database.saveResult[] results = EventBus.publish(stripeCustomerList);
             system.debug('results--' + results);
+        } else if (eventType.equals('payment_method.attached')) {
+            Map<String, Object> data = (Map<String, Object>) event.get('data');
+            Map<String, Object> paymentMethod = (Map<String, Object>) data.get('object');
+            system.debug('paymentMethod--' + paymentMethod);
+
+            String stripePaymentMethodId = (String) paymentMethod.get('id');
+            String customerId = (String) paymentMethod.get('customer');
+
+            List<Stripe_Capture_Payment_Method__e> stripePaymentMethodList = new List<Stripe_Capture_Payment_Method__e>();
+
+            Stripe_Capture_Payment_Method__e stripePaymentMethod = new Stripe_Capture_Payment_Method__e();
+            stripePaymentMethod.StripePaymentMethodId__c = stripePaymentMethodId;
+            stripePaymentMethod.CustomerId__c = customerId;
+            stripePaymentMethodList.add(stripePaymentMethod);
+            System.debug('stripePaymentMethodList--' + stripePaymentMethodList);
+
+            Database.saveResult[] results = EventBus.publish(stripePaymentMethodList);
+            system.debug('results--' + results);
         }
     }
 }

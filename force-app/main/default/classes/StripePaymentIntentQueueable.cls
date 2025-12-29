@@ -145,15 +145,6 @@ public class StripePaymentIntentQueueable implements Queueable, Database.AllowsC
                 pt.First_Invoice_Capture__c = invoiceCaptured;
 
                 insert pt;
-
-                if (paymentMethodId != null) {
-                    StripePaymentMethodCreator.createPaymentMethod(
-                        paymentMethodId,
-                        pt.Id,
-                        quoteId,
-                        stripeSubscriptionId
-                    );
-                }
             } else {
                 System.debug('Failed to retrieve payment intent: ' + res.getBody());
                 throw new CalloutException('Failed to retrieve payment intent: ' + res.getBody());
