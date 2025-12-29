@@ -471,7 +471,7 @@ global without sharing class StripeWebHook {
             System.debug('Subscription Schedule Id: ' + subscriptionScheduleId);
             System.debug('Quote Id: ' + quoteId);
 
-            if (subscriptionSchedule && subId == null) {
+            if (subId == null) {
                 List<Stripe_Capture_Subscription_Schedule__e> stripeSubScheduleList = new List<Stripe_Capture_Subscription_Schedule__e>();
 
                 Stripe_Capture_Subscription_Schedule__e stripeSubSchedule = new Stripe_Capture_Subscription_Schedule__e();
@@ -504,7 +504,7 @@ global without sharing class StripeWebHook {
             // Debug
             System.debug('Subscription Schedule Id: ' + subscriptionScheduleId);
 
-            if (subscriptionSchedule && subId == null) {
+            if (subId == null) {
                 List<Stripe_Capture_Schedule_Deletion__e> stripeSubScheduleDelList = new List<Stripe_Capture_Schedule_Deletion__e>();
 
                 Stripe_Capture_Schedule_Deletion__e stripeSubScheduleDel = new Stripe_Capture_Schedule_Deletion__e();

@@ -578,7 +578,7 @@ public class StripeSubscriptionScheduler2 {
             String subSchedId = (String) (subResponse.containsKey('schedule') ? subResponse.get('schedule') : null);
             System.debug('subSchedId---' + subSchedId);
 
-            if (isSchedule && subSchedId != null) {
+            if ((isSchedule && subSchedId != null) || subSchedId != null) {
                 Contract existingContract;
 
                 List<Contract> pending = [
