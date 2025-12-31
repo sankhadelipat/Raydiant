@@ -597,6 +597,26 @@ global without sharing class StripeWebHook {
 
             Database.saveResult[] results = EventBus.publish(stripePaymentMethodList);
             system.debug('results--' + results);
+        } else if (eventType.equals('credit_note.created') || eventType.equals('credit_note.voided')) {
+            Map<String, Object> data = (Map<String, Object>) event.get('data');
+            Map<String, Object> creditNote = (Map<String, Object>) data.get('object');
+            system.debug('creditNote--' + creditNote);
+
+            String stripeCreditNoteId = (String) creditNote.get('id');
+            String stripeInvoiceId = (String) creditNote.get('invoice');
+            String customerId = (String) creditNote.get('customer');
+
+            List<Stripe_Capture_Credit_Note__e> stripeCreditNoteList = new List<Stripe_Capture_Credit_Note__e>();
+
+            Stripe_Capture_Credit_Note__e stripeCreditNote = new Stripe_Capture_Credit_Note__e();
+            stripeCreditNote.StripeCreditNoteId__c = stripeCreditNoteId;
+            stripeCreditNote.StripeInvoiceId__c = stripeInvoiceId;
+            stripeCreditNote.CustomerId__c = customerId;
+            stripeCreditNoteList.add(stripeCreditNote);
+            System.debug('stripeCreditNoteList--' + stripeCreditNoteList);
+
+            Database.saveResult[] results = EventBus.publish(stripeCreditNoteList);
+            system.debug('results--' + results);
         }
     }
 }
