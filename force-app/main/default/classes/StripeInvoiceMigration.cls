@@ -7,23 +7,31 @@ public class StripeInvoiceMigration implements Database.Batchable<String>, Datab
     private Integer errorCount = 0;
     private List<String> errorMessages = new List<String>();
     private List<String> stripeInvoiceIds;
+    private String initialStartingAfter;
+    private String lastProcessedInvoiceId;
 
     public StripeInvoiceMigration() {
+        this.initialStartingAfter = null;
+        this.stripeInvoiceIds = new List<String>();
+    }
+
+    public StripeInvoiceMigration(String startingAfter) {
+        this.initialStartingAfter = startingAfter;
         this.stripeInvoiceIds = new List<String>();
     }
 
     public Iterable<String> start(Database.BatchableContext bc) {
         // Fetch all invoice IDs from Stripe
-        this.stripeInvoiceIds = fetchAllStripeInvoiceIds();
+        this.stripeInvoiceIds = fetchAllStripeInvoiceIds(this.initialStartingAfter);
         System.debug('Found ' + stripeInvoiceIds.size() + ' invoices to process');
         return stripeInvoiceIds;
     }
 
     public void execute(Database.BatchableContext bc, List<String> invoiceIds) {
+        List<Map<String, Object>> stripeInvoices = new List<Map<String, Object>>();
+
         for (String invoiceId : invoiceIds) {
             try {
-                processedCount++;
-
                 // Fetch invoice details from Stripe
                 HttpRequest req = new HttpRequest();
                 req.setEndpoint('https://api.stripe.com/v1/invoices/' + invoiceId);
@@ -36,18 +44,25 @@ public class StripeInvoiceMigration implements Database.Batchable<String>, Datab
 
                 if (res.getStatusCode() == 200) {
                     Map<String, Object> result = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
-                    processInvoiceData(result);
-                    successCount++;
+                    stripeInvoices.add(result);
                 } else {
                     errorCount++;
-                    errorMessages.add(
-                        'Error fetching invoice ' + invoiceId + ': ' + res.getStatusCode() + ' - ' + res.getStatus()
-                    );
+                    errorMessages.add('Failed invoice fetch: ' + invoiceId);
                 }
             } catch (Exception e) {
                 errorCount++;
-                errorMessages.add('Error processing invoice ' + invoiceId + ': ' + e.getMessage());
-                System.debug('Error processing invoice ' + invoiceId + ': ' + e.getStackTraceString());
+                errorMessages.add(e.getMessage());
+            }
+        }
+
+        for (Map<String, Object> invoiceData : stripeInvoices) {
+            try {
+                processedCount++;
+                processInvoiceData(invoiceData);
+                successCount++;
+            } catch (Exception e) {
+                errorCount++;
+                errorMessages.add(e.getMessage());
             }
         }
     }
@@ -78,18 +93,25 @@ public class StripeInvoiceMigration implements Database.Batchable<String>, Datab
             );
             insert logger;
         }
+
+        // If there are more invoices to process, enqueue another batch
+        if (this.lastProcessedInvoiceId != null) {
+            System.debug('Enqueuing next batch starting after: ' + this.lastProcessedInvoiceId);
+
+            StripeInvoiceMigration nextBatch = new StripeInvoiceMigration(this.lastProcessedInvoiceId);
+            Database.executeBatch(nextBatch, 1);
+        }
     }
 
-    private List<String> fetchAllStripeInvoiceIds() {
+    private List<String> fetchAllStripeInvoiceIds(String initialStartingAfter) {
         List<String> invoiceIds = new List<String>();
-        String startingAfter = null;
+        String startingAfter = initialStartingAfter;
         Boolean hasMore = true;
-        Integer page = 0;
-        Integer maxPages = 100; // Safety limit to avoid infinite loops
+        Integer maxRecords = 200; // Limit to avoid excessive data
 
         try {
-            while (hasMore && page < maxPages) {
-                page++;
+            while (hasMore && invoiceIds.size() < maxRecords) {
+                System.debug('Fetching invoices starting after: ' + startingAfter);
 
                 HttpRequest req = new HttpRequest();
                 String endpoint = 'https://api.stripe.com/v1/invoices?limit=100';
@@ -132,6 +154,13 @@ public class StripeInvoiceMigration implements Database.Batchable<String>, Datab
                     }
                 }
             }
+            
+            if (hasMore){
+                this.lastProcessedInvoiceId = startingAfter;
+            } else {
+                this.lastProcessedInvoiceId = null;
+            }
+
             System.debug('Fetched ' + invoiceIds.size() + ' invoice IDs from Stripe');
         } catch (Exception e) {
             errorMessages.add('Error fetching invoice IDs: ' + e.getMessage());
@@ -144,6 +173,7 @@ public class StripeInvoiceMigration implements Database.Batchable<String>, Datab
     private void processInvoiceData(Map<String, Object> result) {
         try {
             String stripeInvoiceId = (String) result.get('id');
+            String customerId = result.containsKey('customer') ? (String) result.get('customer') : null;
 
             // Extract subscription and quote information from metadata
             String subscriptionId = null;
@@ -180,43 +210,51 @@ public class StripeInvoiceMigration implements Database.Batchable<String>, Datab
                 }
             }
 
-            // Find related quote if subscriptionId or quoteId is available
-            Id accountId = null;
-            Id billToContactId = null;
-            Id quoteRecordId = null;
-
-            if (quoteId != null) {
-                List<SBQQ__Quote__c> quotes = [
-                    SELECT Id, SBQQ__Account__c, SBQQ__Account__r.blng__BillToContact__c
-                    FROM SBQQ__Quote__c
-                    WHERE Id = :quoteId
-                    LIMIT 1
-                ];
-                if (!quotes.isEmpty()) {
-                    accountId = quotes[0].SBQQ__Account__c;
-                    billToContactId = quotes[0].SBQQ__Account__r.blng__BillToContact__c;
-                    quoteRecordId = quotes[0].Id;
-                }
-            } else if (subscriptionId != null) {
-                List<Contract> contracts = [
-                    SELECT
-                        Id,
-                        SBQQ__Quote__c,
-                        SBQQ__Quote__r.SBQQ__Account__c,
-                        SBQQ__Quote__r.SBQQ__Account__r.blng__BillToContact__c
+            List<Contract> contacts = new List<Contract>();
+            if (subscriptionId != null) {
+                contacts = [
+                    SELECT Id, Stripe_Subscription_ID__c, SBQQ__Quote__c
                     FROM Contract
                     WHERE Stripe_Subscription_ID__c = :subscriptionId
-                    LIMIT 1
                 ];
-                if (!contracts.isEmpty() && contracts[0].SBQQ__Quote__c != null) {
-                    accountId = contracts[0].SBQQ__Quote__r.SBQQ__Account__c;
-                    billToContactId = contracts[0].SBQQ__Quote__r.SBQQ__Account__r.blng__BillToContact__c;
-                    quoteRecordId = contracts[0].SBQQ__Quote__c;
-                }
             }
 
-            // Create/Update Stripe Invoice record
-            Stripe_Invoice__c invoice = new Stripe_Invoice__c();
+            List<SBQQ__Quote__c> quoteList = new List<SBQQ__Quote__c>();
+            if (!contacts.isEmpty()) {
+                quoteList = [
+                    SELECT
+                        Id,
+                        SBQQ__NetAmount__c,
+                        SBQQ__Account__c,
+                        Is_Stripe_Payment_Done__c,
+                        Bill_To_Contact__c,
+                        Stripe_Payment_Intent__c,
+                        SBQQ__Account__r.blng__BillToContact__c
+                    FROM SBQQ__Quote__c
+                    WHERE Id = :contacts[0].SBQQ__Quote__c
+                ];
+            } else if (quoteId != null) {
+                quoteList = [
+                    SELECT
+                        Id,
+                        SBQQ__NetAmount__c,
+                        SBQQ__Account__c,
+                        Is_Stripe_Payment_Done__c,
+                        Bill_To_Contact__c,
+                        Stripe_Payment_Intent__c,
+                        SBQQ__Account__r.blng__BillToContact__c
+                    FROM SBQQ__Quote__c
+                    WHERE Id = :quoteId
+                ];
+            }
+
+            // Fetch Account based on Customer ID
+            List<Account> accts = [
+                SELECT Id, Name, blng__BillToContact__c
+                FROM Account
+                WHERE Stripe_Customer_ID__c = :customerId
+            ];
+            System.debug('accts--' + accts);
 
             // Extract date fields
             Long effectiveAt = result.containsKey('effective_at') ? (Long) result.get('effective_at') : null;
@@ -231,21 +269,47 @@ public class StripeInvoiceMigration implements Database.Batchable<String>, Datab
                 : null;
             String currencyCode = (String) result.get('currency');
             String status = (String) result.get('status');
+            Decimal prePaymentCreditAmount = result.containsKey('pre_payment_credit_notes_amount')
+                ? (Decimal) result.get('pre_payment_credit_notes_amount') / 100
+                : 0;
+            Decimal postPaymentCreditAmount = result.containsKey('post_payment_credit_notes_amount')
+                ? (Decimal) result.get('post_payment_credit_notes_amount') / 100
+                : 0;
             String invoiceStatus;
+            Id accountId;
+            Id billToContactId;
 
-            if (status == 'open') {
-                invoiceStatus = 'Open';
-            } else if (status == 'paid') {
-                invoiceStatus = 'Paid';
-            } else if (status == 'void') {
-                invoiceStatus = 'Void';
-            } else if (status == 'draft') {
-                invoiceStatus = 'Draft';
+            if (prePaymentCreditAmount + postPaymentCreditAmount > 0) {
+                invoiceStatus = 'Credited';
             } else {
-                invoiceStatus = status != null ? status.capitalize() : 'Open';
+                if (status == 'open') {
+                    invoiceStatus = 'Open';
+                } else if (status == 'paid') {
+                    invoiceStatus = 'Paid';
+                } else if (status == 'void') {
+                    invoiceStatus = 'Void';
+                } else if (status == 'uncollectible') {
+                    invoiceStatus = 'Uncollectible';
+                } else {
+                    invoiceStatus = status != null ? status.capitalize() : 'Open';
+                }
             }
 
-            // Set invoice fields
+            if (!accts.isEmpty()) {
+                accountId = accts[0].Id;
+                billToContactId = accts[0].blng__BillToContact__c;
+            } else if (!quoteList.isEmpty()) {
+                accountId = quoteList[0].SBQQ__Account__c;
+                billToContactId = quoteList[0].Bill_To_Contact__c != null
+                    ? quoteList[0].Bill_To_Contact__c
+                    : quoteList[0].SBQQ__Account__r.blng__BillToContact__c;
+            } else {
+                throw new DmlException('No Account found: ' + customerId);
+            }
+            System.debug('accountId--' + accountId);
+
+            // Create/Update Stripe Invoice record
+            Stripe_Invoice__c invoice = new Stripe_Invoice__c();
             invoice.Total_Amount__c = result.containsKey('total') ? ((Decimal) result.get('total')) / 100 : 0;
             invoice.Total_Amount_with_Tax__c = result.containsKey('total_excluding_tax')
                 ? ((Decimal) result.get('total_excluding_tax')) / 100
@@ -258,17 +322,15 @@ public class StripeInvoiceMigration implements Database.Batchable<String>, Datab
             invoice.Amount_Remaining__c = result.containsKey('amount_remaining')
                 ? ((Decimal) result.get('amount_remaining')) / 100
                 : 0;
-            invoice.Amount_Credited__c = result.containsKey('pre_payment_credit_notes_amount')
-                ? (Decimal) result.get('pre_payment_credit_notes_amount') / 100
-                : 0;
+            invoice.Amount_Credited__c = prePaymentCreditAmount + postPaymentCreditAmount;
             invoice.Tax_Rate__c = result.containsKey('tax') && result.get('tax') != null
                 ? (Decimal) result.get('tax')
                 : 0;
-            invoice.Due_Date__c = Date.valueOf(toDateTime(dueDate));
+            invoice.Due_Date__c = duedate != null ? Date.valueOf(toDateTime(dueDate)) : date.valueof(toDateTime(effectiveAt));
             invoice.Automatically_Finalizes_At__c = toDateTime(finalizesAt);
             invoice.Billing_Reason__c = (String) result.get('billing_reason');
             invoice.CurrencyIsoCode = currencyCode != null ? currencyCode.toUpperCase() : 'USD';
-            invoice.Quote_CPQ__c = quoteRecordId;
+            invoice.Quote_CPQ__c = quoteList.isEmpty() ? null : quoteList[0].Id;
             invoice.Account__c = accountId;
             invoice.Bill_to_Contact__c = billToContactId;
             invoice.Is_Payment_Done__c = status == 'paid' ? true : false;
@@ -277,6 +339,7 @@ public class StripeInvoiceMigration implements Database.Batchable<String>, Datab
             invoice.Invoice_PDF_URL__c = (String) result.get('invoice_pdf');
             invoice.Invoice_URL__c = (String) result.get('hosted_invoice_url');
             invoice.Name = result.get('number') != null ? (String) result.get('number') : 'SI-DRAFT';
+            invoice.Stripe_Invoice_Number__c = (String) result.get('number');
             invoice.Stripe_Invoice_Period_End__c = toDateTime(periodEnd);
             invoice.Stripe_Invoice_Period_Start__c = toDateTime(periodStart);
             invoice.Status__c = invoiceStatus;

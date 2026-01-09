@@ -95,22 +95,32 @@ public class StripeInvoiceQueueable implements Queueable, Database.AllowsCallout
                 Long finalizesAt = (Long) result.get('automatically_finalizes_at');
                 String currencyCode = (String) result.get('currency');
                 String status = (String) result.get('status');
+                Decimal prePaymentCreditAmount = result.containsKey('pre_payment_credit_notes_amount')
+                    ? (Decimal) result.get('pre_payment_credit_notes_amount') / 100
+                    : 0;
+                Decimal postPaymentCreditAmount = result.containsKey('post_payment_credit_notes_amount')
+                    ? (Decimal) result.get('post_payment_credit_notes_amount') / 100
+                    : 0;
                 String invoiceStatus;
                 Id accountId;
                 Id billToContactId;
                 String paymentIntentId;
                 String subscriptionId;
 
-                if (status == 'open') {
-                    invoiceStatus = 'Open';
-                } else if (status == 'paid') {
-                    invoiceStatus = 'Paid';
-                } else if (status == 'void') {
-                    invoiceStatus = 'Void';
-                } else if (status == 'draft') {
-                    invoiceStatus = 'Draft';
+                if (prePaymentCreditAmount + postPaymentCreditAmount > 0) {
+                    invoiceStatus = 'Credited';
                 } else {
-                    invoiceStatus = status != null ? status.capitalize() : 'Open';
+                    if (status == 'open') {
+                        invoiceStatus = 'Open';
+                    } else if (status == 'paid') {
+                        invoiceStatus = 'Paid';
+                    } else if (status == 'void') {
+                        invoiceStatus = 'Void';
+                    } else if (status == 'uncollectible') {
+                        invoiceStatus = 'Uncollectible';
+                    } else {
+                        invoiceStatus = status != null ? status.capitalize() : 'Open';
+                    }
                 }
 
                 // Determine Account and Bill To Contact
@@ -180,13 +190,11 @@ public class StripeInvoiceQueueable implements Queueable, Database.AllowsCallout
                 invoice.Amount_Remaining__c = result.containsKey('amount_remaining')
                     ? (Decimal) result.get('amount_remaining') / 100
                     : 0;
-                invoice.Amount_Credited__c = result.containsKey('pre_payment_credit_notes_amount')
-                    ? (Decimal) result.get('pre_payment_credit_notes_amount') / 100
-                    : 0;
+                invoice.Amount_Credited__c = prePaymentCreditAmount + postPaymentCreditAmount;
                 invoice.Tax_Rate__c = result.containsKey('tax') && result.get('tax') != null
                     ? (Decimal) result.get('tax')
                     : 0;
-                invoice.Due_Date__c = Date.valueOf(toDateTime(dueDate));
+                invoice.Due_Date__c = duedate != null ? Date.valueOf(toDateTime(dueDate)) : date.valueof(toDateTime(effectivedate));
                 invoice.Automatically_Finalizes_At__c = toDateTime(finalizesAt);
                 invoice.Billing_Reason__c = (String) result.get('billing_reason');
                 invoice.CurrencyIsoCode = currencyCode.toUpperCase();

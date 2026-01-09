@@ -5,18 +5,11 @@ public class StripeInvoiceCreateQueueable implements Queueable, Database.AllowsC
     String stripeInvoiceId;
     String stripeSubscriptionId;
     String quoteId;
-    String eventType;
 
-    public StripeInvoiceCreateQueueable(
-        String stripeInvoiceId,
-        String stripeSubscriptionId,
-        String quoteId,
-        String eventType
-    ) {
+    public StripeInvoiceCreateQueueable(String stripeInvoiceId, String stripeSubscriptionId, String quoteId) {
         this.stripeInvoiceId = stripeInvoiceId;
         this.stripeSubscriptionId = stripeSubscriptionId;
         this.quoteId = quoteId;
-        this.eventType = eventType;
     }
 
     public void execute(QueueableContext context) {
@@ -85,7 +78,6 @@ public class StripeInvoiceCreateQueueable implements Queueable, Database.AllowsC
                 System.debug('accts--' + accts);
 
                 // Extract relevant fields
-                Long currentTimeUnix = DateTime.now().getTime() / 1000;
                 Long effectivedate = (Long) result.get('effective_at');
                 Long stratDate = (Long) result.get('period_start');
                 Long endDate = (Long) result.get('period_end');
@@ -94,14 +86,18 @@ public class StripeInvoiceCreateQueueable implements Queueable, Database.AllowsC
                 Long finalizesAt = (Long) result.get('automatically_finalizes_at');
                 String currencyCode = (String) result.get('currency');
                 String status = (String) result.get('status');
+                Decimal prePaymentCreditAmount = result.containsKey('pre_payment_credit_notes_amount')
+                    ? (Decimal) result.get('pre_payment_credit_notes_amount') / 100
+                    : 0;
+                Decimal postPaymentCreditAmount = result.containsKey('post_payment_credit_notes_amount')
+                    ? (Decimal) result.get('post_payment_credit_notes_amount') / 100
+                    : 0;
                 String invoiceStatus;
                 Id accountId;
                 Id billToContactId;
 
-                if (eventType == 'invoice.overdue') {
-                    invoiceStatus = 'Past Due';
-                } else if (status == 'open' && dueDate != null && dueDate < currentTimeUnix) {
-                    invoiceStatus = 'Past Due';
+                if (prePaymentCreditAmount + postPaymentCreditAmount > 0) {
+                    invoiceStatus = 'Credited';
                 } else {
                     if (status == 'open') {
                         invoiceStatus = 'Open';
@@ -109,8 +105,8 @@ public class StripeInvoiceCreateQueueable implements Queueable, Database.AllowsC
                         invoiceStatus = 'Paid';
                     } else if (status == 'void') {
                         invoiceStatus = 'Void';
-                    } else if (status == 'draft') {
-                        invoiceStatus = 'Draft';
+                    } else if (status == 'uncollectible') {
+                        invoiceStatus = 'Uncollectible';
                     } else {
                         invoiceStatus = status != null ? status.capitalize() : 'Open';
                     }
@@ -143,13 +139,11 @@ public class StripeInvoiceCreateQueueable implements Queueable, Database.AllowsC
                 invoice.Amount_Remaining__c = result.containsKey('amount_remaining')
                     ? (Decimal) result.get('amount_remaining') / 100
                     : 0;
-                invoice.Amount_Credited__c = result.containsKey('pre_payment_credit_notes_amount')
-                    ? (Decimal) result.get('pre_payment_credit_notes_amount') / 100
-                    : 0;
+                invoice.Amount_Credited__c = prePaymentCreditAmount + postPaymentCreditAmount;
                 invoice.Tax_Rate__c = result.containsKey('tax') && result.get('tax') != null
                     ? (Decimal) result.get('tax')
                     : 0;
-                invoice.Due_Date__c = Date.valueOf(toDateTime(dueDate));
+                invoice.Due_Date__c = duedate != null ? Date.valueOf(toDateTime(dueDate)) : date.valueof(toDateTime(effectivedate));
                 invoice.Automatically_Finalizes_At__c = toDateTime(finalizesAt);
                 invoice.Billing_Reason__c = (String) result.get('billing_reason');
                 invoice.CurrencyIsoCode = currencyCode.toUpperCase();

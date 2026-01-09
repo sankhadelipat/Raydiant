@@ -47,7 +47,7 @@ global without sharing class StripeWebHook {
         } else if (
             eventType.equals('invoice.created') ||
             eventType.equals('invoice.finalized') ||
-            eventType.equals('invoice.overdue') ||
+            eventType.equals('invoice.marked_uncollectible') ||
             eventType.equals('invoice.voided')
         ) {
             Map<String, Object> data = (Map<String, Object>) event.get('data');
@@ -275,29 +275,6 @@ global without sharing class StripeWebHook {
                 stripePayment.Quote_Id_From_Stripe__c = parenttQuoteId;
                 stripePaymentList.add(stripePayment);
                 Database.SaveResult[] results = EventBus.publish(stripePaymentList);
-                system.debug('results--' + results);
-            }
-        } else if (eventType.equals('charge.refunded')) {
-            Map<String, Object> data = (Map<String, Object>) event.get('data');
-            Map<String, Object> chargeObj = (Map<String, Object>) data.get('object');
-
-            String chargeId = (String) chargeObj.get('id');
-            String paymentIntentId = (String) chargeObj.get('payment_intent');
-            Decimal amountRefunded = chargeObj.get('amount_refunded') != null
-                ? (Decimal) chargeObj.get('amount_refunded') / 100
-                : 0;
-            System.debug('paymentIntentId--' + paymentIntentId);
-            System.debug('amountRefunded--' + amountRefunded);
-
-            if (String.isNotBlank(paymentIntentId)) {
-                List<Stripe_Capture_Refund__e> stripeRefundList = new List<Stripe_Capture_Refund__e>();
-                Stripe_Capture_Refund__e stripeRefund = new Stripe_Capture_Refund__e();
-                stripeRefund.StripeChargeId__c = chargeId;
-                stripeRefund.StripePaymentIntentId__c = paymentIntentId;
-                stripeRefund.RefundedAmount__c = amountRefunded;
-                stripeRefundList.add(stripeRefund);
-
-                Database.SaveResult[] results = EventBus.publish(stripeRefundList);
                 system.debug('results--' + results);
             }
         } else if (eventType.equals('customer.subscription.created')) {
@@ -617,6 +594,29 @@ global without sharing class StripeWebHook {
 
             Database.saveResult[] results = EventBus.publish(stripeCreditNoteList);
             system.debug('results--' + results);
+        } else if (eventType.equals('charge.refunded')) {
+            Map<String, Object> data = (Map<String, Object>) event.get('data');
+            Map<String, Object> chargeObj = (Map<String, Object>) data.get('object');
+
+            String chargeId = (String) chargeObj.get('id');
+            String paymentIntentId = (String) chargeObj.get('payment_intent');
+            Decimal amountRefunded = chargeObj.get('amount_refunded') != null
+                ? (Decimal) chargeObj.get('amount_refunded') / 100
+                : 0;
+            System.debug('paymentIntentId--' + paymentIntentId);
+            System.debug('amountRefunded--' + amountRefunded);
+
+            if (String.isNotBlank(paymentIntentId)) {
+                List<Stripe_Capture_Refund__e> stripeRefundList = new List<Stripe_Capture_Refund__e>();
+                Stripe_Capture_Refund__e stripeRefund = new Stripe_Capture_Refund__e();
+                stripeRefund.StripeChargeId__c = chargeId;
+                stripeRefund.StripePaymentIntentId__c = paymentIntentId;
+                stripeRefund.RefundedAmount__c = amountRefunded;
+                stripeRefundList.add(stripeRefund);
+
+                Database.SaveResult[] results = EventBus.publish(stripeRefundList);
+                system.debug('results--' + results);
+            }
         }
     }
 }

@@ -32,7 +32,10 @@ public class StripeRefundProcessorQueueable implements Queueable, Database.Allow
                     List<Stripe_Invoice__c> invoices = [
                         SELECT Id, Amount_Paid__c, Amount_Refunded__c, Status__c
                         FROM Stripe_Invoice__c
-                        WHERE Stripe_Invoice_Id__c LIKE :invoiceId + '%' AND Status__c = 'Paid'
+                        WHERE
+                            Stripe_Invoice_Id__c LIKE :invoiceId + '%'
+                            AND (Status__c = 'Paid'
+                            OR Status__c = 'Credited')
                         LIMIT 1
                     ];
 
