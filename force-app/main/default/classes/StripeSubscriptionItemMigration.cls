@@ -24,7 +24,7 @@ public class StripeSubscriptionItemMigration implements Database.Batchable<SObje
                     Stripe_Billing_Date__c,
                     CreatedDate
                 FROM Contract
-                WHERE Contract_Migration__c = TRUE AND Stripe_Subscription_ID__c != NULL
+                WHERE Stripe_Subscription_ID__c != NULL
             ]
         );
     }
@@ -155,19 +155,16 @@ public class StripeSubscriptionItemMigration implements Database.Batchable<SObje
                 Stripe_Subscription_ID__c = subId,
                 Stripe_Customer_ID__c = customerId,
                 Stripe_latest_Invoice_Id__c = invoiceId,
-                Stripe_Status__c = status,
-                Stripe_Subscription_URL__c = 'https://dashboard.stripe.com/subscriptions/' + subId,
-                Status = 'Activated',
-                Contract_Migration__c = true,
-                StartDate = startDate,
-                EndDate = cancelAt,
-                ContractTerm = (startDate != null && cancelAt != null) ? startDate.monthsBetween(cancelAt) : null,
-                Stripe_Billing_Date__c = billingCycleAnchor,
-                Stripe_Subscription_Start_Date__c = String.valueOf(startDateUnix),
-                Created_From_Stripe__c = true,
-                Latest_Change_Reason__c = con.StartDate == null
-                    ? 'Contract Migration Done From Stripe'
-                    : 'Renewable Contract Migration Done From Stripe'
+                // Stripe_Status__c = status,
+                Stripe_Subscription_URL__c = 'https://dashboard.stripe.com/subscriptions/' + subId
+                // StartDate = startDate,
+                // EndDate = cancelAt,
+                // ContractTerm = (startDate != null && cancelAt != null) ? startDate.monthsBetween(cancelAt) : null,
+                // Stripe_Billing_Date__c = billingCycleAnchor,
+                // Stripe_Subscription_Start_Date__c = String.valueOf(startDateUnix),
+                // Latest_Change_Reason__c = con.StartDate == null
+                //     ? 'Contract Migration Done From Stripe'
+                //     : 'Renewable Contract Migration Done From Stripe'
                 // AccountId = metadata != null && metadata.containsKey('salesforce_account_id')
                 //     ? (String) metadata.get('salesforce_account_id')
                 //     : con.AccountId,
@@ -293,43 +290,43 @@ public class StripeSubscriptionItemMigration implements Database.Batchable<SObje
             Datetime currentPeriodStart = toDateTime(currentPeriodStartUnix);
             Datetime currentPeriodEnd = toDateTime(currentPeriodEndUnix);
 
-            Decimal unitAmount = price.containsKey('unit_amount_decimal')
-                ? Decimal.valueOf((String) price.get('unit_amount_decimal')) / 100
-                : 0;
-            Integer quantity = item.containsKey('quantity') ? (Integer) item.get('quantity') : 1;
-            Decimal stripeMRR = unitAmount * quantity;
+            Integer quantity = (Integer) item.get('quantity');
+            Decimal unitAmount = ((Decimal) price.get('unit_amount')) / 100;
+            Decimal monthlyAmount = calculateMonthlyAmount(unitAmount, interval, intervalCount);
+            Decimal stripeMRR = monthlyAmount * quantity;
             Decimal stripeARR = stripeMRR * 12;
             Integer contractTerm = (startDate != null && cancelAt != null) ? startDate.monthsBetween(cancelAt) : null;
-            Decimal customerPrice = contractTerm > 0 ? (unitAmount * contractTerm).setScale(2) : null;
+            Decimal customerPrice = contractTerm > 0 ? (stripeMRR * contractTerm) : null;
 
             Product2 matchingProduct = productMap.get(productId);
 
             SBQQ__Subscription__c subscription = new SBQQ__Subscription__c(
-                Stripe_Subscription_ID_Actual__c = subId,
+                // Stripe_Subscription_ID_Actual__c = subId,
                 Stripe_Subscription_ID__c = stripeSubscriptionItemId,
-                SBQQ__Contract__c = contractId,
-                SBQQ__Account__c = accountId,
-                Stripe_Price_ID__c = priceId,
-                Stripe_Product_ID__c = productId,
-                SBQQ__Product__c = matchingProduct != null ? matchingProduct.Id : null,
+                // SBQQ__Contract__c = contractId,
+                // SBQQ__Account__c = accountId,
+                // Stripe_Price_ID__c = priceId,
+                // Stripe_Product_ID__c = productId,
+                // SBQQ__Product__c = matchingProduct != null ? matchingProduct.Id : null,
                 SBQQ__Quantity__c = quantity,
-                SBQQ__NetPrice__c = unitAmount,
-                Stripe_Monthly_Value__c = stripeMRR,
-                Latest_Change_Reason__c = 'Subscription Migration Done From Stripe',
-                Stripe_Start_Date__c = toDateTime((Long) item.get('current_period_start')).date(),
-                Stripe_End_Date__c = toDateTime((Long) item.get('current_period_end')).date(),
-                SBQQ__SubscriptionStartDate__c = startDate,
-                SBQQ__SubscriptionEndDate__c = cancelAt,
-                Stripe_Billing_Date__c = billingCycleAnchor,
-                Stripe_Subscription_Term__c = contractTerm,
-                Stripe_ARR__c = stripeARR,
+                SBQQ__NetPrice__c = monthlyAmount,
+                SBQQ__ListPrice__c = unitAmount,
                 SBQQ__CustomerPrice__c = customerPrice,
-                Stripe_Interval__c = interval,
-                Stripe_Activate__c = (Boolean) price.get('active'),
-                Created_From_Stripe__c = true,
-                Status__c = (String) subscriptionData.get('status'),
-                SBQQ__BillingFrequency__c = getBillingFrequency(interval, intervalCount),
-                Billing_Frequency_Override__c = getBillingFrequency(interval, intervalCount)
+                Stripe_Monthly_Value__c = stripeMRR,
+                Stripe_ARR__c = stripeARR
+                // Latest_Change_Reason__c = 'Subscription Migration Done From Stripe',
+                // Stripe_Start_Date__c = toDateTime((Long) item.get('current_period_start')).date(),
+                // Stripe_End_Date__c = toDateTime((Long) item.get('current_period_end')).date(),
+                // SBQQ__SubscriptionStartDate__c = startDate,
+                // SBQQ__SubscriptionEndDate__c = cancelAt,
+                // Stripe_Billing_Date__c = billingCycleAnchor,
+                // Stripe_Subscription_Term__c = contractTerm,
+                // Stripe_Interval__c = interval,
+                // Stripe_Activate__c = (Boolean) price.get('active'),
+                // Created_From_Stripe__c = true,
+                // Status__c = (String) subscriptionData.get('status'),
+                // SBQQ__BillingFrequency__c = getBillingFrequency(interval, intervalCount),
+                // Billing_Frequency_Override__c = getBillingFrequency(interval, intervalCount)
             );
 
             return subscription;
@@ -340,7 +337,7 @@ public class StripeSubscriptionItemMigration implements Database.Batchable<SObje
     }
 
     // Helper method to get billing frequency from Stripe interval and interval count
-    public static String getBillingFrequency(String interval, Integer intervalCount) {
+    private static String getBillingFrequency(String interval, Integer intervalCount) {
         if (interval == 'month') {
             if (intervalCount == 1) {
                 return 'Monthly';
@@ -359,9 +356,20 @@ public class StripeSubscriptionItemMigration implements Database.Batchable<SObje
         return null;
     }
 
-    public static Datetime toDateTime(Long unixTs) {
+    private static Datetime toDateTime(Long unixTs) {
         if (unixTs == null)
             return null;
         return Datetime.newInstance(unixTs * 1000);
+    }
+
+    private static Decimal calculateMonthlyAmount(Decimal unitAmount, String interval, Integer intervalCount) {
+        if (interval == 'month') {
+            return unitAmount / intervalCount;
+        } else if (interval == 'year') {
+            return unitAmount / (12 * intervalCount);
+        }
+
+        // Default fallback
+        return unitAmount;
     }
 }

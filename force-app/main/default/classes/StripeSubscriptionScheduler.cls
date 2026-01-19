@@ -549,14 +549,15 @@ public class StripeSubscriptionScheduler {
                 System.debug('Processing Price ID: ' + priceId);
                 System.debug('Processing Product ID: ' + productId);
 
-                Decimal unitAmount = ((Decimal) price.get('unit_amount')) / 100; // Stripe amounts are in cents
+                Integer quantity = (Integer) item.get('quantity');
+                Decimal unitAmount = ((Decimal) price.get('unit_amount')) / 100;
+                Decimal monthlyAmount = calculateMonthlyAmount(unitAmount, interval, intervalCount);
 
                 // Calculate values directly from Stripe response
-                Decimal stripeMRR = unitAmount * (Integer) item.get('quantity'); // monthly value
+                Decimal stripeMRR = monthlyAmount * quantity; // monthly value
                 Decimal stripeARR = stripeMRR * 12; // annual value
                 Integer contractTerm = contract.ContractTerm != null ? contract.ContractTerm : 0;
-                Decimal stripeTCV = contractTerm > 0 ? (stripeMRR * contractTerm) : null;
-                Decimal customerPrice = contractTerm > 0 ? (unitAmount * contractTerm).setScale(2) : null;
+                Decimal customerPrice = contractTerm > 0 ? (stripeMRR * contractTerm) : null;
 
                 Product2 matchingProduct = stripeProductIdToProductMap.get(productId);
                 System.debug('Matching Product: ' + matchingProduct);
@@ -570,7 +571,7 @@ public class StripeSubscriptionScheduler {
                     Stripe_Subscription_ID__c = (String) item.get('id'),
                     Stripe_Price_ID__c = priceId,
                     Stripe_Product_ID__c = productId,
-                    SBQQ__Quantity__c = (Integer) item.get('quantity'),
+                    SBQQ__Quantity__c = quantity,
                     Stripe_Interval__c = interval,
                     Stripe_Activate__c = (Boolean) price.get('active'),
                     Status__c = status,
@@ -580,9 +581,10 @@ public class StripeSubscriptionScheduler {
                     SBQQ__SubscriptionEndDate__c = cancelAt,
                     Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
                     Latest_Change_Reason__c = latestChangeReason,
-                    SBQQ__NetPrice__c = unitAmount,
-                    SBQQ__Product__c = matchingProduct != null ? matchingProduct.Id : null,
+                    SBQQ__NetPrice__c = monthlyAmount,
+                    SBQQ__ListPrice__c = unitAmount,
                     SBQQ__CustomerPrice__c = customerPrice,
+                    SBQQ__Product__c = matchingProduct != null ? matchingProduct.Id : null,
                     SBQQ__BillingFrequency__c = getBillingFrequency(interval, intervalCount),
                     Billing_Frequency_Override__c = getBillingFrequency(interval, intervalCount),
                     Stripe_Monthly_Value__c = stripeMRR,
@@ -609,7 +611,7 @@ public class StripeSubscriptionScheduler {
                 contractsToUpdate.add(conToUpdate);
                 update contractsToUpdate;
 
-                System.enqueueJob(new StripeInvoicePreview(subscriptionId));
+                System.enqueueJob(new StripeInvoicePreview(subscriptionId, StripeInvoicePreview.PreviewType.SUBSCRIPTION));
             } else {
                 System.debug('No subscription records to insert');
                 return;
@@ -798,13 +800,15 @@ public class StripeSubscriptionScheduler {
                 Product2 matchingProduct = stripeProductIdToProductMap.get(productId);
                 System.debug('Matching Product: ' + matchingProduct);
 
-                Decimal unitAmount = ((Decimal) price.get('unit_amount')) / 100; // Stripe amounts are in cents
+                Integer quantity = (Integer) item.get('quantity');
+                Decimal unitAmount = ((Decimal) price.get('unit_amount')) / 100; 
+                Decimal monthlyAmount = calculateMonthlyAmount(unitAmount, interval, intervalCount);
+
                 // Calculate values directly from Stripe response
-                Decimal stripeMRR = unitAmount * (Integer) item.get('quantity'); // monthly value
+                Decimal stripeMRR = monthlyAmount * quantity; // monthly value
                 Decimal stripeARR = stripeMRR * 12; // annual value
                 Integer contractTerm = contract.ContractTerm != null ? contract.ContractTerm : null;
-                Decimal stripeTCV = contractTerm > 0 ? (stripeMRR * contractTerm) : null;
-                Decimal customerPrice = contractTerm > 0 ? (unitAmount * contractTerm).setScale(2) : null;
+                Decimal customerPrice = contractTerm > 0 ? (stripeMRR * contractTerm) : null;
 
                 SBQQ__Subscription__c sub = new SBQQ__Subscription__c(
                     SBQQ__Contract__c = contract.Id,
@@ -812,7 +816,7 @@ public class StripeSubscriptionScheduler {
                     Stripe_Subscription_ID__c = (String) item.get('id'),
                     Stripe_Price_ID__c = priceId,
                     Stripe_Product_ID__c = productId,
-                    SBQQ__Quantity__c = (Integer) item.get('quantity'),
+                    SBQQ__Quantity__c = quantity,
                     Stripe_Interval__c = interval,
                     Stripe_Activate__c = (Boolean) price.get('active'),
                     Status__c = status,
@@ -822,9 +826,10 @@ public class StripeSubscriptionScheduler {
                     SBQQ__SubscriptionEndDate__c = cancelAt,
                     Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
                     Latest_Change_Reason__c = latestChangeReason,
-                    SBQQ__NetPrice__c = unitAmount,
-                    SBQQ__Product__c = matchingProduct != null ? matchingProduct.Id : null,
+                    SBQQ__NetPrice__c = monthlyAmount,
+                    SBQQ__ListPrice__c = unitAmount,
                     SBQQ__CustomerPrice__c = customerPrice,
+                    SBQQ__Product__c = matchingProduct != null ? matchingProduct.Id : null,
                     SBQQ__BillingFrequency__c = getBillingFrequency(interval, intervalCount),
                     Billing_Frequency_Override__c = getBillingFrequency(interval, intervalCount),
                     Stripe_Monthly_Value__c = stripeMRR,
@@ -847,7 +852,7 @@ public class StripeSubscriptionScheduler {
                 contractsToUpdate.add(conToUpdate);
                 update contractsToUpdate;
 
-                System.enqueueJob(new StripeInvoicePreview(subscriptionId));
+                System.enqueueJob(new StripeInvoicePreview(subscriptionId, StripeInvoicePreview.PreviewType.SUBSCRIPTION));
             } else {
                 System.debug('No subscription records to insert');
                 return;
@@ -1031,14 +1036,15 @@ public class StripeSubscriptionScheduler {
                 System.debug('Processing Price ID: ' + priceId);
                 System.debug('Processing Product ID: ' + productId);
 
-                Decimal unitAmount = ((Decimal) price.get('unit_amount')) / 100; // Stripe amounts are in cents
+                Integer quantity = (Integer) item.get('quantity');
+                Decimal unitAmount = ((Decimal) price.get('unit_amount')) / 100;
+                Decimal monthlyAmount = calculateMonthlyAmount(unitAmount, interval, intervalCount);
 
                 // Calculate values directly from Stripe response
-                Decimal stripeMRR = unitAmount * (Integer) item.get('quantity'); // monthly value
+                Decimal stripeMRR = monthlyAmount * quantity; // monthly value
                 Decimal stripeARR = stripeMRR * 12; // annual value
                 Integer contractTerm = contract.ContractTerm != null ? contract.ContractTerm : 0;
-                Decimal stripeTCV = contractTerm > 0 ? (stripeMRR * contractTerm) : null;
-                Decimal customerPrice = contractTerm > 0 ? (unitAmount * contractTerm).setScale(2) : null;
+                Decimal customerPrice = contractTerm > 0 ? (stripeMRR * contractTerm) : null;
 
                 Product2 matchingProduct = stripeProductIdToProductMap.get(productId);
                 System.debug('Matching Product: ' + matchingProduct);
@@ -1051,7 +1057,7 @@ public class StripeSubscriptionScheduler {
                     SBQQ__Account__c = quoteList[0].SBQQ__Account__c,
                     Stripe_Price_ID__c = priceId,
                     Stripe_Product_ID__c = productId,
-                    SBQQ__Quantity__c = (Integer) item.get('quantity'),
+                    SBQQ__Quantity__c = quantity,
                     Stripe_Interval__c = interval,
                     Stripe_Activate__c = (Boolean) price.get('active'),
                     Status__c = status,
@@ -1061,9 +1067,10 @@ public class StripeSubscriptionScheduler {
                     SBQQ__SubscriptionEndDate__c = endDate,
                     Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
                     Latest_Change_Reason__c = latestChangeReason,
-                    SBQQ__NetPrice__c = unitAmount,
-                    SBQQ__Product__c = matchingProduct != null ? matchingProduct.Id : null,
+                    SBQQ__NetPrice__c = monthlyAmount,
+                    SBQQ__ListPrice__c = unitAmount,
                     SBQQ__CustomerPrice__c = customerPrice,
+                    SBQQ__Product__c = matchingProduct != null ? matchingProduct.Id : null,
                     SBQQ__BillingFrequency__c = getBillingFrequency(interval, intervalCount),
                     Billing_Frequency_Override__c = getBillingFrequency(interval, intervalCount),
                     Stripe_Monthly_Value__c = stripeMRR,
@@ -1084,6 +1091,8 @@ public class StripeSubscriptionScheduler {
             if (!subscriptionItemsToInsert.isEmpty()) {
                 insert subscriptionItemsToInsert;
                 System.debug('Inserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
+
+                System.enqueueJob(new StripeInvoicePreview(scheduleId, StripeInvoicePreview.PreviewType.SUBSCRIPTION_SCHEDULE));
             } else {
                 System.debug('No subscription records to insert');
                 return;
@@ -1237,21 +1246,22 @@ public class StripeSubscriptionScheduler {
                 Product2 matchingProduct = stripeProductIdToProductMap.get(productId);
                 System.debug('Matching Product: ' + matchingProduct);
 
-                Decimal unitAmount = ((Decimal) price.get('unit_amount')) / 100; // Stripe amounts are in cents
+                Integer quantity = (Integer) item.get('quantity');
+                Decimal unitAmount = ((Decimal) price.get('unit_amount')) / 100;
+                Decimal monthlyAmount = calculateMonthlyAmount(unitAmount, interval, intervalCount);
 
                 // Calculate values directly from Stripe response
-                Decimal stripeMRR = unitAmount * (Integer) item.get('quantity'); // monthly value
+                Decimal stripeMRR = monthlyAmount * quantity; // monthly value
                 Decimal stripeARR = stripeMRR * 12; // annual value
                 Integer contractTerm = contract.ContractTerm != null ? contract.ContractTerm : 0;
-                Decimal stripeTCV = contractTerm > 0 ? (stripeMRR * contractTerm) : null;
-                Decimal customerPrice = contractTerm > 0 ? (unitAmount * contractTerm).setScale(2) : null;
+                Decimal customerPrice = contractTerm > 0 ? (stripeMRR * contractTerm) : null;
 
                 SBQQ__Subscription__c sub = new SBQQ__Subscription__c(
                     SBQQ__Contract__c = contract.Id,
                     SBQQ__Account__c = accountId,
                     Stripe_Price_ID__c = priceId,
                     Stripe_Product_ID__c = productId,
-                    SBQQ__Quantity__c = (Integer) item.get('quantity'),
+                    SBQQ__Quantity__c = quantity,
                     Stripe_Interval__c = interval,
                     Stripe_Activate__c = (Boolean) price.get('active'),
                     Status__c = status,
@@ -1261,9 +1271,10 @@ public class StripeSubscriptionScheduler {
                     SBQQ__SubscriptionEndDate__c = endDate,
                     Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
                     Latest_Change_Reason__c = latestChangeReason,
-                    SBQQ__NetPrice__c = unitAmount,
-                    SBQQ__Product__c = matchingProduct != null ? matchingProduct.Id : null,
+                    SBQQ__NetPrice__c = monthlyAmount,
+                    SBQQ__ListPrice__c = unitAmount,
                     SBQQ__CustomerPrice__c = customerPrice,
+                    SBQQ__Product__c = matchingProduct != null ? matchingProduct.Id : null,
                     SBQQ__BillingFrequency__c = getBillingFrequency(interval, intervalCount),
                     Billing_Frequency_Override__c = getBillingFrequency(interval, intervalCount),
                     Stripe_Monthly_Value__c = stripeMRR,
@@ -1280,6 +1291,8 @@ public class StripeSubscriptionScheduler {
             if (!subscriptionItemsToInsert.isEmpty()) {
                 insert subscriptionItemsToInsert;
                 System.debug('Inserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
+
+                System.enqueueJob(new StripeInvoicePreview(scheduleId, StripeInvoicePreview.PreviewType.SUBSCRIPTION_SCHEDULE));
             } else {
                 System.debug('No subscription records to insert');
                 return;
@@ -1450,5 +1463,16 @@ public class StripeSubscriptionScheduler {
 
         // Default fallback
         return null;
+    }
+
+    private static Decimal calculateMonthlyAmount(Decimal unitAmount, String interval, Integer intervalCount) {
+        if (interval == 'month') {
+            return unitAmount / intervalCount;
+        } else if (interval == 'year') {
+            return unitAmount / (12 * intervalCount);
+        }
+
+        // Default fallback
+        return unitAmount;
     }
 }
