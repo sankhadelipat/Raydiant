@@ -10,9 +10,13 @@ public class StripeInvoicePreviewBatch implements Database.Batchable<SObject>, D
     public Database.QueryLocator start(Database.BatchableContext bc) {
         return Database.getQueryLocator(
             [
-                SELECT Id, Stripe_Subscription_ID__c
+                SELECT Id, Stripe_Subscription_ID__c, Stripe_Subscription_Schedule_ID__c
                 FROM Contract
-                WHERE Stripe_Subscription_ID__c != NULL AND Next_Billing_Date__c = NULL
+                WHERE
+                    (Next_Billing_Date__c = NULL
+                    OR Next_Billing_Amount__c = NULL)
+                    AND (Stripe_Subscription_ID__c != NULL
+                    OR Stripe_Subscription_Schedule_ID__c != NULL)
             ]
         );
     }
@@ -24,6 +28,7 @@ public class StripeInvoicePreviewBatch implements Database.Batchable<SObject>, D
         for (Contract contract : scope) {
             processedCount++;
             String subscriptionId = contract.Stripe_Subscription_ID__c;
+            String subscriptionScheduleId = contract.Stripe_Subscription_Schedule_ID__c;
 
             try {
                 HttpRequest req = new HttpRequest();
@@ -31,7 +36,11 @@ public class StripeInvoicePreviewBatch implements Database.Batchable<SObject>, D
                 req.setMethod('POST');
                 req.setHeader('Authorization', 'Basic ' + EncodingUtil.base64Encode(Blob.valueOf(SECRET_KEY + ':')));
                 req.setHeader('Content-Type', 'application/x-www-form-urlencoded');
-                req.setBody('subscription=' + EncodingUtil.urlEncode(subscriptionId, 'UTF-8'));
+                if (subscriptionId != null) {
+                    req.setBody('subscription=' + EncodingUtil.urlEncode(subscriptionId, 'UTF-8'));
+                } else if (subscriptionScheduleId != null) {
+                    req.setBody('schedule=' + EncodingUtil.urlEncode(subscriptionScheduleId, 'UTF-8'));
+                }
 
                 Http http = new Http();
                 HttpResponse res = http.send(req);
@@ -39,30 +48,22 @@ public class StripeInvoicePreviewBatch implements Database.Batchable<SObject>, D
                 if (res.getstatusCode() == 200) {
                     Map<String, Object> preview = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
 
-                    Long nextBillingTimestamp;
-
-                    if (preview.containsKey('next_payment_attempt') && preview.get('next_payment_attempt') != null) {
-                        nextBillingTimestamp = (Long) preview.get('next_payment_attempt');
-                    } else if (preview.containsKey('created') && preview.get('created') != null) {
-                        nextBillingTimestamp = (Long) preview.get('created');
-                    } else if (preview.containsKey('period_end') && preview.get('period_end') != null) {
-                        nextBillingTimestamp = (Long) preview.get('period_end');
-                    } else {
-                        System.debug('No next billing date found in preview response for Contract Id: ' + contract.Id);
-                        continue;
-                    }
-
+                    Decimal nextBillingAmount = ((Decimal) preview.get('amount_due')) / 100;
+                    Long nextBillingTimestamp = (Long) preview.get('created');
                     Date nextBillingDate = DateTime.newInstance(nextBillingTimestamp * 1000).date();
+
+                    contract.Next_Billing_Amount__c = nextBillingAmount;
                     contract.Next_Billing_Date__c = nextBillingDate;
                     contractsToUpdate.add(contract);
                     successCount++;
                 } else if (res.getstatusCode() == 404) {
-                    System.debug('No upcoming invoices for subscription: ' + subscriptionId);
+                    System.debug('No upcoming invoices for subscription: ' + subscriptionId + subscriptionScheduleId);
                     successCount++;
                 } else {
                     System.debug(
                         'Error retrieving invoice preview for subscription: ' +
                             subscriptionId +
+                            subscriptionScheduleId +
                             ' - Status Code: ' +
                             res.getstatusCode() +
                             ' - Body: ' +
@@ -72,6 +73,7 @@ public class StripeInvoicePreviewBatch implements Database.Batchable<SObject>, D
                     errorMessages.add(
                         'Error retrieving invoice preview for subscription: ' +
                             subscriptionId +
+                            subscriptionScheduleId +
                             ' - Status Code: ' +
                             res.getstatusCode()
                     );
