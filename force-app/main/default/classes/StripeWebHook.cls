@@ -512,10 +512,37 @@ global without sharing class StripeWebHook {
 
             Database.SaveResult[] results = EventBus.publish(stripePaymentList);
             system.debug('results--' + results);
+        } else if (eventType.equals('invoice.payment_succeeded')) {
+            Map<String, Object> data = (Map<String, Object>) event.get('data');
+            Map<String, Object> invoice = (Map<String, Object>) data.get('object');
+            System.debug('invoice--' + invoice);
+
+            String invoiceId = (String) invoice.get('id');
+            String customerId = (String) invoice.get('customer');
+            Map<String, Object> parent = (Map<String, Object>) invoice.get('parent');
+            Map<String, Object> subscriptionDetails = parent != null
+                ? (Map<String, Object>) parent.get('subscription_details')
+                : null;
+            String subscriptionId = subscriptionDetails != null
+                ? (String) subscriptionDetails.get('subscription')
+                : null;
+
+            if (subscriptionId != null) {
+                List<Stripe_Capture_Subscription_Promotion__e> stripeInvoicePromotionList = new List<Stripe_Capture_Subscription_Promotion__e>();
+
+                Stripe_Capture_Subscription_Promotion__e stripeInvoicePromotion = new Stripe_Capture_Subscription_Promotion__e();
+                stripeInvoicePromotion.Stripe_Customer_ID__c = customerId;
+                stripeInvoicePromotion.Stripe_Subscription_ID__c = subscriptionId;
+                stripeInvoicePromotionList.add(stripeInvoicePromotion);
+                System.debug('stripeInvoicePromotionList--' + stripeInvoicePromotionList);
+
+                Database.SaveResult[] results = EventBus.publish(stripeInvoicePromotionList);
+                System.debug('results--' + results);
+            }
         } else if (eventType.equals('invoice.payment_failed')) {
             Map<String, Object> data = (Map<String, Object>) event.get('data');
             Map<String, Object> failedstripeInvoice = (Map<String, Object>) data.get('object');
-            system.debug('failedstripeInvoice--' + failedstripeInvoice);
+            System.debug('failedstripeInvoice--' + failedstripeInvoice);
 
             String failedstripeInvoiceId = (String) failedstripeInvoice.get('id');
             String failedsubscriptionId = (String) failedstripeInvoice.get('subscription');

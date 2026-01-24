@@ -426,6 +426,7 @@ public class StripeSubscriptionScheduler {
             String subscriptionId = (String) payload.get('id');
             String customerId = (String) payload.get('customer');
             String latestInvoice = (String) payload.get('latest_invoice');
+            String collectionMethod = (String) payload.get('collection_method');
             String status = (String) payload.get('status');
 
             // Extract date fields as Long
@@ -481,6 +482,7 @@ public class StripeSubscriptionScheduler {
                 Stripe_Subscription_ID__c = subscriptionId,
                 Stripe_Customer_ID__c = customerId,
                 Stripe_latest_Invoice_Id__c = latestInvoice,
+                Collection_Method__c = collectionMethod,
                 Stripe_Subscription_Source__c = subscriptionSource,
                 Stripe_Status__c = status,
                 Stripe_Subscription_URL__c = 'https://dashboard.stripe.com/subscriptions/' + subscriptionId,
@@ -611,7 +613,9 @@ public class StripeSubscriptionScheduler {
                 contractsToUpdate.add(conToUpdate);
                 update contractsToUpdate;
 
-                System.enqueueJob(new StripeInvoicePreview(subscriptionId, StripeInvoicePreview.PreviewType.SUBSCRIPTION));
+                System.enqueueJob(
+                    new StripeInvoicePreview(subscriptionId, StripeInvoicePreview.PreviewType.SUBSCRIPTION)
+                );
             } else {
                 System.debug('No subscription records to insert');
                 return;
@@ -659,6 +663,7 @@ public class StripeSubscriptionScheduler {
             String subscriptionId = (String) payload.get('id');
             String customerId = (String) payload.get('customer');
             String latestInvoice = (String) payload.get('latest_invoice');
+            String collectionMethod = (String) payload.get('collection_method');
             String status = (String) payload.get('status');
 
             // Extract date fields as Long
@@ -737,6 +742,7 @@ public class StripeSubscriptionScheduler {
                 Stripe_Subscription_ID__c = subscriptionId,
                 Stripe_Customer_ID__c = customerId,
                 Stripe_latest_Invoice_Id__c = latestInvoice,
+                Collection_Method__c = collectionMethod,
                 Stripe_Subscription_Source__c = subscriptionSource != null ? subscriptionSource : 'stripe',
                 Stripe_Status__c = status,
                 Stripe_Subscription_URL__c = 'https://dashboard.stripe.com/subscriptions/' + subscriptionId,
@@ -801,7 +807,7 @@ public class StripeSubscriptionScheduler {
                 System.debug('Matching Product: ' + matchingProduct);
 
                 Integer quantity = (Integer) item.get('quantity');
-                Decimal unitAmount = ((Decimal) price.get('unit_amount')) / 100; 
+                Decimal unitAmount = ((Decimal) price.get('unit_amount')) / 100;
                 Decimal monthlyAmount = calculateMonthlyAmount(unitAmount, interval, intervalCount);
 
                 // Calculate values directly from Stripe response
@@ -852,7 +858,9 @@ public class StripeSubscriptionScheduler {
                 contractsToUpdate.add(conToUpdate);
                 update contractsToUpdate;
 
-                System.enqueueJob(new StripeInvoicePreview(subscriptionId, StripeInvoicePreview.PreviewType.SUBSCRIPTION));
+                System.enqueueJob(
+                    new StripeInvoicePreview(subscriptionId, StripeInvoicePreview.PreviewType.SUBSCRIPTION)
+                );
             } else {
                 System.debug('No subscription records to insert');
                 return;
@@ -931,6 +939,15 @@ public class StripeSubscriptionScheduler {
             System.debug('Start Date: ' + startDate);
             System.debug('End Date: ' + endDate);
 
+            Map<String, Object> defaultSettings = payload.containsKey('default_settings')
+                ? (Map<String, Object>) payload.get('default_settings')
+                : null;
+            System.debug('Default Settings: ' + defaultSettings);
+
+            String collectionMethod = defaultSettings != null && defaultSettings.containsKey('collection_method')
+                ? (String) defaultSettings.get('collection_method')
+                : null;
+
             Map<String, Object> phaseMetadata = phase != null &&
                 phase.containsKey('metadata') &&
                 phase.get('metadata') != null
@@ -968,6 +985,7 @@ public class StripeSubscriptionScheduler {
                 Stripe_Subscription_Source__c = subscriptionSource,
                 Stripe_Status__c = status,
                 Stripe_Subscription_URL__c = 'https://dashboard.stripe.com/subscription_schedules/' + scheduleId,
+                Collection_Method__c = collectionMethod,
                 StartDate = startDate,
                 Status = 'Pending',
                 ContractTerm = calculateContractTerm(startDate, endDate),
@@ -1092,7 +1110,9 @@ public class StripeSubscriptionScheduler {
                 insert subscriptionItemsToInsert;
                 System.debug('Inserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
 
-                System.enqueueJob(new StripeInvoicePreview(scheduleId, StripeInvoicePreview.PreviewType.SUBSCRIPTION_SCHEDULE));
+                System.enqueueJob(
+                    new StripeInvoicePreview(scheduleId, StripeInvoicePreview.PreviewType.SUBSCRIPTION_SCHEDULE)
+                );
             } else {
                 System.debug('No subscription records to insert');
                 return;
@@ -1134,6 +1154,15 @@ public class StripeSubscriptionScheduler {
             Datetime billingCycleAnchor = toDateTime(billingCycleAnchorUnix);
             System.debug('Start Date: ' + startDate);
             System.debug('End Date: ' + endDate);
+
+            Map<String, Object> defaultSettings = payload.containsKey('default_settings')
+                ? (Map<String, Object>) payload.get('default_settings')
+                : null;
+            System.debug('Default Settings: ' + defaultSettings);
+
+            String collectionMethod = defaultSettings != null && defaultSettings.containsKey('collection_method')
+                ? (String) defaultSettings.get('collection_method')
+                : null;
 
             Map<String, Object> phaseMetadata = phase != null &&
                 phase.containsKey('metadata') &&
@@ -1184,6 +1213,7 @@ public class StripeSubscriptionScheduler {
                 Stripe_Subscription_Source__c = subscriptionSource,
                 Stripe_Status__c = status,
                 Stripe_Subscription_URL__c = 'https://dashboard.stripe.com/subscription_schedules/' + scheduleId,
+                Collection_Method__c = collectionMethod,
                 StartDate = startDate,
                 Status = 'Pending',
                 ContractTerm = calculateContractTerm(startDate, endDate),
@@ -1292,7 +1322,9 @@ public class StripeSubscriptionScheduler {
                 insert subscriptionItemsToInsert;
                 System.debug('Inserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
 
-                System.enqueueJob(new StripeInvoicePreview(scheduleId, StripeInvoicePreview.PreviewType.SUBSCRIPTION_SCHEDULE));
+                System.enqueueJob(
+                    new StripeInvoicePreview(scheduleId, StripeInvoicePreview.PreviewType.SUBSCRIPTION_SCHEDULE)
+                );
             } else {
                 System.debug('No subscription records to insert');
                 return;

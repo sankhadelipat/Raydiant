@@ -394,6 +394,7 @@ public class StripeSubscriptionScheduler2 {
             bodyParts.add('days_until_due=' + String.valueOf(daysUntilDue));
             bodyParts.add('collection_method=send_invoice');
             bodyParts.add('payment_behavior=default_incomplete');
+            bodyParts.add('payment_settings[save_default_payment_method]=on_subscription');
             bodyParts.add('currency=' + (quoteList[0].CurrencyIsoCode));
             bodyParts.add('proration_behavior=always_invoice');
             bodyParts.add('billing_mode[type]=flexible');
@@ -548,8 +549,7 @@ public class StripeSubscriptionScheduler2 {
                 Status__c = 'Error',
                 Apex_Class__c = 'StripeSubscriptionScheduler2',
                 Apex_Method__c = 'createStripeSubscriptionAsync',
-                Object_Name__c = 'SBQQ__Quote__c',
-                User_Email__c = UserInfo.getUserEmail()
+                Object_Name__c = 'SBQQ__Quote__c'
             );
             insert logger;
         }
