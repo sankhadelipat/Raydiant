@@ -7,188 +7,192 @@ public class StripeSubscriptionScheduler2 {
      * Quote To Cash - Collection Method => charge_automatically
      * Use Case of this method is  to update End date for Subscription which created after chekout session
      * @param quoteId - Salesforce Quote Id
-     * @param subcritionId - Stripe Subscription Id
+     * @param subscriptionId - Stripe Subscription Id
      */
-    @future(callout=true)
-    public static void createStripeSubscription(String quoteId, String subcritionId) {
-        try {
-            List<SBQQ__Quote__c> quoteList = [
-                SELECT
-                    Id,
-                    SBQQ__StartDate__c,
-                    SBQQ__Account__c,
-                    Stripe_Customer_ID__c,
-                    SBQQ__EndDate__c,
-                    SBQQ__Account__r.Stripe_Customer_ID__c,
-                    Billing_Frequency_Override__c,
-                    SBQQ__SubscriptionTerm__c,
-                    CurrencyIsoCode
-                FROM SBQQ__Quote__c
-                WHERE Id = :quoteId
-                LIMIT 1
-            ];
-            if (quoteList.isEmpty())
-                return;
+    public class PostCheckoutSubscriptionHandler implements Queueable, Database.AllowsCallouts {
+        private final String quoteId;
+        private final String subscriptionId;
 
-            SBQQ__Quote__c quote = quoteList[0];
-            List<SBQQ__QuoteLine__c> quoteLines = [
-                SELECT
-                    Quantity_For_Stripe__c,
-                    MRR__c,
-                    SBQQ__Product__r.Name,
-                    Billing_Frequency_Override__c,
-                    CurrencyIsoCode
-                FROM SBQQ__QuoteLine__c
-                WHERE SBQQ__Quote__c = :quote.Id AND Stripe_Subscription_Type__c != 'One-time'
-            ];
+        public PostCheckoutSubscriptionHandler(String quoteId, String subscriptionId) {
+            this.quoteId = quoteId;
+            this.subscriptionId = subscriptionId;
+        }
 
-            // Prepare subscription body
-            List<String> bodyParts = new List<String>();
+        public void execute(QueueableContext context) {
+            try {
+                List<SBQQ__Quote__c> quoteList = [
+                    SELECT
+                        Id,
+                        SBQQ__StartDate__c,
+                        SBQQ__Account__c,
+                        Stripe_Customer_ID__c,
+                        SBQQ__EndDate__c,
+                        SBQQ__Account__r.Stripe_Customer_ID__c,
+                        Billing_Frequency_Override__c,
+                        SBQQ__SubscriptionTerm__c,
+                        CurrencyIsoCode
+                    FROM SBQQ__Quote__c
+                    WHERE Id = :quoteId
+                    LIMIT 1
+                ];
+                if (quoteList.isEmpty())
+                    return;
 
-            Date startDate = quote.SBQQ__StartDate__c;
-            Datetime dt = Datetime.newInstance(startDate.year(), startDate.month(), startDate.day(), 0, 0, 0);
-            Long unixTimestamp = dt.getTime() / 1000;
-            System.debug('Unix Timestamp: ' + unixTimestamp);
+                SBQQ__Quote__c quote = quoteList[0];
+                List<SBQQ__QuoteLine__c> quoteLines = [
+                    SELECT
+                        Quantity_For_Stripe__c,
+                        MRR__c,
+                        SBQQ__Product__r.Name,
+                        Billing_Frequency_Override__c,
+                        CurrencyIsoCode
+                    FROM SBQQ__QuoteLine__c
+                    WHERE SBQQ__Quote__c = :quote.Id AND Stripe_Subscription_Type__c != 'One-time'
+                ];
 
-            Date EndDate = startDate.addMonths(INTEGER.VALUEOF(quote.SBQQ__SubscriptionTerm__c)).addDays(-1);
-            System.debug('EndDate--' + EndDate);
-            Datetime EndDatedt = Datetime.newInstance(EndDate.year(), EndDate.month(), EndDate.day(), 0, 0, 0);
-            Long EndDateunixTimestamp = EndDatedt.getTime() / 1000;
-            System.debug('Unix Timestamp: ' + EndDateunixTimestamp);
+                // Prepare subscription body
+                List<String> bodyParts = new List<String>();
 
-            Date dateOfNextMonth = Date.newInstance(
-                startDate.addMonths(1).year(),
-                startDate.addMonths(1).month(),
-                startDate.addMonths(1).day()
-            );
-            Date dateOfNextQuarter = Date.newInstance(
-                startDate.addMonths(3).year(),
-                startDate.addMonths(3).month(),
-                startDate.addMonths(3).day()
-            );
-            Date dateOfNextYear = Date.newInstance(
-                startDate.addYears(1).year(),
-                startDate.addYears(1).month(),
-                startDate.addYears(1).day()
-            );
-            Date dateOfNext2Year = Date.newInstance(
-                startDate.addYears(2).year(),
-                startDate.addYears(2).month(),
-                startDate.addYears(2).day()
-            );
-            Date dateOfNext3Year = Date.newInstance(
-                startDate.addYears(3).year(),
-                startDate.addYears(3).month(),
-                startDate.addYears(3).day()
-            );
+                Date startDate = quote.SBQQ__StartDate__c;
+                Datetime dt = Datetime.newInstance(startDate.year(), startDate.month(), startDate.day(), 0, 0, 0);
+                Long unixTimestamp = dt.getTime() / 1000;
+                System.debug('Unix Timestamp: ' + unixTimestamp);
 
-            // Set billing anchor based on billing frequency
-            Datetime billingAnchor;
-            if (quote.Billing_Frequency_Override__c != null) {
-                String freq = quote.Billing_Frequency_Override__c.toLowerCase();
-                if (freq == 'Monthly') {
-                    billingAnchor = Datetime.newInstance(
-                        dateOfNextMonth.year(),
-                        dateOfNextMonth.month(),
-                        dateOfNextMonth.day(),
-                        0,
-                        0,
-                        0
-                    );
-                } else if (freq == 'Quarterly') {
-                    billingAnchor = Datetime.newInstance(
-                        dateOfNextQuarter.year(),
-                        dateOfNextQuarter.month(),
-                        dateOfNextQuarter.day(),
-                        0,
-                        0,
-                        0
-                    );
-                } else if (freq == 'Annual') {
-                    billingAnchor = Datetime.newInstance(
-                        dateOfNextYear.year(),
-                        dateOfNextYear.month(),
-                        dateOfNextYear.day(),
-                        0,
-                        0,
-                        0
-                    );
-                } else if (freq == '2-Year') {
-                    billingAnchor = Datetime.newInstance(
-                        dateOfNext2Year.year(),
-                        dateOfNext2Year.month(),
-                        dateOfNext2Year.day(),
-                        0,
-                        0,
-                        0
-                    );
-                } else if (freq == '3-Year') {
-                    billingAnchor = Datetime.newInstance(
-                        dateOfNext3Year.year(),
-                        dateOfNext3Year.month(),
-                        dateOfNext3Year.day(),
-                        0,
-                        0,
-                        0
-                    );
-                } else {
-                    // Default to monthly
-                    billingAnchor = Datetime.newInstance(
-                        dateOfNextMonth.year(),
-                        dateOfNextMonth.month(),
-                        dateOfNextMonth.day(),
-                        0,
-                        0,
-                        0
-                    );
+                Date EndDate = startDate.addMonths(INTEGER.VALUEOF(quote.SBQQ__SubscriptionTerm__c)).addDays(-1);
+                System.debug('EndDate--' + EndDate);
+                Datetime EndDatedt = Datetime.newInstance(EndDate.year(), EndDate.month(), EndDate.day(), 0, 0, 0);
+                Long EndDateunixTimestamp = EndDatedt.getTime() / 1000;
+                System.debug('Unix Timestamp: ' + EndDateunixTimestamp);
+
+                Date dateOfNextMonth = Date.newInstance(
+                    startDate.addMonths(1).year(),
+                    startDate.addMonths(1).month(),
+                    startDate.addMonths(1).day()
+                );
+                Date dateOfNextQuarter = Date.newInstance(
+                    startDate.addMonths(3).year(),
+                    startDate.addMonths(3).month(),
+                    startDate.addMonths(3).day()
+                );
+                Date dateOfNextYear = Date.newInstance(
+                    startDate.addYears(1).year(),
+                    startDate.addYears(1).month(),
+                    startDate.addYears(1).day()
+                );
+                Date dateOfNext2Year = Date.newInstance(
+                    startDate.addYears(2).year(),
+                    startDate.addYears(2).month(),
+                    startDate.addYears(2).day()
+                );
+                Date dateOfNext3Year = Date.newInstance(
+                    startDate.addYears(3).year(),
+                    startDate.addYears(3).month(),
+                    startDate.addYears(3).day()
+                );
+
+                // Set billing anchor based on billing frequency
+                Datetime billingAnchor;
+                if (quote.Billing_Frequency_Override__c != null) {
+                    String freq = quote.Billing_Frequency_Override__c.toLowerCase();
+                    if (freq == 'Monthly') {
+                        billingAnchor = Datetime.newInstance(
+                            dateOfNextMonth.year(),
+                            dateOfNextMonth.month(),
+                            dateOfNextMonth.day(),
+                            0,
+                            0,
+                            0
+                        );
+                    } else if (freq == 'Quarterly') {
+                        billingAnchor = Datetime.newInstance(
+                            dateOfNextQuarter.year(),
+                            dateOfNextQuarter.month(),
+                            dateOfNextQuarter.day(),
+                            0,
+                            0,
+                            0
+                        );
+                    } else if (freq == 'Annual') {
+                        billingAnchor = Datetime.newInstance(
+                            dateOfNextYear.year(),
+                            dateOfNextYear.month(),
+                            dateOfNextYear.day(),
+                            0,
+                            0,
+                            0
+                        );
+                    } else if (freq == '2-Year') {
+                        billingAnchor = Datetime.newInstance(
+                            dateOfNext2Year.year(),
+                            dateOfNext2Year.month(),
+                            dateOfNext2Year.day(),
+                            0,
+                            0,
+                            0
+                        );
+                    } else if (freq == '3-Year') {
+                        billingAnchor = Datetime.newInstance(
+                            dateOfNext3Year.year(),
+                            dateOfNext3Year.month(),
+                            dateOfNext3Year.day(),
+                            0,
+                            0,
+                            0
+                        );
+                    } else {
+                        // Default to monthly
+                        billingAnchor = Datetime.newInstance(
+                            dateOfNextMonth.year(),
+                            dateOfNextMonth.month(),
+                            dateOfNextMonth.day(),
+                            0,
+                            0,
+                            0
+                        );
+                    }
                 }
+
+                // bodyParts.add('collection_method=charge_automatically');
+                bodyParts.add('proration_behavior=always_invoice');
+                bodyParts.add('cancel_at=' + String.valueOf(EndDateunixTimestamp));
+                // bodyParts.add('billing_mode[type]=flexible');
+                // bodyParts.add('backdate_start_date=' + String.valueOf(unixTimestamp));
+                // bodyParts.add('billing_cycle_anchor=' + String.valueOf(billingAnchor.getTime() / 1000));
+
+                String encodedBody = String.join(bodyParts, '&');
+
+                HttpRequest subReq = new HttpRequest();
+                subReq.setEndpoint('https://api.stripe.com/v1/subscriptions/' + subscriptionId);
+                subReq.setMethod('POST');
+                subReq.setHeader('Authorization', 'Basic ' + EncodingUtil.base64Encode(Blob.valueOf(SECRET_KEY + ':')));
+                subReq.setHeader('Content-Type', 'application/x-www-form-urlencoded');
+                subReq.setBody(encodedBody);
+                Http http = new Http();
+                HttpResponse subRes = http.send(subReq);
+                if (subRes.getStatusCode() == 200) {
+                    Map<String, Object> subResponse = (Map<String, Object>) JSON.deserializeUntyped(subRes.getBody());
+
+                    String subscriptionId = (String) subResponse.get('id');
+                    String invoiceId = (String) subResponse.get('latest_invoice');
+                    System.debug('Created Stripe Subscription ID: ' + subscriptionId);
+                    System.debug('Latest Invoice ID: ' + invoiceId);
+                } else {
+                    System.debug('Stripe Subscription Error: ' + subRes.getBody());
+                    throw new CalloutException('Stripe Subscription Error: ' + subRes.getBody());
+                }
+            } catch (Exception e) {
+                System.debug('Error in createStripeSubscription: ' + e.getMessage());
+                Logger__c logger = new Logger__c(
+                    Name = 'Stripe Subscription Error',
+                    Message__c = e.getMessage(),
+                    StackTrace__c = e.getStackTraceString(),
+                    Status__c = 'Error',
+                    Apex_Class__c = 'StripeSubscriptionScheduler2',
+                    Apex_Method__c = 'createStripeSubscription',
+                    Object_Name__c = 'SBQQ__Quote__c'
+                );
+                insert logger;
             }
-
-            // Integer daysUntilDue = Date.today().daysBetween(billingAnchor.date());
-
-            // bodyParts.add('collection_method=charge_automatically');
-            bodyParts.add('proration_behavior=always_invoice');
-            bodyParts.add('cancel_at=' + String.valueOf(EndDateunixTimestamp));
-            // bodyParts.add('billing_mode[type]=flexible');
-            // bodyParts.add('backdate_start_date=' + String.valueOf(unixTimestamp));
-            // bodyParts.add('billing_cycle_anchor=' + String.valueOf(billingAnchor.getTime() / 1000));
-            bodyParts.add('metadata[salesforce_quote_id]=' + EncodingUtil.urlEncode(quote.Id, 'UTF-8'));
-            bodyParts.add('metadata[subscription_source]=salesforce');
-            bodyParts.add('metadata[updated_from_salesforce]=true');
-
-            String encodedBody = String.join(bodyParts, '&');
-
-            HttpRequest subReq = new HttpRequest();
-            subReq.setEndpoint('https://api.stripe.com/v1/subscriptions/' + subcritionId);
-            subReq.setMethod('POST');
-            subReq.setHeader('Authorization', 'Basic ' + EncodingUtil.base64Encode(Blob.valueOf(SECRET_KEY + ':')));
-            subReq.setHeader('Content-Type', 'application/x-www-form-urlencoded');
-            subReq.setBody(encodedBody);
-            Http http = new Http();
-            HttpResponse subRes = http.send(subReq);
-            if (subRes.getStatusCode() == 200) {
-                Map<String, Object> subResponse = (Map<String, Object>) JSON.deserializeUntyped(subRes.getBody());
-
-                String subscriptionId = (String) subResponse.get('id');
-                String invoiceId = (String) subResponse.get('latest_invoice');
-                System.debug('Created Stripe Subscription ID: ' + subscriptionId);
-                System.debug('Latest Invoice ID: ' + invoiceId);
-            } else {
-                System.debug('Stripe Subscription Error: ' + subRes.getBody());
-                throw new CalloutException('Stripe Subscription Error: ' + subRes.getBody());
-            }
-        } catch (Exception e) {
-            System.debug('Error in createStripeSubscription: ' + e.getMessage());
-            Logger__c logger = new Logger__c(
-                Name = 'Stripe Subscription Error',
-                Message__c = e.getMessage(),
-                StackTrace__c = e.getStackTraceString(),
-                Status__c = 'Error',
-                Apex_Class__c = 'StripeSubscriptionScheduler2',
-                Apex_Method__c = 'createStripeSubscription',
-                Object_Name__c = 'SBQQ__Quote__c'
-            );
-            insert logger;
         }
     }
 
@@ -197,8 +201,11 @@ public class StripeSubscriptionScheduler2 {
      * Quote To Invoice - Collection Method => Send Invoice & Quote start date = today or Past date
      * @param quoteId - Salesforce Quote Id
      */
-    @InvocableMethod(label='Quote To Invoice Subscrtion Created')
-    // @future(callout=true)
+    @InvocableMethod(
+        label='Create Stripe Subscription When Quote Accepted'
+        description='Create Stripe Subscription When Quote Accepted'
+        category='Stripe'
+    )
     public static void createStripeSubscriptionAsync(List<Id> quoteId) {
         try {
             List<SBQQ__Quote__c> quoteList = [
@@ -487,8 +494,6 @@ public class StripeSubscriptionScheduler2 {
                 }
             }
 
-            // Integer daysUntilDue = Date.today().daysBetween(billingAnchor.date());
-
             bodyParts.add('cancel_at=' + String.valueOf(EndDateunixTimestamp)); //  give a date
             bodyParts.add('backdate_start_date=' + String.valueOf(unixTimestamp));
             // bodyParts.add('billing_cycle_anchor=' + String.valueOf(billingAnchor.getTime() / 1000));
@@ -534,7 +539,6 @@ public class StripeSubscriptionScheduler2 {
                 }
                 update quoteLinesToUpdate;
 
-                StripeSubscriptionScheduler.createSubscriptionWithQuote(subRes.getBody(), quote.Id);
                 System.enqueueJob(new StripeInvoiceCallout(invoiceId, quote.Id));
             } else {
                 System.debug('Stripe Subscription Error: ' + subRes.getBody());
@@ -543,7 +547,7 @@ public class StripeSubscriptionScheduler2 {
         } catch (Exception e) {
             System.debug('Error in createStripeSubscription: ' + e.getMessage());
             Logger__c logger = new Logger__c(
-                Name = 'Stripe Subscription Error',
+                Name = 'Stripe Subscription Creation Error',
                 Message__c = e.getMessage(),
                 StackTrace__c = e.getStackTraceString(),
                 Status__c = 'Error',

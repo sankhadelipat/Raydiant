@@ -1,8 +1,13 @@
-trigger StripeTransactionConsumer on Stripe_Capture_Transaction__e (after insert) {
+trigger StripeTransactionConsumer on Stripe_Capture_Transaction__e(after insert) {
     for (Stripe_Capture_Transaction__e evt : Trigger.New) {
-        if (String.isNotBlank(evt.StripePaymentIntentId__c) && String.isNotBlank(evt.CustomerId__c)) {
-            System.enqueueJob(new StripeTransactionQueueable(evt.StripePaymentIntentId__c, evt.QuoteId__c, evt.CustomerId__c));
-            System.debug('Triggering...');
-        }
+        System.enqueueJob(
+            new StripeTransactionQueueable(
+                evt.Stripe_Payment_Intent_ID__c,
+                evt.Stripe_Customer_ID__c,
+                evt.Salesforce_Quote_Id__c,
+                evt.Event_Type__c
+            ),
+            2
+        );
     }
 }

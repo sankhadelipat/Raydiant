@@ -1,45 +1,43 @@
-@RestResource(urlMapping='/stripe/web-hook')
+@RestResource(urlMapping='/stripe/webhook')
 global without sharing class StripeWebHook {
     @HttpPost
     global static void handleWebhook() {
         RestRequest req = RestContext.request;
         RestResponse res = RestContext.response;
+
         String requestBody = req.requestBody.toString();
         Map<String, Object> event = (Map<String, Object>) JSON.deserializeUntyped(requestBody);
-
         system.debug('event--' + event);
         String eventType = (String) event.get('type');
         system.debug('event Type--' + eventType);
-        // quote to cash With Subscription
+
         if (eventType.equals('checkout.session.completed')) {
             Map<String, Object> data = (Map<String, Object>) event.get('data');
             system.debug('data--' + data);
-
             Map<String, Object> sessionObj = (Map<String, Object>) data.get('object');
             system.debug('sessionObj--' + sessionObj);
+
             // Extract values from the session object
             String checkoutSessionId = (String) sessionObj.get('id');
             String invoiceId = (String) sessionObj.get('invoice');
             String subscriptionId = (String) sessionObj.get('subscription');
 
-            // Metadata is nested
+            // Capture Metadata -> salesforce_quote_id
             Map<String, Object> metadata = (Map<String, Object>) sessionObj.get('metadata');
             String quoteId = metadata != null ? (String) metadata.get('salesforce_quote_id') : null;
 
-            System.debug('Checkout Session Id: ' + checkoutSessionId);
-            System.debug('Invoice Id: ' + invoiceId);
-            System.debug('Subscription Id: ' + subscriptionId);
-            System.debug('Quote Id from Metadata: ' + quoteId);
+            System.debug('checkoutSessionId--' + checkoutSessionId);
+            System.debug('invoiceId--' + invoiceId);
+            System.debug('subscriptionId--' + subscriptionId);
+            System.debug('quoteId--' + quoteId);
 
-            // Example — publish platform event or save to custom object
             List<Stripe_Capture_Payment__e> stripePaymentList = new List<Stripe_Capture_Payment__e>();
+
             Stripe_Capture_Payment__e stripePayment = new Stripe_Capture_Payment__e();
-            stripePayment.Payment_Capture__c = true;
-            stripePayment.Invoice_Capture__c = false;
             stripePayment.CheckoutSessionId__c = checkoutSessionId;
             stripePayment.StripeInvoiceId__c = invoiceId;
-            stripePayment.Stripe_Subscription_ID__c = subscriptionId;
-            stripePayment.Quote_Id_From_Stripe__c = quoteId;
+            stripePayment.StripeSubscriptionId__c = subscriptionId;
+            stripePayment.SalesforceQuoteId__c = quoteId;
             stripePaymentList.add(stripePayment);
 
             Database.SaveResult[] results = EventBus.publish(stripePaymentList);
@@ -47,6 +45,7 @@ global without sharing class StripeWebHook {
         } else if (
             eventType.equals('invoice.created') ||
             eventType.equals('invoice.finalized') ||
+            eventType.equals('invoice.paid') ||
             eventType.equals('invoice.marked_uncollectible') ||
             eventType.equals('invoice.voided')
         ) {
@@ -188,93 +187,6 @@ global without sharing class StripeWebHook {
                 stripeInvoiceList.add(stripeInv);
 
                 Database.SaveResult[] results = EventBus.publish(stripeInvoiceList);
-                system.debug('results--' + results);
-            }
-        } else if (eventType.equals('invoice.paid')) {
-            Map<String, Object> data1 = (Map<String, Object>) event.get('data');
-            system.debug('data1--' + data1);
-            Map<String, Object> stripeInvoice = (Map<String, Object>) data1.get('object');
-            Map<String, Object> parent = (Map<String, Object>) stripeInvoice.get('parent');
-            Map<String, Object> subscriptionDetails = parent != null
-                ? (Map<String, Object>) parent.get('subscription_details')
-                : null;
-            String subscriptionId = subscriptionDetails != null
-                ? (String) subscriptionDetails.get('subscription')
-                : null;
-            Map<String, Object> metadata = (Map<String, Object>) stripeInvoice.get('metadata');
-            string stripeInvoiceId2 = (String) stripeInvoice.get('id');
-            system.debug('invoice----' + stripeInvoiceId2);
-            String billingReason = (String) stripeInvoice.get('billing_reason');
-            system.debug('invoice billingReason----' + billingReason);
-            string stripepaymentintentID = (String) stripeInvoice.get('payment_intent');
-            Boolean isInitialPayment = metadata.get('salesforce_initial_payment') != null
-                ? Boolean.valueOf((String) metadata.get('salesforce_initial_payment'))
-                : false;
-            String parenttQuoteId = metadata.get('salesforce_quote_id') != null
-                ? (String) metadata.get('salesforce_quote_id')
-                : null;
-            Boolean quoteAccepted = metadata.get('salesforce_quote_accepted') != null
-                ? Boolean.valueOf((String) metadata.get('salesforce_quote_accepted'))
-                : false;
-            Map<String, Object> parentMetadata = subscriptionDetails != null
-                ? (Map<String, Object>) subscriptionDetails.get('metadata')
-                : null;
-            if (parenttQuoteId == null) {
-                parenttQuoteId = parentMetadata != null
-                    ? (String) (parentMetadata.get('salesforce_quote_id') != null
-                          ? parentMetadata.get('salesforce_quote_id')
-                          : parentMetadata.get('salesforce_Quote_id'))
-                    : null;
-            }
-
-            System.debug('parenttQuoteId--' + parenttQuoteId);
-            System.debug('Stripe Subscription ID: ' + subscriptionId);
-
-            // for 1st transaction billingReason = 'subscription_create'
-            // Quote to Cash with Subscription
-            if (billingReason != 'subscription_create') {
-                List<Stripe_Capture_Payment__e> stripePaymentList = new List<Stripe_Capture_Payment__e>();
-
-                Stripe_Capture_Payment__e stripePayment = new Stripe_Capture_Payment__e();
-                stripePayment.Payment_Capture__c = false;
-                stripePayment.Invoice_Capture__c = true;
-                stripePayment.Stripe_Subscription_ID__c = subscriptionId;
-                stripePayment.StripeInvoiceId__c = stripeInvoiceId2;
-                stripePayment.stripepaymentintent_ID__c = stripepaymentintentID;
-                stripePayment.Quote_Id_From_Stripe__c = parenttQuoteId;
-                stripePaymentList.add(stripePayment);
-
-                Database.SaveResult[] results = EventBus.publish(stripePaymentList);
-                system.debug('results--' + results);
-            }
-            // for 2nd transaction  get subscription id  use that on contract
-            // When Invoice Paid from 2nd Time payment for subscription
-            // Quote to Invoice
-            else if (!string.isBlank(parenttQuoteId) && quoteAccepted) {
-                List<Stripe_Capture_Payment__e> stripePaymentList = new List<Stripe_Capture_Payment__e>();
-
-                Stripe_Capture_Payment__e stripePayment = new Stripe_Capture_Payment__e();
-                stripePayment.Payment_Capture__c = false;
-                stripePayment.Invoice_Capture__c = true;
-                stripePayment.Stripe_Subscription_ID__c = subscriptionId;
-                stripePayment.StripeInvoiceId__c = stripeInvoiceId2;
-                stripePayment.stripepaymentintent_ID__c = stripepaymentintentID;
-                stripePayment.Quote_Id_From_Stripe__c = parenttQuoteId;
-                stripePaymentList.add(stripePayment);
-                Database.SaveResult[] results = EventBus.publish(stripePaymentList);
-                system.debug('results--' + results);
-            } else {
-                List<Stripe_Capture_Payment__e> stripePaymentList = new List<Stripe_Capture_Payment__e>();
-
-                Stripe_Capture_Payment__e stripePayment = new Stripe_Capture_Payment__e();
-                stripePayment.Payment_Capture__c = false;
-                stripePayment.Invoice_Capture__c = true;
-                stripePayment.Stripe_Subscription_ID__c = subscriptionId;
-                stripePayment.StripeInvoiceId__c = stripeInvoiceId2;
-                stripePayment.stripepaymentintent_ID__c = stripepaymentintentID;
-                stripePayment.Quote_Id_From_Stripe__c = parenttQuoteId;
-                stripePaymentList.add(stripePayment);
-                Database.SaveResult[] results = EventBus.publish(stripePaymentList);
                 system.debug('results--' + results);
             }
         } else if (eventType.equals('customer.subscription.created')) {
@@ -491,27 +403,34 @@ global without sharing class StripeWebHook {
                 Database.SaveResult[] results = EventBus.publish(stripeSubScheduleDelList);
                 system.debug('results--' + results);
             }
-        } else if (eventType.equals('payment_intent.payment_failed')) {
+        } else if (
+            eventType.equals('payment_intent.succeeded') ||
+            eventType.equals('payment_intent.payment_failed') ||
+            eventType.equals('payment_intent.canceled')
+        ) {
             Map<String, Object> data = (Map<String, Object>) event.get('data');
             Map<String, Object> paymentIntent = (Map<String, Object>) data.get('object');
-            Map<String, Object> metadata = (Map<String, Object>) paymentIntent.get('metadata');
             system.debug('paymentIntent--' + paymentIntent);
 
-            String stripePaymentIntentId = (String) paymentIntent.get('id');
-            String quoteId = (String) metadata.get('salesforce_quote_id');
+            String paymentIntentId = (String) paymentIntent.get('id');
             String customerId = (String) paymentIntent.get('customer');
+            Map<String, Object> metadata = (Map<String, Object>) paymentIntent.get('metadata');
+            String quoteId = metadata != null ? (String) metadata.get('salesforce_quote_id') : null;
 
-            List<Stripe_Capture_Transaction__e> stripePaymentList = new List<Stripe_Capture_Transaction__e>();
+            if (customerId != null) {
+                List<Stripe_Capture_Transaction__e> stripePaymentList = new List<Stripe_Capture_Transaction__e>();
 
-            Stripe_Capture_Transaction__e stripePayment = new Stripe_Capture_Transaction__e();
-            stripePayment.StripePaymentIntentId__c = stripePaymentIntentId;
-            stripePayment.QuoteId__c = quoteId;
-            stripePayment.CustomerId__c = customerId;
-            stripePaymentList.add(stripePayment);
-            System.debug('stripePaymentList--' + stripePaymentList);
+                Stripe_Capture_Transaction__e stripePayment = new Stripe_Capture_Transaction__e();
+                stripePayment.Stripe_Payment_Intent_ID__c = paymentIntentId;
+                stripePayment.Stripe_Customer_ID__c = customerId;
+                stripePayment.Salesforce_Quote_Id__c = quoteId;
+                stripePayment.Event_Type__c = eventType;
+                stripePaymentList.add(stripePayment);
+                System.debug('stripePaymentList--' + stripePaymentList);
 
-            Database.SaveResult[] results = EventBus.publish(stripePaymentList);
-            system.debug('results--' + results);
+                Database.SaveResult[] results = EventBus.publish(stripePaymentList);
+                system.debug('results--' + results);
+            }
         } else if (eventType.equals('invoice.payment_succeeded')) {
             Map<String, Object> data = (Map<String, Object>) event.get('data');
             Map<String, Object> invoice = (Map<String, Object>) data.get('object');
@@ -527,6 +446,14 @@ global without sharing class StripeWebHook {
                 ? (String) subscriptionDetails.get('subscription')
                 : null;
 
+            List<Stripe_Capture_Intent__e> stripeIntentList = new List<Stripe_Capture_Intent__e>();
+            Stripe_Capture_Intent__e stripeIntent = new Stripe_Capture_Intent__e();
+            stripeIntent.Stripe_Invoice_ID__c = invoiceId;
+            stripeIntentList.add(stripeIntent);
+
+            Database.SaveResult[] results1 = EventBus.publish(stripeIntentList);
+            System.debug('results--' + results1);
+
             if (subscriptionId != null) {
                 List<Stripe_Capture_Subscription_Promotion__e> stripeInvoicePromotionList = new List<Stripe_Capture_Subscription_Promotion__e>();
 
@@ -536,28 +463,22 @@ global without sharing class StripeWebHook {
                 stripeInvoicePromotionList.add(stripeInvoicePromotion);
                 System.debug('stripeInvoicePromotionList--' + stripeInvoicePromotionList);
 
-                Database.SaveResult[] results = EventBus.publish(stripeInvoicePromotionList);
-                System.debug('results--' + results);
+                Database.SaveResult[] results2 = EventBus.publish(stripeInvoicePromotionList);
+                System.debug('results--' + results2);
             }
         } else if (eventType.equals('invoice.payment_failed')) {
             Map<String, Object> data = (Map<String, Object>) event.get('data');
-            Map<String, Object> failedstripeInvoice = (Map<String, Object>) data.get('object');
-            System.debug('failedstripeInvoice--' + failedstripeInvoice);
+            Map<String, Object> stripeInvoice = (Map<String, Object>) data.get('object');
+            System.debug('stripeInvoice--' + stripeInvoice);
 
-            String failedstripeInvoiceId = (String) failedstripeInvoice.get('id');
-            String failedsubscriptionId = (String) failedstripeInvoice.get('subscription');
-            String paymentIntentId = (String) failedstripeInvoice.get('payment_intent');
-            System.debug('failedsubscriptionId--' + failedsubscriptionId);
+            String stripeInvoiceId = (String) stripeInvoice.get('id');
 
-            List<Stripe_Capture_Payment__e> stripePaymentList = new List<Stripe_Capture_Payment__e>();
+            List<Stripe_Capture_Intent__e> stripeIntentList = new List<Stripe_Capture_Intent__e>();
+            Stripe_Capture_Intent__e stripeIntent = new Stripe_Capture_Intent__e();
+            stripeIntent.Stripe_Invoice_ID__c = stripeInvoiceId;
+            stripeIntentList.add(stripeIntent);
 
-            Stripe_Capture_Payment__e stripePayment = new Stripe_Capture_Payment__e();
-            stripePayment.CheckoutSessionId__c = failedsubscriptionId;
-            stripePayment.StripeInvoiceId__c = failedstripeInvoiceId;
-            stripePayment.stripepaymentintent_ID__c = paymentIntentId;
-            stripePaymentList.add(stripePayment);
-
-            Database.SaveResult[] results = EventBus.publish(stripePaymentList);
+            Database.SaveResult[] results = EventBus.publish(stripeIntentList);
             System.debug('results--' + results);
         } else if (eventType.equals('customer.created') || eventType.equals('customer.updated')) {
             Map<String, Object> data = (Map<String, Object>) event.get('data');

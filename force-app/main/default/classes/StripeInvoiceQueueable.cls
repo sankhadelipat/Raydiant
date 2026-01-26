@@ -5,21 +5,11 @@ public class StripeInvoiceQueueable implements Queueable, Database.AllowsCallout
     String stripeInvoiceId;
     String stripeSubscriptionId;
     String quoteId;
-    Boolean paymentCaptured;
-    Boolean invoiceCaptured;
 
-    public StripeInvoiceQueueable(
-        String stripeInvoiceId,
-        String stripeSubscriptionId,
-        String quoteId,
-        Boolean paymentCaptured,
-        Boolean invoiceCaptured
-    ) {
+    public StripeInvoiceQueueable(String stripeInvoiceId, String stripeSubscriptionId, String quoteId) {
         this.stripeInvoiceId = stripeInvoiceId;
         this.stripeSubscriptionId = stripeSubscriptionId;
         this.quoteId = quoteId;
-        this.paymentCaptured = paymentCaptured;
-        this.invoiceCaptured = invoiceCaptured;
     }
 
     public void execute(QueueableContext context) {
@@ -27,7 +17,7 @@ public class StripeInvoiceQueueable implements Queueable, Database.AllowsCallout
             List<Contract> contracts = new List<Contract>();
             if (stripeSubscriptionId != null) {
                 contracts = [
-                    SELECT id, Stripe_Subscription_ID__c, SBQQ__Quote__c
+                    SELECT Id, Stripe_Subscription_ID__c, SBQQ__Quote__c
                     FROM Contract
                     WHERE Stripe_Subscription_ID__c = :stripeSubscriptionId
                 ];
@@ -36,39 +26,25 @@ public class StripeInvoiceQueueable implements Queueable, Database.AllowsCallout
             List<SBQQ__Quote__c> quoteList = new List<SBQQ__Quote__c>();
             if (!contracts.isEmpty()) {
                 quoteList = [
-                    SELECT
-                        Id,
-                        SBQQ__NetAmount__c,
-                        SBQQ__Account__c,
-                        Is_Stripe_Payment_Done__c,
-                        Bill_To_Contact__c,
-                        Stripe_Payment_Intent__c,
-                        SBQQ__Account__r.blng__BillToContact__c
+                    SELECT Id, SBQQ__Account__c, Bill_To_Contact__c, SBQQ__Account__r.blng__BillToContact__c
                     FROM SBQQ__Quote__c
                     WHERE id = :contracts[0].SBQQ__Quote__c
                 ];
             } else if (quoteId != null) {
                 quoteList = [
-                    SELECT
-                        Id,
-                        SBQQ__NetAmount__c,
-                        SBQQ__Account__c,
-                        Is_Stripe_Payment_Done__c,
-                        Bill_To_Contact__c,
-                        Stripe_Payment_Intent__c,
-                        SBQQ__Account__r.blng__BillToContact__c
+                    SELECT Id, SBQQ__Account__c, Bill_To_Contact__c, SBQQ__Account__r.blng__BillToContact__c
                     FROM SBQQ__Quote__c
                     WHERE Id = :quoteId
                 ];
             }
 
             HttpRequest req = new HttpRequest();
-            req.setEndpoint('https://api.stripe.com/v1/invoices/' + stripeInvoiceId + '?expand[]=payments');
+            req.setEndpoint('https://api.stripe.com/v1/invoices/' + stripeInvoiceId);
             req.setMethod('GET');
             req.setHeader('Authorization', 'Basic ' + EncodingUtil.base64Encode(Blob.valueOf(SECRET_KEY + ':')));
-            req.setHeader('Content-Type', 'application/x-www-form-urlencoded');
 
-            HttpResponse res = new Http().send(req);
+            Http http = new Http();
+            HttpResponse res = http.send(req);
 
             if (res.getStatusCode() == 200) {
                 Map<String, Object> result = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
@@ -104,8 +80,6 @@ public class StripeInvoiceQueueable implements Queueable, Database.AllowsCallout
                 String invoiceStatus;
                 Id accountId;
                 Id billToContactId;
-                String paymentIntentId;
-                String subscriptionId;
 
                 if (prePaymentCreditAmount + postPaymentCreditAmount > 0) {
                     invoiceStatus = 'Credited';
@@ -137,46 +111,7 @@ public class StripeInvoiceQueueable implements Queueable, Database.AllowsCallout
                 }
                 System.debug('accountId--' + accountId);
 
-                // Extract Payment Intent ID
-                if (result.containsKey('payments') && result.get('payments') != null) {
-                    Map<String, Object> payments = (Map<String, Object>) result.get('payments');
-
-                    if (payments.containsKey('data') && payments.get('data') != null) {
-                        List<Object> paymentData = (List<Object>) payments.get('data');
-
-                        if (!paymentData.isEmpty()) {
-                            Map<String, Object> firstPayment = (Map<String, Object>) paymentData[0];
-
-                            if (firstPayment.containsKey('payment') && firstPayment.get('payment') != null) {
-                                Map<String, Object> paymentDetails = (Map<String, Object>) firstPayment.get('payment');
-
-                                if (
-                                    paymentDetails.containsKey('payment_intent') &&
-                                    paymentDetails.get('payment_intent') != null
-                                ) {
-                                    paymentIntentId = (String) paymentDetails.get('payment_intent');
-                                }
-                            }
-                        }
-                    }
-                }
-                System.debug('Captured PaymentIntent ID: ' + paymentIntentId);
-
-                // Extract Subscription ID
-                if (result.containsKey('parent') && result.get('parent') != null) {
-                    Map<String, Object> parent = (Map<String, Object>) result.get('parent');
-
-                    if (parent.containsKey('subscription_details') && parent.get('subscription_details') != null) {
-                        Map<String, Object> subDetails = (Map<String, Object>) parent.get('subscription_details');
-
-                        if (subDetails.containsKey('subscription') && subDetails.get('subscription') != null) {
-                            subscriptionId = (String) subDetails.get('subscription');
-                        }
-                    }
-                }
-                System.debug('Captured Subscription ID: ' + subscriptionId);
-
-                // Create or Update Stripe Invoice record
+                // Upsert Stripe Invoice Record
                 Stripe_Invoice__c invoice = new Stripe_Invoice__c();
                 invoice.Total_Amount__c = result.containsKey('total') ? (Decimal) result.get('total') / 100 : 0;
                 invoice.Total_Amount_with_Tax__c = result.containsKey('total_excluding_tax')
@@ -194,10 +129,13 @@ public class StripeInvoiceQueueable implements Queueable, Database.AllowsCallout
                 invoice.Tax_Rate__c = result.containsKey('tax') && result.get('tax') != null
                     ? (Decimal) result.get('tax')
                     : 0;
-                invoice.Due_Date__c = duedate != null ? Date.valueOf(toDateTime(dueDate)) : date.valueof(toDateTime(effectivedate));
+                invoice.Due_Date__c = duedate != null
+                    ? Date.valueOf(toDateTime(dueDate))
+                    : date.valueof(toDateTime(effectivedate));
                 invoice.Automatically_Finalizes_At__c = toDateTime(finalizesAt);
                 invoice.Billing_Reason__c = (String) result.get('billing_reason');
                 invoice.CurrencyIsoCode = currencyCode.toUpperCase();
+                invoice.Contract__c = contracts.isEmpty() ? null : contracts[0].Id;
                 invoice.Quote_CPQ__c = quoteList.isEmpty() ? null : quoteList[0].Id;
                 invoice.Account__c = accountId;
                 invoice.Bill_to_Contact__c = billToContactId;
@@ -297,24 +235,12 @@ public class StripeInvoiceQueueable implements Queueable, Database.AllowsCallout
 
                 if (!lineItems.isEmpty()) {
                     upsert lineItems Stripe_Invoice_line_Item_Id__c;
-                    // call payment class to store Transaction payment intent object from stripe
-                    System.enqueueJob(
-                        new StripePaymentIntentQueueable(
-                            invoiceID,
-                            paymentIntentId,
-                            stripeSubscriptionId,
-                            quoteId,
-                            paymentCaptured,
-                            invoiceCaptured
-                        ),
-                        1
-                    );
                 }
             } else {
                 System.debug('Failed to fetch invoice from Stripe. Status: ' + res.getStatusCode());
                 throw new CalloutException('Failed to fetch invoice from Stripe. Status: ' + res.getStatusCode());
             }
-        } catch (exception ex) {
+        } catch (Exception ex) {
             System.debug('Error in StripeInvoiceQueueable: ' + ex.getMessage());
             Logger__c logger = new Logger__c(
                 Name = 'Stripe Invoice Queueable Error',
@@ -328,6 +254,7 @@ public class StripeInvoiceQueueable implements Queueable, Database.AllowsCallout
             insert logger;
         }
     }
+
     private static Datetime toDateTime(Long unixTs) {
         if (unixTs == null)
             return null;
