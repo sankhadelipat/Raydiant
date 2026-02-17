@@ -20,6 +20,24 @@ public class StripeInvoiceAdditionalEmailBatch implements Database.Batchable<SOb
     }
 
     public void execute(Database.BatchableContext bc, List<Stripe_Invoice__c> scope) {
+        // Get org wide email address
+        OrgWideEmailAddress owea = [
+            SELECT Id
+            FROM OrgWideEmailAddress
+            WHERE DisplayName = 'Displai Billing'
+            LIMIT 1
+        ];
+
+        // Get email template
+        EmailTemplate template = [
+            SELECT Id
+            FROM EmailTemplate
+            WHERE DeveloperName = 'Stripe_Invoice_Email'
+            LIMIT 1
+        ];
+
+        List<Messaging.SingleEmailMessage> emailsToSend = new List<Messaging.SingleEmailMessage>();
+
         for (Stripe_Invoice__c inv : scope) {
             processed++;
 
@@ -32,21 +50,26 @@ public class StripeInvoiceAdditionalEmailBatch implements Database.Batchable<SOb
                     continue;
                 }
 
-                Messaging.SingleEmailMessage mail = buildInvoiceEmail(inv, emailList);
+                Messaging.SingleEmailMessage mail = buildInvoiceEmail(inv, emailList, template.Id, owea.Id);
 
-                List<Messaging.SendEmailResult> results = Messaging.sendEmail(
-                    new List<Messaging.SingleEmailMessage>{ mail }
-                );
-
-                if (inspectResults(results)) {
-                    success++;
-                } else {
-                    error++;
-                    errorMessages.add('Failed to send additional email for Invoice ' + inv.Name);
-                }
+                emailsToSend.add(mail);
             } catch (Exception e) {
                 error++;
                 errorMessages.add(e.getMessage());
+            }
+        }
+
+        // Send bulk email
+        if (!emailsToSend.isEmpty()) {
+            List<Messaging.SendEmailResult> results = Messaging.sendEmail(emailsToSend);
+
+            for (Messaging.SendEmailResult result : results) {
+                if (result.isSuccess()) {
+                    success++;
+                } else {
+                    error++;
+                    errorMessages.add(result.getErrors()[0].getMessage());
+                }
             }
         }
     }
@@ -85,8 +108,12 @@ public class StripeInvoiceAdditionalEmailBatch implements Database.Batchable<SOb
     // -------------------------
     // Helpers
     // -------------------------
-
-    public static Messaging.SingleEmailMessage buildInvoiceEmail(Stripe_Invoice__c inv, String emailList) {
+    public static Messaging.SingleEmailMessage buildInvoiceEmail(
+        Stripe_Invoice__c inv,
+        String emailList,
+        Id templateId,
+        Id oweaId
+    ) {
         // Fetch PDF
         HttpRequest pdfReq = new HttpRequest();
         pdfReq.setEndpoint(inv.Invoice_PDF_URL__c);
@@ -120,41 +147,25 @@ public class StripeInvoiceAdditionalEmailBatch implements Database.Batchable<SOb
         attachment.setBody(pdfRes.getBodyAsBlob());
         attachment.setContentType('application/pdf');
 
-        List<String> toAddresses = new List<String>();
+        // Render the template
+        Messaging.SingleEmailMessage renderRes = Messaging.renderStoredEmailTemplate(templateId, null, inv.Id);
+        String renderedSubject = renderRes.getSubject();
+        String renderedBody = renderRes.getHtmlBody();
 
+        List<String> toAddresses = new List<String>();
         for (String e : emailList.split(',')) {
             toAddresses.add(e.trim());
         }
 
-        OrgWideEmailAddress owea = [
-            SELECT Id
-            FROM OrgWideEmailAddress
-            WHERE DisplayName = 'Displai Billing'
-            LIMIT 1
-        ];
-
-        // Email body
-        String payUrl =
-            'https://raydiant.my.salesforce-sites.com/services/apexrest/stripe/invoice/pay?iid=' +
-            inv.Stripe_Invoice_Id__c;
-
         Messaging.SingleEmailMessage mail = new Messaging.SingleEmailMessage();
 
         mail.setToAddresses(toAddresses);
-        mail.setSubject('New invoice from Displai #' + inv.Name);
-        mail.setHtmlBody(
-            '<p>Hello,</p>' +
-                '<p>Please find your invoice attached.</p>' +
-                '<p>' +
-                '<a href="' +
-                payUrl +
-                '" style="padding:10px 15px;background:#635bff;color:#fff;text-decoration:none;">' +
-                'View & Pay Invoice</a>' +
-                '</p>' +
-                '<p>Thank you.</p>'
-        );
+        mail.setSubject(renderedSubject);
+        mail.setHtmlBody(renderedBody);
         mail.setFileAttachments(new List<Messaging.EmailFileAttachment>{ attachment });
-        mail.setOrgWideEmailAddressId(owea.Id);
+        mail.setOrgWideEmailAddressId(oweaId);
+        mail.setWhatId(inv.Account__c);
+        mail.setSaveAsActivity(true);
 
         return mail;
     }
@@ -171,19 +182,5 @@ public class StripeInvoiceAdditionalEmailBatch implements Database.Batchable<SOb
             }
         }
         return true;
-    }
-
-    private static Boolean inspectResults(Messaging.SendEmailResult[] results) {
-        Boolean sendResult = true;
-
-        for (Messaging.SendEmailResult res : results) {
-            if (res.isSuccess()) {
-                System.debug('Email sent successfully');
-            } else {
-                sendResult = false;
-                System.debug('The following errors occurred: ' + res.getErrors());
-            }
-        }
-        return sendResult;
     }
 }
