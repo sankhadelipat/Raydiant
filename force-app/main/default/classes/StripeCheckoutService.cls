@@ -1,4 +1,4 @@
-public class StripePaymentLinkFromQuote {
+public class StripeCheckoutService {
     private static final Stripe_Details__c stripeDetails = Stripe_Details__c.getInstance('Stripe Details');
     private static final String SECRET_KEY = stripeDetails.Serect_Key__c;
 
@@ -14,19 +14,18 @@ public class StripePaymentLinkFromQuote {
     }
 
     @invocableMethod(
-        label='Generate Stripe Payment Link from Quote'
-        description='Generates a Stripe Payment Link for the given Quote ID'
+        label='Generate Salesforce Payment Link from Quote'
+        description='Generates a Salesforce Payment Link for the given Quote ID'
         category='Stripe'
     )
-    public static List<FlowResult> generatePaymentLinkFromQuote(List<Id> quoteIds) {
-        List<FlowResult> flowResults = new List<FlowResult>();
-        FlowResult flowRes = new FlowResult();
-        flowResults.add(flowRes);
+    public static List<FlowResult> generatePaymentLinkFromQuote(List<String> quoteIds) {
+        FlowResult result = new FlowResult();
+        List<FlowResult> results = new List<FlowResult>{ result };
 
         if (quoteIds == null || quoteIds.isEmpty()) {
-            flowRes.isSuccess = false;
-            flowRes.message = 'No Quote ID provided.';
-            return flowResults;
+            result.isSuccess = false;
+            result.message = 'No Quote ID provided';
+            return results;
         }
 
         try {
@@ -178,11 +177,12 @@ public class StripePaymentLinkFromQuote {
             // Build Checkout Session API body
             List<String> bodyParts = new List<String>();
             bodyParts.add('mode=' + checkoutMode);
+            bodyParts.add('ui_mode=custom');
             bodyParts.add('customer=' + quote.SBQQ__Account__r.Stripe_Customer_ID__c);
             bodyParts.add('payment_method_configuration=' + paymentMethodConfig);
-            bodyParts.add('success_url=' + sucessUrl);
-            bodyParts.add('billing_address_collection=required');
-            bodyParts.add('consent_collection[terms_of_service]=required');
+            // bodyParts.add('success_url=' + sucessUrl);
+            // bodyParts.add('billing_address_collection=required');
+            // bodyParts.add('consent_collection[terms_of_service]=required');
             bodyParts.add('shipping_address_collection[allowed_countries][]=US');
             bodyParts.add('shipping_address_collection[allowed_countries][]=CA');
             //bodyParts.add('shipping_address_collection[allowed_countries][]=UK'); ask client
@@ -192,13 +192,13 @@ public class StripePaymentLinkFromQuote {
             bodyParts.add('metadata[salesforce_quote_id]=' + EncodingUtil.urlEncode(quote.Id, 'UTF-8'));
             bodyParts.add('metadata[salesforce_initial_payment]=true');
             // custom fields
-            bodyParts.add('custom_fields[0][key]=signature');
-            bodyParts.add('custom_fields[0][label][type]=custom');
-            bodyParts.add('custom_fields[0][label][custom]=' + EncodingUtil.urlEncode(signatureLabel, 'UTF-8'));
-            bodyParts.add('custom_fields[0][type]=text');
-            bodyParts.add('custom_fields[0][optional]=false');
-            bodyParts.add('custom_fields[0][text][maximum_length]=255');
-            bodyParts.add('custom_fields[0][text][minimum_length]=1');
+            // bodyParts.add('custom_fields[0][key]=signature');
+            // bodyParts.add('custom_fields[0][label][type]=custom');
+            // bodyParts.add('custom_fields[0][label][custom]=' + EncodingUtil.urlEncode(signatureLabel, 'UTF-8'));
+            // bodyParts.add('custom_fields[0][type]=text');
+            // bodyParts.add('custom_fields[0][optional]=false');
+            // bodyParts.add('custom_fields[0][text][maximum_length]=255');
+            // bodyParts.add('custom_fields[0][text][minimum_length]=1');
 
             if (checkoutMode == 'subscription') {
                 bodyParts.add(
@@ -235,19 +235,26 @@ public class StripePaymentLinkFromQuote {
             req.setMethod('POST');
             req.setHeader('Authorization', 'Basic ' + EncodingUtil.base64Encode(Blob.valueOf(SECRET_KEY + ':')));
             req.setHeader('Content-Type', 'application/x-www-form-urlencoded');
+            req.setHeader('Idempotency-Key', quote.Id + '-' + Datetime.now().getTime());
             req.setBody(requestBody);
 
             Http httpChecout = new Http();
             HttpResponse res = httpChecout.send(req);
 
             if (res.getStatusCode() == 200) {
-                Map<String, Object> results = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
-                system.debug('results--' + results);
-                String checkoutSessionId = (String) results.get('id');
-                String paymentLink = (String) results.get('url');
+                Map<String, Object> chRes = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
+                system.debug('chRes--' + chRes);
+                String checkoutSessionId = (String) chRes.get('id');
+                String clientSecret = (String) chRes.get('client_secret');
+
+                Site paySite = [SELECT Id FROM Site WHERE Name = 'Stripe'];
+                SiteDetail paySiteDetail = [SELECT SecureURL FROM SiteDetail WHERE DurableId = :paySite.Id];
 
                 for (SBQQ__Quote__c qt : new List<SBQQ__Quote__c>{ quote }) {
-                    qt.Stripe_Payment_Link__c = paymentLink;
+                    qt.Stripe_Payment_Link__c =
+                        paySiteDetail.SecureURL +
+                        'apex/StripeCheckoutPage?session=' +
+                        checkoutSessionId+'&client=' + clientSecret;
                     qt.Stripe_Checkout_Session_ID__c = checkoutSessionId;
                     updateQuoteList.add(qt);
                 }
@@ -262,9 +269,9 @@ public class StripePaymentLinkFromQuote {
                 }
                 update quoteLinesToUpdate;
 
-                flowRes.isSuccess = true;
-                flowRes.message = 'Payment link generated successfully';
-                return flowResults;
+                result.isSuccess = true;
+                result.message = 'Payment link generated successfully';
+                return results;
             } else {
                 system.debug('results--' + res.getBody());
                 throw new CalloutException('Stripe Checkout Session creation failed: ' + res.getBody());
@@ -275,16 +282,16 @@ public class StripePaymentLinkFromQuote {
                 Message__c = e.getMessage(),
                 StackTrace__c = e.getStackTraceString(),
                 Status__c = 'Error',
-                Apex_Class__c = 'StripePaymentLinkFromQuote',
+                Apex_Class__c = 'StripeCheckoutService',
                 Apex_Method__c = 'generatePaymentLinkFromQuote',
                 Object_Name__c = 'SBQQ__Quote__c'
             );
             insert logger;
 
-            flowRes.isSuccess = false;
-            flowRes.message = e.getMessage();
+            result.isSuccess = false;
+            result.message = e.getMessage();
         }
 
-        return flowResults;
+        return results;
     }
 }

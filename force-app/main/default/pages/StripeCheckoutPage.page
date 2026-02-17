@@ -1,0 +1,637 @@
+<apex:page
+    controller="StripeCheckoutController"
+    showHeader="false"
+    sidebar="false"
+    standardStylesheets="false"
+    cache="false"
+    docType="html-5.0"
+>
+    <html>
+        <head>
+            <title>Checkout</title>
+            <script src="https://js.stripe.com/clover/stripe.js"></script>
+            <link rel="icon" type="image/png" href="{!URLFOR($Resource.Displai)}" />
+            <link rel="preconnect" href="https://fonts.googleapis.com" />
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+            <link
+                href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+                rel="stylesheet"
+            />
+            <style>
+                /* ========== GLOBAL ========== */
+                body {
+                    margin: 0;
+                    font-family:
+                        "Inter",
+                        -apple-system,
+                        BlinkMacSystemFont,
+                        sans-serif;
+                    background: #ffffff;
+                    color: #1a1f36;
+                }
+
+                .container1 {
+                    max-width: 280px;
+                    margin: 240px auto;
+                    text-align: center;
+                    font-size: 14px;
+                    color: #303036;
+                }
+                .container1 p {
+                    font-size: 12px;
+                }
+                .container {
+                    max-width: 1040px;
+                    margin: 40px auto;
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 64px;
+                }
+
+                /* ========== LEFT SUMMARY ========== */
+                .contract-card {
+                    background: #f7f9fc;
+                    border: 1px solid #e6ebf1;
+                    border-radius: 12px;
+                    padding: 16px 18px;
+                    margin-bottom: 24px;
+                }
+                .contract-row {
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 13px;
+                    margin-bottom: 8px;
+                }
+                .contract-row:last-child {
+                    margin-bottom: 0;
+                }
+                .contract-label {
+                    color: #697386;
+                    font-weight: 500;
+                }
+                .contract-value {
+                    font-weight: 600;
+                    color: #1a1f36;
+                }
+
+                .summary {
+                    padding-top: 16px;
+                }
+
+                .summary h1 {
+                    font-size: 16px;
+                    font-weight: 600;
+                    margin-bottom: 8px;
+                }
+
+                .price {
+                    font-size: 48px;
+                    font-weight: 800;
+                    margin-bottom: 24px;
+                }
+                .interval {
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: #697386;
+                    margin: 0;
+                }
+
+                .line-item {
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 14px;
+                    margin-bottom: 8px;
+                }
+
+                .muted {
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 12px;
+                    color: #697386;
+                    margin-bottom: 22px;
+                }
+                .product-desc {
+                    font-style: italic;
+                    color: #697386;
+                    font-size: 12px;
+                    margin-top: -6px;
+                    margin-bottom: 8px;
+                }
+
+                /* ========== RIGHT FORM ========== */
+                .readonly {
+                    position: relative;
+                }
+                .readonly label {
+                    position: absolute;
+                    bottom: 50%;
+                    transform: translateY(50%);
+                    padding: 8px 24px;
+                    margin: 0;
+                }
+                .readonly input {
+                    padding-top: 18px;
+                    padding-bottom: 18px;
+                    padding-left: 120px;
+                }
+
+                .checkout {
+                    border-left: 1px solid #e6ebf1;
+                    padding-left: 64px;
+                }
+
+                .section {
+                    margin-bottom: 24px;
+                }
+                .section h2 {
+                    font-size: 14px;
+                    font-weight: 600;
+                    margin-bottom: 12px;
+                }
+
+                #payment,
+                #shipping-address {
+                    display: none;
+                }
+                #payment.show,
+                #shipping-address.show {
+                    display: block;
+                }
+
+                label {
+                    font-size: 12px;
+                    font-weight: 500;
+                    display: block;
+                    margin-bottom: 6px;
+                }
+
+                .input-box,
+                select {
+                    width: 100%;
+                    padding: 10px 12px;
+                    font-size: 14px;
+                    border: 1px solid #d0d5dd;
+                    border-radius: 6px;
+                    box-sizing: border-box;
+                }
+
+                .input-box:focus,
+                select:focus {
+                    outline: none;
+                    border-color: #635bff;
+                }
+
+                .radio-group {
+                    border: 1px solid #d0d5dd;
+                    border-radius: 6px;
+                    overflow: hidden;
+                }
+
+                .tos {
+                    font-size: 12px;
+                    color: #697386;
+                }
+                .tos a {
+                    color: #635bff;
+                    text-decoration: none;
+                }
+                .terms {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+
+                .submit-btn {
+                    position: relative;
+                    width: 100%;
+                    background: #635bff;
+                    color: white;
+                    font-size: 14px;
+                    font-weight: 600;
+                    border: none;
+                    border-radius: 6px;
+                    padding: 18px;
+                    cursor: pointer;
+                    margin-top: 12px;
+                    transition: background 0.3s ease;
+                }
+                .submit-btn:hover {
+                    background: #544cff;
+                }
+                .submit-btn:disabled {
+                    background: #d0d5dd;
+                    cursor: not-allowed;
+                }
+
+                /* Spinner hidden by default */
+                .btn-spinner {
+                    position: absolute;
+                    bottom: 28%;
+                    right: 20px;
+                    width: 18px;
+                    height: 18px;
+                    border: 2px solid rgba(255, 255, 255, 0.4);
+                    border-top: 2px solid #ffffff;
+                    border-radius: 50%;
+                    animation: spin 0.6s linear infinite;
+                    display: none;
+                }
+
+                /* When loading */
+                .submit-btn.loading .btn-spinner {
+                    display: inline-block;
+                }
+
+                /* Smooth spin */
+                @keyframes spin {
+                    from {
+                        transform: rotate(0deg);
+                    }
+                    to {
+                        transform: rotate(360deg);
+                    }
+                }
+
+                .toast {
+                    position: fixed;
+                    top: 30px;
+                    right: 30px;
+                    background: #1a1f36;
+                    color: white;
+                    padding: 14px 20px;
+                    border-radius: 4px;
+                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+                    opacity: 0;
+                    transform: translateX(60px);
+                    pointer-events: none;
+                    transition: all 0.3s ease;
+                    z-index: 9999;
+                    min-width: 260px;
+                    font-size: 14px;
+                }
+                .toast.show {
+                    opacity: 1;
+                    transform: translateY(0);
+                    pointer-events: auto;
+                }
+                .toast.error {
+                    background: #e55353;
+                }
+                .toast.success {
+                    background: #22c55e;
+                }
+
+                .footer {
+                    font-size: 11px;
+                    color: #697386;
+                    text-align: center;
+                    margin-top: 16px;
+                }
+            </style>
+        </head>
+
+        <body>
+            <!-- EXPIRED STATE & COMPLETE STATE -->
+            <apex:outputPanel rendered="{!OR(status == 'complete', status == 'expired')}">
+                <div class="container1">
+                    <h4>You're all done here</h4>
+                    <p>You've either completed your payment or this checkout session has timed out.</p>
+                </div>
+            </apex:outputPanel>
+
+            <!-- OPEN STATE -->
+            <apex:outputPanel rendered="{!status == 'open'}">
+                <div class="container">
+                    <!-- LEFT -->
+                    <div class="summary">
+                        <img
+                            src="{!URLFOR($Resource.DisplaiLogo)}"
+                            alt="Displai Logo"
+                            width="120"
+                            style="margin: -22px 0 -8px 0"
+                        />
+
+                        <h1>{!subscriptionHeadline}</h1>
+
+                        <div class="price">
+                            <span id="price-value"></span>
+                            <apex:outputPanel rendered="{!AND(onetimeItemCount = 0, recurringItemCount > 0)}">
+                                <span class="interval">per {!LOWER(interval)}</span>
+                            </apex:outputPanel>
+                            <apex:outputPanel rendered="{!AND(onetimeItemCount > 0, recurringItemCount > 0)}">
+                                <p class="interval">Then ${!recurringAmount} per {!LOWER(interval)}</p>
+                            </apex:outputPanel>
+                        </div>
+
+                        <div class="contract-card">
+                            <div class="contract-row">
+                                <span class="contract-label">Quote</span>
+                                <span class="contract-value">#{!quoteData.quoteNumber}</span>
+                            </div>
+                            <div class="contract-row">
+                                <span class="contract-label">Term</span>
+                                <span class="contract-value"> {!quoteData.subscriptionTerm} months </span>
+                            </div>
+                            <div class="contract-row">
+                                <span class="contract-label">Starts</span>
+                                <span class="contract-value"> {!TEXT(quoteData.startDate)} </span>
+                            </div>
+                            <div class="contract-row">
+                                <span class="contract-label">Expires</span>
+                                <span class="contract-value"> {!TEXT(quoteData.expiryDate)} </span>
+                            </div>
+                            <div class="contract-row">
+                                <span class="contract-label">Sales Rep</span>
+                                <span class="contract-value"> {!quoteData.salesRepName} </span>
+                            </div>
+                        </div>
+
+                        <apex:repeat value="{!quoteLinesData}" var="ql">
+                            <div class="line-item">
+                                <span style="font-weight: 500">{!ql.productName}</span>
+                                <span>${!IF(ql.chargeType == 'Recurring', ql.mrr, ql.netTotal)}</span>
+                            </div>
+                            <apex:outputPanel rendered="{!NOT(ISBLANK(ql.productDescription))}">
+                                <div class="product-desc">
+                                    <span>{!ql.productDescription}</span>
+                                </div>
+                            </apex:outputPanel>
+                            <div class="muted">
+                                <span
+                                    >Qty {!TEXT(ql.quantity)}
+                                    <apex:outputPanel rendered="{!NOT(ISBLANK(ql.billingFrequencyOverride))}">
+                                        • Billed {!ql.billingFrequencyOverride}
+                                    </apex:outputPanel>
+                                </span>
+                                <apex:outputPanel rendered="{!ql.quantity > 1}">
+                                    <span>${!ql.listPrice} each</span>
+                                </apex:outputPanel>
+                            </div>
+                        </apex:repeat>
+                    </div>
+
+                    <!-- RIGHT -->
+                    <div class="checkout">
+                        <div class="section">
+                            <h2>Shipping information</h2>
+
+                            <div class="readonly">
+                                <label>Email</label>
+                                <input
+                                    id="email"
+                                    class="input-box"
+                                    type="email"
+                                    value="{!quoteData.accountBillToEmail}"
+                                    disabled="true"
+                                />
+                            </div>
+                        </div>
+
+                        <div id="shipping-address" class="section">
+                            <h2>Shipping address</h2>
+                            <div id="shipping-address-element"></div>
+                        </div>
+
+                        <div id="payment" class="section">
+                            <h2>Payment method</h2>
+                            <div id="payment-element"></div>
+                        </div>
+
+                        <div class="section tos">
+                            <div class="terms">
+                                <input type="checkbox" id="terms-checkbox" />
+                                <p>
+                                    I agree to Displai’s
+                                    <a href="https://www.displai.ai/terms-of-service/" target="_blank"
+                                        >Terms of Service</a
+                                    >
+                                    and
+                                    <a href="https://www.displai.ai/privacy-policy/" target="_blank">Privacy Policy</a>
+                                </p>
+                            </div>
+                            <label style="margin-top: 12px">{!$Label.StripeSignatureLabel}</label>
+                            <input
+                                type="text"
+                                id="signature-input"
+                                class="input-box"
+                                placeholder="Type your full name"
+                            />
+                        </div>
+
+                        <button class="submit-btn" onclick="handlePay()">
+                            <span class="btn-text">{!IF(recurringItemCount > 0, 'Subscribe', 'Pay')}</span>
+                            <span class="btn-spinner"></span>
+                        </button>
+
+                        <div class="footer">
+                            {!IF(recurringItemCount > 0, 'By subscribing, you authorize Displai to charge you according
+                            to the terms until you cancel.', 'By confirming your payment, you allow Displai to charge
+                            you for this payment and future payments in accordance with their terms.')}
+                        </div>
+
+                        <div id="toast" class="toast">
+                            <div class="toast-content">
+                                <span id="toast-message"></span>
+                            </div>
+                        </div>
+
+                        <!-- <div class="footer">Powered by Stripe · Legal · Contact</div> -->
+                    </div>
+                </div>
+            </apex:outputPanel>
+
+            <script>
+                const stripe = Stripe("{!publishableKey}");
+                const clientSecret = "{!clientSecret}";
+                const checkoutSessionId = "{!sessionId}";
+
+                let checkout;
+                let actions;
+                let session;
+                let paymentInProgress = false;
+
+                initializeCheckout();
+
+                async function initializeCheckout() {
+                    const appearance = {
+                        theme: "stripe",
+                        inputs: "condensed",
+                        labels: "floating",
+                        variables: {
+                            colorPrimary: "#635bff",
+                            colorText: "#1a1f36",
+                            colorBackground: "#ffffff",
+                            colorDanger: "#e55353",
+                            fontFamily: "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+                            spacingUnit: "4px",
+                            borderRadius: "6px"
+                        },
+                        rules: {
+                            ".Input": {
+                                backgroundColor: "#ffffff",
+                                borderColor: "#d0d5dd",
+                                boxShadow: "0 1px 2px 0 rgba(18, 52, 86, 0.05)",
+                                padding: "10px 12px",
+                                fontSize: "14px"
+                            },
+                            ".Input:focus": {
+                                borderColor: "#635bff",
+                                boxShadow: "0 1px 2px 0 rgba(99, 91, 255, 0.3)"
+                            },
+                            ".Input--error": {
+                                borderColor: "#e55353",
+                                boxShadow: "0 1px 2px 0 rgba(229, 83, 83, 0.3)"
+                            },
+                            ".Label": {
+                                fontSize: "12px",
+                                fontWeight: "500"
+                            },
+                            ".Label--floating": {
+                                fontSize: "12px",
+                                fontWeight: "500"
+                            },
+                            ".Label--resting": {
+                                color: "#697386",
+                                fontSize: "14px"
+                            },
+                            ".Error": {
+                                color: "#e55353",
+                                fontSize: "12px"
+                            }
+                        }
+                    };
+
+                    checkout = stripe.initCheckout({
+                        clientSecret: clientSecret,
+                        elementsOptions: {
+                            appearance,
+                            loader: "always",
+                            fonts: [
+                                {
+                                    cssSrc: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+                                }
+                            ]
+                        }
+                    });
+
+                    checkout.on("change", (session) => {
+                        console.log("Checkout change event:", session);
+                    });
+
+                    const loadActionResult = await checkout.loadActions();
+                    if (loadActionResult.type === "success") {
+                        actions = loadActionResult.actions;
+                        session = loadActionResult.actions.getSession();
+                        document.getElementById("price-value").textContent = session.total.total.amount;
+                        console.log("Checkout actions loaded:", actions);
+                    }
+
+                    const paymentElement = checkout.createPaymentElement({
+                        layout: {
+                            type: "accordion",
+                            defaultCollapsed: true,
+                            radios: true,
+                            spacedAccordionItems: false,
+                            paymentMethodLogoPosition: "start"
+                        }
+                    });
+                    paymentElement.mount("#payment-element");
+                    document.getElementById("payment").classList.add("show");
+
+                    const shippingAddressElement = checkout.createShippingAddressElement({
+                        display: {
+                            name: "full"
+                        }
+                    });
+                    shippingAddressElement.mount("#shipping-address-element");
+                    document.getElementById("shipping-address").classList.add("show");
+                }
+
+                async function handlePay() {
+                    if (paymentInProgress) return;
+                    paymentInProgress = true;
+                    setLoading(true);
+
+                    try {
+                        const termsChecked = document.getElementById("terms-checkbox").checked;
+                        const signatureValue = document.getElementById("signature-input").value.trim();
+
+                        if (!termsChecked) {
+                            throw new Error("You must agree to the Terms before continuing.", "error");
+                            return;
+                        }
+
+                        if (!signatureValue) {
+                            throw new Error("Please provide your digital signature.", "error");
+                            return;
+                        }
+                        postCheckoutUpdate(signatureValue);
+
+                        const result = await actions.confirm({
+                            returnUrl: "{!$Label.SuccessUrlForPayment}"
+                        });
+
+                        if (result.type === "success") {
+                            console.log("Payment successful:", result);
+                            // Optionally, redirect to a thank you page or show a success message
+                        } else {
+                            const errorMessage = result.error
+                                ? result.error.message
+                                : "Payment failed. Please try again.";
+                            showToast(errorMessage, "error");
+                            setLoading(false);
+                            paymentInProgress = false;
+                        }
+                    } catch (error) {
+                        showToast(error.message, "error");
+                        setLoading(false);
+                        paymentInProgress = false;
+                    }
+                }
+
+                function postCheckoutUpdate(signatureValue) {
+                    Visualforce.remoting.Manager.invokeAction(
+                        "{!$RemoteAction.StripeCheckoutController.handleCheckoutCompletion}",
+                        "{!quoteData.id}",
+                        signatureValue,
+                        "{!ipAddress}",
+                        "{!userAgent}",
+                        function (result, event) {
+                            if (event.status) {
+                                console.log("Checkout completion handled successfully.");
+                            } else {
+                                console.error("Error handling checkout completion:", event.message);
+                            }
+                        },
+                        { escape: true }
+                    );
+                }
+
+                // ------------------------------------
+                // UI Helpers
+                // ------------------------------------
+
+                function showToast(message, type = "error") {
+                    const toast = document.getElementById("toast");
+                    const toastMessage = document.getElementById("toast-message");
+
+                    toastMessage.textContent = message;
+
+                    toast.classList.remove("error", "success");
+                    toast.classList.add(type);
+                    toast.classList.add("show");
+
+                    setTimeout(() => {
+                        toast.classList.remove("show");
+                    }, 4000);
+                }
+
+                function setLoading(state) {
+                    const submitButton = document.querySelector(".submit-btn");
+                    submitButton.disabled = state;
+                    submitButton.classList.toggle("loading", state);
+                }
+            </script>
+        </body>
+    </html>
+</apex:page>
