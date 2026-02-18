@@ -23,7 +23,63 @@ public class StripeCheckoutSessionService implements Queueable, Database.AllowsC
                 Map<String, Object> sessionObj = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
                 System.debug('sessionObj: ' + json.serializePretty(sessionObj));
 
-                // 1. Extract Billing Address from customer_details
+                String checkoutSessionId = (String) sessionObj.get('id');
+                String customerId = (String) sessionObj.get('customer');
+
+                // 1. Get Customer & Quote
+                Account account;
+                SBQQ__Quote__c quote;
+
+                List<Account> accounts = [
+                    SELECT
+                        Id,
+                        Stripe_Customer_ID__c,
+                        BillingStreet,
+                        BillingCity,
+                        BillingState,
+                        BillingPostalCode,
+                        BillingCountry,
+                        ShippingStreet,
+                        ShippingCity,
+                        ShippingState,
+                        ShippingPostalCode,
+                        ShippingCountry
+                    FROM Account
+                    WHERE Stripe_Customer_ID__c = :customerId
+                ];
+
+                if (accounts.isEmpty()) {
+                    throw new HandledException('Customer not found for Stripe Customer ID: ' + customerId);
+                } else {
+                    account = accounts[0];
+                }
+
+                List<SBQQ__Quote__c> quotes = [
+                    SELECT
+                        Id,
+                        Stripe_Checkout_Session_ID__c,
+                        Shipping_Street__c,
+                        SBQQ__BillingStreet__c,
+                        SBQQ__BillingCity__c,
+                        SBQQ__BillingState__c,
+                        SBQQ__BillingPostalCode__c,
+                        SBQQ__BillingCountry__c,
+                        SBQQ__ShippingStreet__c,
+                        SBQQ__ShippingCity__c,
+                        SBQQ__ShippingState__c,
+                        SBQQ__ShippingPostalCode__c,
+                        SBQQ__ShippingCountry__c
+                    FROM SBQQ__Quote__c
+                    WHERE Stripe_Checkout_Session_ID__c = :checkoutSessionId
+                ];
+
+                if (quotes.isEmpty()) {
+                    throw new HandledException('Quote not found for Stripe Checkout Session ID: ' + checkoutSessionId);
+                } else {
+                    quote = quotes[0];
+                }
+
+                // 2. Extract Billing Address from customer_details
                 Map<String, Object> billingAddress = new Map<String, Object>();
                 Map<String, Object> customerDetails = (Map<String, Object>) sessionObj.get('customer_details');
 
@@ -39,9 +95,10 @@ public class StripeCheckoutSessionService implements Queueable, Database.AllowsC
                     }
                 }
 
-                // 2. Extract Shipping Address from collected_information
+                // 3. Extract Shipping Address from collected_information
                 Map<String, Object> shippingAddress = new Map<String, Object>();
                 Map<String, Object> collectedInfo = (Map<String, Object>) sessionObj.get('collected_information');
+
                 if (collectedInfo != null) {
                     Map<String, Object> shippingDetails = (Map<String, Object>) collectedInfo.get('shipping_details');
                     if (shippingDetails != null) {
@@ -57,83 +114,41 @@ public class StripeCheckoutSessionService implements Queueable, Database.AllowsC
                     }
                 }
 
-                // 3. Extract Consent Accepted
-                Boolean consentAccepted = false;
-                String termsofservice;
-                Map<String, Object> consent = (Map<String, Object>) sessionObj.get('consent');
-                if (consent != null && consent.get('terms_of_service') == 'accepted') {
-                    termsofservice = (string) consent.get('terms_of_service');
-                    consentAccepted = true;
-                }
-
-                // 4. Extract Signature from custom_fields
-                String signature = null;
-                List<Object> customFields = (List<Object>) sessionObj.get('custom_fields');
-                if (customFields != null) {
-                    for (Object fieldObj : customFields) {
-                        Map<String, Object> field = (Map<String, Object>) fieldObj;
-                        if (field.get('key') == 'signature') {
-                            Map<String, Object> text = (Map<String, Object>) field.get('text');
-                            if (text != null) {
-                                signature = (String) text.get('value');
-                            }
-                            break;
-                        }
-                    }
-                }
                 // Print the extracted values for verification
                 System.debug('Billing Address: ' + billingAddress);
                 System.debug('Shipping Address: ' + shippingAddress);
-                System.debug('Consent Accepted: ' + consentAccepted);
-                System.debug('Signature: ' + signature);
 
-                // 5. Extract Customer ID
-                String customerId = (String) sessionObj.get('customer');
-                System.debug('Customer ID: ' + customerId);
-                List<Account> upsertaccList = new List<Account>();
-                List<Account> accList = [
-                    SELECT
-                        id,
-                        Stripe_Customer_ID__c,
-                        BillingStreet,
-                        BillingCity,
-                        BillingState,
-                        BillingPostalCode,
-                        BillingCountry,
-                        BillingLatitude,
-                        BillingLongitude,
-                        BillingGeocodeAccuracy,
-                        BillingAddress,
-                        ShippingStreet,
-                        ShippingCity,
-                        ShippingState,
-                        ShippingPostalCode,
-                        ShippingCountry,
-                        ShippingLatitude,
-                        ShippingLongitude,
-                        ShippingGeocodeAccuracy,
-                        ShippingAddress
-                    FROM Account
-                    WHERE Stripe_Customer_ID__c = :customerId
-                ];
-                for (Account Acc : accList) {
-                    acc.BillingStreet = (String) billingAddress.get('line1');
-                    acc.BillingCity = (String) billingAddress.get('city');
-                    acc.BillingState = (String) billingAddress.get('state');
-                    acc.BillingPostalCode = (String) billingAddress.get('postalCode');
-                    acc.BillingCountry = (String) billingAddress.get('country');
+                // 4. Update Account record
+                account.BillingStreet = (String) billingAddress.get('line1');
+                account.BillingCity = (String) billingAddress.get('city');
+                account.BillingState = (String) billingAddress.get('state');
+                account.BillingPostalCode = (String) billingAddress.get('postal_code');
+                account.BillingCountry = (String) billingAddress.get('country');
 
-                    acc.ShippingStreet = (String) shippingAddress.get('line1');
-                    acc.ShippingCity = (String) shippingAddress.get('city');
-                    acc.ShippingState = (String) shippingAddress.get('state');
-                    acc.ShippingPostalCode = (String) shippingAddress.get('postalCode');
-                    acc.ShippingCountry = (String) shippingAddress.get('country');
+                account.ShippingStreet = (String) shippingAddress.get('line1');
+                account.ShippingCity = (String) shippingAddress.get('city');
+                account.ShippingState = (String) shippingAddress.get('state');
+                account.ShippingPostalCode = (String) shippingAddress.get('postal_code');
+                account.ShippingCountry = (String) shippingAddress.get('country');
 
-                    acc.Stripe_Consent_Accepted__c = termsofservice;
-                    acc.Stripe_Signature__c = signature;
-                    upsertaccList.Add(acc);
-                }
-                upsert upsertaccList Account.Stripe_Customer_ID__c;
+                // 5. Update Quote record
+                quote.SBQQ__BillingStreet__c = (String) billingAddress.get('line1');
+                quote.SBQQ__BillingCity__c = (String) billingAddress.get('city');
+                quote.SBQQ__BillingState__c = (String) billingAddress.get('state');
+                quote.SBQQ__BillingPostalCode__c = (String) billingAddress.get('postal_code');
+                quote.SBQQ__BillingCountry__c = (String) billingAddress.get('country');
+
+                quote.Shipping_Street__c = (String) shippingAddress.get('line1');
+                quote.SBQQ__ShippingStreet__c = (String) shippingAddress.get('line1');
+                quote.SBQQ__ShippingCity__c = (String) shippingAddress.get('city');
+                quote.SBQQ__ShippingState__c = (String) shippingAddress.get('state');
+                quote.SBQQ__ShippingPostalCode__c = (String) shippingAddress.get('postal_code');
+                quote.SBQQ__ShippingCountry__c = (String) shippingAddress.get('country');
+
+                update account;
+                update quote;
+
+                // update new List<SObject>{ account, quote };
             } else {
                 System.debug('Stripe error: ' + res.getStatus() + ' - ' + res.getBody());
                 throw new CalloutException('Failed to fetch session. Status: ' + res.getStatus());

@@ -429,6 +429,10 @@
                             you for this payment and future payments in accordance with their terms.')}
                         </div>
 
+                        <div class="footer">
+                            Sales tax applicable in the following states: LA, AZ, OH, FL, CO, MO, MI, NY, TN, MA, CA, MD, ID, PA
+                        </div>
+
                         <div id="toast" class="toast">
                             <div class="toast-content">
                                 <span id="toast-message"></span>
@@ -447,7 +451,6 @@
 
                 let checkout;
                 let actions;
-                let session;
                 let paymentInProgress = false;
 
                 initializeCheckout();
@@ -521,7 +524,7 @@
                     const loadActionResult = await checkout.loadActions();
                     if (loadActionResult.type === "success") {
                         actions = loadActionResult.actions;
-                        session = loadActionResult.actions.getSession();
+                        const session = loadActionResult.actions.getSession();
                         document.getElementById("price-value").textContent = session.total.total.amount;
                         console.log("Checkout actions loaded:", actions);
                     }
@@ -557,18 +560,18 @@
                         const signatureValue = document.getElementById("signature-input").value.trim();
 
                         if (!termsChecked) {
-                            throw new Error("You must agree to the Terms before continuing.", "error");
-                            return;
+                            throw new Error("You must agree to the Terms before continuing.");
                         }
 
                         if (!signatureValue) {
-                            throw new Error("Please provide your digital signature.", "error");
-                            return;
+                            throw new Error("Please provide your digital signature.");
                         }
+
                         postCheckoutUpdate(signatureValue);
 
                         const result = await actions.confirm({
                             returnUrl: "{!$Label.SuccessUrlForPayment}"
+                            //redirect: "if_required"
                         });
 
                         if (result.type === "success") {
