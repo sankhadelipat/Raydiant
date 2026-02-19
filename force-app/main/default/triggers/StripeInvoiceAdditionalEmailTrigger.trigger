@@ -8,6 +8,6 @@ trigger StripeInvoiceAdditionalEmailTrigger on Stripe_Invoice__c(after insert) {
     }
 
     if (!invoiceIds.isEmpty()) {
-        Database.executeBatch(new StripeInvoiceAdditionalEmailBatch(invoiceIds), 10);
+        Database.executeBatch(new StripeInvoiceAdditionalEmailBatch(invoiceIds, 'NEW'), 10);
     }
 }

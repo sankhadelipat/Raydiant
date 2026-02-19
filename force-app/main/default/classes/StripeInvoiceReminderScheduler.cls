@@ -33,7 +33,7 @@ public class StripeInvoiceReminderScheduler implements Schedulable {
                 invoiceIds.add(inv.Id);
             }
 
-            Database.executeBatch(new StripeInvoiceAdditionalEmailBatch(invoiceIds), 10);
+            Database.executeBatch(new StripeInvoiceAdditionalEmailBatch(invoiceIds, 'REMINDER'), 10);
         }
     }
 

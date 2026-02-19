@@ -1,12 +1,15 @@
 public class StripeInvoiceAdditionalEmailBatch implements Database.Batchable<SObject>, Database.Stateful, Database.AllowsCallouts {
     private Set<Id> invoiceIds;
+    private String purpose; // NEW, REMINDER
+
     private Integer processed = 0;
     private Integer success = 0;
     private Integer error = 0;
     private List<String> errorMessages = new List<String>();
 
-    public StripeInvoiceAdditionalEmailBatch(Set<Id> invoiceIds) {
+    public StripeInvoiceAdditionalEmailBatch(Set<Id> invoiceIds, String purpose) {
         this.invoiceIds = invoiceIds;
+        this.purpose = purpose;
     }
 
     public Database.QueryLocator start(Database.BatchableContext bc) {
@@ -29,12 +32,23 @@ public class StripeInvoiceAdditionalEmailBatch implements Database.Batchable<SOb
         ];
 
         // Get email template
-        EmailTemplate template = [
-            SELECT Id
-            FROM EmailTemplate
-            WHERE DeveloperName = 'Stripe_Invoice_Email'
-            LIMIT 1
-        ];
+        EmailTemplate template;
+
+        if (purpose == 'NEW') {
+            template = [
+                SELECT Id
+                FROM EmailTemplate
+                WHERE DeveloperName = 'Stripe_Invoice_Email'
+                LIMIT 1
+            ];
+        } else if (purpose == 'REMINDER') {
+            template = [
+                SELECT Id
+                FROM EmailTemplate
+                WHERE DeveloperName = 'Stripe_Invoice_Email_Reminder'
+                LIMIT 1
+            ];
+        }
 
         List<Messaging.SingleEmailMessage> emailsToSend = new List<Messaging.SingleEmailMessage>();
 
