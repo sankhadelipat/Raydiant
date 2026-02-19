@@ -36,7 +36,8 @@ public class StripeInvoicePreview implements Queueable, Database.AllowsCallouts 
                 Map<String, Object> preview = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
                 handlePreviewResponse(preview);
             } else if (res.getstatusCode() == 404) {
-                System.debug('No upcoming invoice preview for Stripe ID: ' + stripeId);
+                System.debug('No upcoming invoice preview. Clearing next billing values for Stripe ID: ' + stripeId);
+                handlePreviewResponse();
             } else {
                 System.debug('Failed to create invoice preview: ' + res.getBody());
                 throw new CalloutException('Stripe API error: ' + res.getBody());
@@ -53,6 +54,37 @@ public class StripeInvoicePreview implements Queueable, Database.AllowsCallouts 
                 Object_Name__c = 'Contract'
             );
             insert logger;
+        }
+    }
+
+    private void handlePreviewResponse() {
+        List<Contract> contracts;
+
+        if (previewType == StripeInvoicePreview.PreviewType.SUBSCRIPTION) {
+            contracts = [
+                SELECT Id, Next_Billing_Date__c, Next_Billing_Amount__c
+                FROM Contract
+                WHERE Stripe_Subscription_ID__c = :stripeId
+                LIMIT 1
+            ];
+        } else if (previewType == StripeInvoicePreview.PreviewType.SUBSCRIPTION_SCHEDULE) {
+            contracts = [
+                SELECT Id, Next_Billing_Date__c, Next_Billing_Amount__c
+                FROM Contract
+                WHERE Stripe_Subscription_Schedule_ID__c = :stripeId
+                LIMIT 1
+            ];
+        }
+
+        if (!contracts.isEmpty()) {
+            Contract contractToUpdate = contracts[0];
+            contractToUpdate.Next_Billing_Amount__c = null;
+            contractToUpdate.Next_Billing_Date__c = null;
+            update contractToUpdate;
+
+            System.debug('Cleared next billing values for Contract ' + contractToUpdate.Id);
+        } else {
+            System.debug('No Contract found for Stripe ID: ' + stripeId + ' | Type=' + previewType);
         }
     }
 
