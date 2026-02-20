@@ -180,25 +180,10 @@ public class StripeCheckoutService {
             bodyParts.add('ui_mode=custom');
             bodyParts.add('customer=' + quote.SBQQ__Account__r.Stripe_Customer_ID__c);
             bodyParts.add('payment_method_configuration=' + paymentMethodConfig);
-            // bodyParts.add('success_url=' + sucessUrl);
-            // bodyParts.add('billing_address_collection=required');
-            // bodyParts.add('consent_collection[terms_of_service]=required');
-            bodyParts.add('shipping_address_collection[allowed_countries][]=US');
-            bodyParts.add('shipping_address_collection[allowed_countries][]=CA');
-            //bodyParts.add('shipping_address_collection[allowed_countries][]=UK'); ask client
-            bodyParts.add('shipping_address_collection[allowed_countries][]=AU');
-            bodyParts.add('shipping_address_collection[allowed_countries][]=GB');
+            
             // metadata
             bodyParts.add('metadata[salesforce_quote_id]=' + EncodingUtil.urlEncode(quote.Id, 'UTF-8'));
             bodyParts.add('metadata[salesforce_initial_payment]=true');
-            // custom fields
-            // bodyParts.add('custom_fields[0][key]=signature');
-            // bodyParts.add('custom_fields[0][label][type]=custom');
-            // bodyParts.add('custom_fields[0][label][custom]=' + EncodingUtil.urlEncode(signatureLabel, 'UTF-8'));
-            // bodyParts.add('custom_fields[0][type]=text');
-            // bodyParts.add('custom_fields[0][optional]=false');
-            // bodyParts.add('custom_fields[0][text][maximum_length]=255');
-            // bodyParts.add('custom_fields[0][text][minimum_length]=1');
 
             if (checkoutMode == 'subscription') {
                 bodyParts.add(
@@ -214,9 +199,6 @@ public class StripeCheckoutService {
                 );
                 bodyParts.add('payment_intent_data[setup_future_usage]=off_session');
             }
-            //bodyParts.add('invoice_creation[enabled]=true');
-            // bodyParts.add('invoice_creation[invoice_data][metadata][salesforce_quote_id]=' + EncodingUtil.urlEncode(quote.Id, 'UTF-8'));
-            // bodyParts.add('invoice_creation[invoice_data][metadata][subscription_source]=salesforce');
 
             Integer index = 0;
             for (SBQQ__QuoteLine__c item : quoteLineItems) {

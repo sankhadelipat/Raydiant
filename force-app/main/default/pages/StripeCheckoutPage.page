@@ -337,8 +337,8 @@
                                 <span class="contract-value"> {!TEXT(quoteData.startDate)} </span>
                             </div>
                             <div class="contract-row">
-                                <span class="contract-label">Expires</span>
-                                <span class="contract-value"> {!TEXT(quoteData.expiryDate)} </span>
+                                <span class="contract-label">Ends</span>
+                                <span class="contract-value"> {!TEXT(quoteData.endDate)} </span>
                             </div>
                             <div class="contract-row">
                                 <span class="contract-label">Sales Rep</span>
