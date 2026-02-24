@@ -13,8 +13,8 @@ public class StripeInvoicePreviewBatch implements Database.Batchable<SObject>, D
                 SELECT Id, Stripe_Subscription_ID__c, Stripe_Subscription_Schedule_ID__c
                 FROM Contract
                 WHERE
-                    (Next_Billing_Date__c = NULL
-                    OR Next_Billing_Amount__c = NULL)
+                    (Next_Billing_Date__c != NULL
+                    OR Next_Billing_Amount__c != NULL)
                     AND (Stripe_Subscription_ID__c != NULL
                     OR Stripe_Subscription_Schedule_ID__c != NULL)
             ]
@@ -36,6 +36,7 @@ public class StripeInvoicePreviewBatch implements Database.Batchable<SObject>, D
                 req.setMethod('POST');
                 req.setHeader('Authorization', 'Basic ' + EncodingUtil.base64Encode(Blob.valueOf(SECRET_KEY + ':')));
                 req.setHeader('Content-Type', 'application/x-www-form-urlencoded');
+
                 if (subscriptionId != null) {
                     req.setBody('subscription=' + EncodingUtil.urlEncode(subscriptionId, 'UTF-8'));
                 } else if (subscriptionScheduleId != null) {
@@ -57,7 +58,9 @@ public class StripeInvoicePreviewBatch implements Database.Batchable<SObject>, D
                     contractsToUpdate.add(contract);
                     successCount++;
                 } else if (res.getstatusCode() == 404) {
-                    System.debug('No upcoming invoices for subscription: ' + subscriptionId + subscriptionScheduleId);
+                    contract.Next_Billing_Amount__c = null;
+                    contract.Next_Billing_Date__c = null;
+                    contractsToUpdate.add(contract);
                     successCount++;
                 } else {
                     System.debug(
