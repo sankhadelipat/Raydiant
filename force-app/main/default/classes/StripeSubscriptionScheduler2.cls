@@ -74,6 +74,11 @@ public class StripeSubscriptionScheduler2 {
                     startDate.addMonths(3).month(),
                     startDate.addMonths(3).day()
                 );
+                Date dateOfNextSemiAnnual = Date.newInstance(
+                    startDate.addMonths(6).year(),
+                    startDate.addMonths(6).month(),
+                    startDate.addMonths(6).day()
+                );
                 Date dateOfNextYear = Date.newInstance(
                     startDate.addYears(1).year(),
                     startDate.addYears(1).month(),
@@ -108,6 +113,15 @@ public class StripeSubscriptionScheduler2 {
                             dateOfNextQuarter.year(),
                             dateOfNextQuarter.month(),
                             dateOfNextQuarter.day(),
+                            0,
+                            0,
+                            0
+                        );
+                    } else if (freq == 'Semiannual') {
+                        billingAnchor = Datetime.newInstance(
+                            dateOfNextSemiAnnual.year(),
+                            dateOfNextSemiAnnual.month(),
+                            dateOfNextSemiAnnual.day(),
                             0,
                             0,
                             0
@@ -280,6 +294,7 @@ public class StripeSubscriptionScheduler2 {
             Map<String, List<Object>> freqMap = new Map<String, List<Object>>{
                 'Monthly' => new List<Object>{ 'month', 1 },
                 'Quarterly' => new List<Object>{ 'month', 3 },
+                'Semiannual' => new List<Object>{ 'month', 6 },
                 'Annual' => new List<Object>{ 'year', 1 },
                 '2-Year' => new List<Object>{ 'year', 2 },
                 '3-Year' => new List<Object>{ 'year', 3 }
@@ -416,6 +431,11 @@ public class StripeSubscriptionScheduler2 {
                 startDate.addMonths(3).month(),
                 startDate.addMonths(3).day()
             );
+            Date dateOfNextSemiAnnual = Date.newInstance(
+                startDate.addMonths(6).year(),
+                startDate.addMonths(6).month(),
+                startDate.addMonths(6).day()
+            );
             Date dateOfNextYear = Date.newInstance(
                 startDate.addYears(1).year(),
                 startDate.addYears(1).month(),
@@ -450,6 +470,15 @@ public class StripeSubscriptionScheduler2 {
                         dateOfNextQuarter.year(),
                         dateOfNextQuarter.month(),
                         dateOfNextQuarter.day(),
+                        0,
+                        0,
+                        0
+                    );
+                } else if (freq == 'Semiannual') {
+                    billingAnchor = Datetime.newInstance(
+                        dateOfNextSemiAnnual.year(),
+                        dateOfNextSemiAnnual.month(),
+                        dateOfNextSemiAnnual.day(),
                         0,
                         0,
                         0

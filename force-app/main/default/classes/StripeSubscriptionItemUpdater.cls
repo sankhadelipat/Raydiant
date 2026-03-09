@@ -219,32 +219,38 @@ public class StripeSubscriptionItemUpdater {
     }
 
     // Helper method to create Stripe price
-    private static String createStripePrice(id subid, String productId, Decimal amount) {
-        SBQQ__Subscription__c subs = [
+    private static String createStripePrice(Id subid, String productId, Decimal amount) {
+        SBQQ__Subscription__c sub = [
             SELECT
                 id,
                 Stripe_Subscription_Term__c,
                 Billing_Frequency_Override__c,
-                SBQQ__Contract__r.SBQQ__Quote__r.Billing_Frequency_Override__c
+                SBQQ__Contract__r.Billing_Frequency_Override__c
             FROM SBQQ__Subscription__c
             WHERE id = :subid
         ];
 
-        string interval;
-        INTEGER intervalCount;
-        if (subs.SBQQ__Contract__r.SBQQ__Quote__r.Billing_Frequency_Override__c != null) {
-            SYSTEM.debug(
-                'subs.SBQQ__Contract__r.SBQQ__Quote__r.Billing_Frequency_Override__c' +
-                subs.SBQQ__Contract__r.SBQQ__Quote__r.Billing_Frequency_Override__c
+        String interval;
+        Integer intervalCount;
+
+        if (sub.SBQQ__Contract__r.Billing_Frequency_Override__c != null || sub.Billing_Frequency_Override__c != null) {
+            System.debug(
+                'Billing Frequency Override: ' + sub.SBQQ__Contract__r.Billing_Frequency_Override__c
             );
-            String freq = subs.SBQQ__Contract__r.SBQQ__Quote__r.Billing_Frequency_Override__c; //subs.Billing_Frequency_Override__c.toLowerCase();
-            if (freq == 'monthly') {
+
+            String freq = sub.SBQQ__Contract__r.Billing_Frequency_Override__c ?? sub.Billing_Frequency_Override__c;
+            System.debug('Billing Frequency Override: ' + freq);
+
+            if (freq == 'Monthly') {
                 interval = 'month';
                 intervalCount = 1;
-            } else if (freq == 'quarterly') {
+            } else if (freq == 'Quarterly') {
                 interval = 'month';
                 intervalCount = 3;
-            } else if (freq == 'yearly') {
+            } else if (freq == 'Semiannual') {
+                interval = 'month';
+                intervalCount = 6;
+            } else if (freq == 'Annual') {
                 interval = 'year';
                 intervalCount = 1;
             } else {
@@ -253,6 +259,7 @@ public class StripeSubscriptionItemUpdater {
                 intervalCount = 1;
             }
         }
+        System.debug('Interval: ' + interval + ' Interval Count: ' + intervalCount);
 
         Http http = new Http();
         HttpRequest req = new HttpRequest();

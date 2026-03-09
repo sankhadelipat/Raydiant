@@ -222,7 +222,10 @@ public without sharing class StripeCheckoutController {
                 interval = 'month';
             }
             when 'Quarterly' {
-                interval = 'quarter';
+                interval = 'three month';
+            }
+            when 'Semiannual' {
+                interval = 'six month';
             }
             when 'Annual' {
                 interval = 'year';

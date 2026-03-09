@@ -51,6 +51,7 @@ public class StripeSubscriptionScheduler {
             Map<String, List<Object>> freqMap = new Map<String, List<Object>>{
                 'Monthly' => new List<Object>{ 'month', 1 },
                 'Quarterly' => new List<Object>{ 'month', 3 },
+                'Semiannual' => new List<Object>{ 'month', 6 },
                 'Annual' => new List<Object>{ 'year', 1 },
                 '2-Year' => new List<Object>{ 'year', 2 },
                 '3-Year' => new List<Object>{ 'year', 3 }
@@ -168,6 +169,11 @@ public class StripeSubscriptionScheduler {
                 startDate.addMonths(3).month(),
                 startDate.addMonths(3).day()
             );
+            Date dateOfNextSemiAnnual = Date.newInstance(
+                startDate.addMonths(6).year(),
+                startDate.addMonths(6).month(),
+                startDate.addMonths(6).day()
+            );
             Date dateOfNextYear = Date.newInstance(
                 startDate.addYears(1).year(),
                 startDate.addYears(1).month(),
@@ -202,6 +208,15 @@ public class StripeSubscriptionScheduler {
                         dateOfNextQuarter.year(),
                         dateOfNextQuarter.month(),
                         dateOfNextQuarter.day(),
+                        0,
+                        0,
+                        0
+                    );
+                } else if (freq == 'Semiannual') {
+                    billingAnchor = Datetime.newInstance(
+                        dateOfNextSemiAnnual.year(),
+                        dateOfNextSemiAnnual.month(),
+                        dateOfNextSemiAnnual.day(),
                         0,
                         0,
                         0
@@ -375,6 +390,7 @@ public class StripeSubscriptionScheduler {
                     Bill_To_Contact__c,
                     SBQQ__SubscriptionTerm__c,
                     SBQQ__Account__r.blng__BillToContact__c,
+                    Billing_Frequency_Override__c,
                     SBQQ__Opportunity2__c
                 FROM SBQQ__Quote__c
                 WHERE Id = :quoteId
@@ -490,6 +506,7 @@ public class StripeSubscriptionScheduler {
                 ContractTerm = calculateContractTerm(startDate, cancelAt),
                 Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
                 CustomerSignedId = quoteList[0].SBQQ__Account__r.blng__BillToContact__c,
+                Billing_Frequency_Override__c = quoteList[0].Billing_Frequency_Override__c,
                 Created_From_Stripe__c = subscriptionSource != 'salesforce' ? true : false,
                 Latest_Change_Reason__c = latestChangeReason,
                 Stripe_Subscription_Schedule_ID__c = scheduleId,
@@ -706,6 +723,28 @@ public class StripeSubscriptionScheduler {
             System.debug('Current Period End: ' + currentPeriodEnd);
             System.debug('Start Date: ' + startDate);
 
+            String contractBillingFrequency;
+
+            if (!subscriptionItems.isEmpty()) {
+                Map<String, Object> firstItem = (Map<String, Object>) subscriptionItems[0];
+                Map<String, Object> price = (Map<String, Object>) firstItem.get('price');
+                Map<String, Object> recurring = (Map<String, Object>) price.get('recurring');
+
+                String interval = recurring != null && recurring.containsKey('interval')
+                    ? (String) recurring.get('interval')
+                    : null;
+
+                Integer intervalCount = recurring != null && recurring.containsKey('interval_count')
+                    ? (Integer) recurring.get('interval_count')
+                    : 1;
+
+                contractBillingFrequency = getBillingFrequency(interval, intervalCount);
+            }
+
+            // if (contractBillingFrequency == null) {
+            //     throw new AuraHandledException('Unable to determine billing frequency from Stripe price.');
+            // }
+
             String latestChangeReason;
 
             if (subscriptionSource == 'salesforce') {
@@ -751,6 +790,7 @@ public class StripeSubscriptionScheduler {
                 // SBQQ__Evergreen__c = calculateContractTerm(startDate, cancelAt) > 0 ? false : true,
                 Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
                 CustomerSignedId = accts.size() > 0 ? accts[0].blng__BillToContact__c : null,
+                Billing_Frequency_Override__c = contractBillingFrequency,
                 Created_From_Stripe__c = subscriptionSource != 'salesforce' ? true : false,
                 Latest_Change_Reason__c = latestChangeReason,
                 Stripe_Subscription_Schedule_ID__c = scheduleId,
@@ -1482,6 +1522,8 @@ public class StripeSubscriptionScheduler {
                 return 'Monthly';
             } else if (intervalCount == 3) {
                 return 'Quarterly';
+            } else if (intervalCount == 6) {
+                return 'Semiannual';
             }
         } else if (interval == 'year') {
             if (intervalCount == 1) {

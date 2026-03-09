@@ -62,6 +62,7 @@ public class StripeInvoiceCallout implements Queueable, Database.AllowsCallouts 
                 Map<String, List<Object>> freqMap = new Map<String, List<Object>>{
                     'Monthly' => new List<Object>{ 'month', 1 },
                     'Quarterly' => new List<Object>{ 'month', 3 },
+                    'Semiannual' => new List<Object>{ 'month', 6 },
                     'Annual' => new List<Object>{ 'year', 1 },
                     '2-Year' => new List<Object>{ 'year', 2 },
                     '3-Year' => new List<Object>{ 'year', 3 }

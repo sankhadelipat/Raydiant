@@ -343,6 +343,8 @@ public class StripeSubscriptionItemMigration implements Database.Batchable<SObje
                 return 'Monthly';
             } else if (intervalCount == 3) {
                 return 'Quarterly';
+            } else if (intervalCount == 6) {
+                return 'Semiannual';
             }
         } else if (interval == 'year') {
             if (intervalCount == 1) {
