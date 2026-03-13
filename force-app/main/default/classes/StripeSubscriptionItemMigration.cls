@@ -30,7 +30,7 @@ public class StripeSubscriptionItemMigration implements Database.Batchable<SObje
     }
 
     public void execute(Database.BatchableContext bc, List<Contract> scope) {
-        List<SBQQ__Subscription__c> subscriptionsToUpsert = new List<SBQQ__Subscription__c>();
+        // List<SBQQ__Subscription__c> subscriptionsToUpsert = new List<SBQQ__Subscription__c>();
         List<Contract> contractsToUpdate = new List<Contract>();
 
         for (Contract contract : scope) {
@@ -56,13 +56,13 @@ public class StripeSubscriptionItemMigration implements Database.Batchable<SObje
                         contractsToUpdate.add(updatedContract);
                     }
 
-                    // Process subscription items
-                    List<SBQQ__Subscription__c> subscriptionItems = processSubscriptionItems(
-                        subscriptionData,
-                        contract.Id,
-                        contract.AccountId
-                    );
-                    subscriptionsToUpsert.addAll(subscriptionItems);
+                    // // Process subscription items
+                    // List<SBQQ__Subscription__c> subscriptionItems = processSubscriptionItems(
+                    //     subscriptionData,
+                    //     contract.Id,
+                    //     contract.AccountId
+                    // );
+                    // subscriptionsToUpsert.addAll(subscriptionItems);
 
                     successCount++;
                 } else {
@@ -88,9 +88,9 @@ public class StripeSubscriptionItemMigration implements Database.Batchable<SObje
             update contractsToUpdate;
         }
 
-        if (!subscriptionsToUpsert.isEmpty()) {
-            upsert subscriptionsToUpsert Stripe_Subscription_ID__c;
-        }
+        // if (!subscriptionsToUpsert.isEmpty()) {
+        //     upsert subscriptionsToUpsert Stripe_Subscription_ID__c;
+        // }
     }
 
     public void finish(Database.BatchableContext bc) {
@@ -146,7 +146,10 @@ public class StripeSubscriptionItemMigration implements Database.Batchable<SObje
 
             Date billingCycleAnchor = date.valueof(toDateTime(billingCycleAnchorUnix));
             Date startDate = date.valueof(toDateTime(startDateUnix));
-            Date cancelAt = date.valueof(toDateTime(cancelAtUnix));
+            Datetime cancelAtDateTime = toDateTime(cancelAtUnix);
+            Date cancelAt = cancelAtDateTime != null
+                ? date.valueof(cancelAtDateTime.format('yyyy-MM-dd', 'America/Los_Angeles'))
+                : null;
             Datetime currentPeriodStart = toDateTime(currentPeriodStartUnix);
             Datetime currentPeriodEnd = toDateTime(currentPeriodEndUnix);
 
@@ -156,9 +159,9 @@ public class StripeSubscriptionItemMigration implements Database.Batchable<SObje
                 Stripe_Customer_ID__c = customerId,
                 Stripe_latest_Invoice_Id__c = invoiceId,
                 // Stripe_Status__c = status,
-                Stripe_Subscription_URL__c = 'https://dashboard.stripe.com/subscriptions/' + subId
-                // StartDate = startDate,
-                // EndDate = cancelAt,
+                Stripe_Subscription_URL__c = 'https://dashboard.stripe.com/subscriptions/' + subId,
+                StartDate = startDate,
+                EndDate = cancelAt
                 // ContractTerm = (startDate != null && cancelAt != null) ? startDate.monthsBetween(cancelAt) : null,
                 // Stripe_Billing_Date__c = billingCycleAnchor,
                 // Stripe_Subscription_Start_Date__c = String.valueOf(startDateUnix),
@@ -186,177 +189,177 @@ public class StripeSubscriptionItemMigration implements Database.Batchable<SObje
         }
     }
 
-    private List<SBQQ__Subscription__c> processSubscriptionItems(
-        Map<String, Object> subscriptionData,
-        Id contractId,
-        Id accountId
-    ) {
-        List<SBQQ__Subscription__c> subscriptionItems = new List<SBQQ__Subscription__c>();
+    // private List<SBQQ__Subscription__c> processSubscriptionItems(
+    //     Map<String, Object> subscriptionData,
+    //     Id contractId,
+    //     Id accountId
+    // ) {
+    //     List<SBQQ__Subscription__c> subscriptionItems = new List<SBQQ__Subscription__c>();
 
-        try {
-            Map<String, Object> items = (Map<String, Object>) subscriptionData.get('items');
-            if (items != null && items.containsKey('data')) {
-                List<Object> itemsData = (List<Object>) items.get('data');
+    //     try {
+    //         Map<String, Object> items = (Map<String, Object>) subscriptionData.get('items');
+    //         if (items != null && items.containsKey('data')) {
+    //             List<Object> itemsData = (List<Object>) items.get('data');
 
-                // Collect product IDs for query
-                Set<String> productIds = new Set<String>();
-                for (Object itemObj : itemsData) {
-                    Map<String, Object> item = (Map<String, Object>) itemObj;
-                    Map<String, Object> price = (Map<String, Object>) item.get('price');
-                    if (price != null && price.containsKey('product')) {
-                        productIds.add((String) price.get('product'));
-                    }
-                }
+    //             // Collect product IDs for query
+    //             Set<String> productIds = new Set<String>();
+    //             for (Object itemObj : itemsData) {
+    //                 Map<String, Object> item = (Map<String, Object>) itemObj;
+    //                 Map<String, Object> price = (Map<String, Object>) item.get('price');
+    //                 if (price != null && price.containsKey('product')) {
+    //                     productIds.add((String) price.get('product'));
+    //                 }
+    //             }
 
-                // Query products
-                Map<String, Product2> productMap = new Map<String, Product2>();
-                if (!productIds.isEmpty()) {
-                    for (Product2 prod : [
-                        SELECT Id, Stripe_Product_ID__c
-                        FROM Product2
-                        WHERE Stripe_Product_ID__c IN :productIds
-                    ]) {
-                        productMap.put(prod.Stripe_Product_ID__c, prod);
-                    }
-                }
+    //             // Query products
+    //             Map<String, Product2> productMap = new Map<String, Product2>();
+    //             if (!productIds.isEmpty()) {
+    //                 for (Product2 prod : [
+    //                     SELECT Id, Stripe_Product_ID__c
+    //                     FROM Product2
+    //                     WHERE Stripe_Product_ID__c IN :productIds
+    //                 ]) {
+    //                     productMap.put(prod.Stripe_Product_ID__c, prod);
+    //                 }
+    //             }
 
-                // Process each subscription item
-                for (Object itemObj : itemsData) {
-                    Map<String, Object> item = (Map<String, Object>) itemObj;
-                    Map<String, Object> price = (Map<String, Object>) item.get('price');
+    //             // Process each subscription item
+    //             for (Object itemObj : itemsData) {
+    //                 Map<String, Object> item = (Map<String, Object>) itemObj;
+    //                 Map<String, Object> price = (Map<String, Object>) item.get('price');
 
-                    if (price != null) {
-                        SBQQ__Subscription__c subscription = createSubscriptionFromStripeItem(
-                            item,
-                            price,
-                            contractId,
-                            accountId,
-                            productMap,
-                            subscriptionData
-                        );
+    //                 if (price != null) {
+    //                     SBQQ__Subscription__c subscription = createSubscriptionFromStripeItem(
+    //                         item,
+    //                         price,
+    //                         contractId,
+    //                         accountId,
+    //                         productMap,
+    //                         subscriptionData
+    //                     );
 
-                        if (subscription != null) {
-                            subscriptionItems.add(subscription);
-                        }
-                    }
-                }
-            }
-        } catch (Exception ex) {
-            errorMessages.add(
-                'Error processing subscription items for contract ' + contractId + ': ' + ex.getMessage()
-            );
-        }
+    //                     if (subscription != null) {
+    //                         subscriptionItems.add(subscription);
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     } catch (Exception ex) {
+    //         errorMessages.add(
+    //             'Error processing subscription items for contract ' + contractId + ': ' + ex.getMessage()
+    //         );
+    //     }
 
-        return subscriptionItems;
-    }
+    //     return subscriptionItems;
+    // }
 
-    private SBQQ__Subscription__c createSubscriptionFromStripeItem(
-        Map<String, Object> item,
-        Map<String, Object> price,
-        Id contractId,
-        Id accountId,
-        Map<String, Product2> productMap,
-        Map<String, Object> subscriptionData
-    ) {
-        try {
-            String subId = (String) subscriptionData.get('id');
-            String stripeSubscriptionItemId = (String) item.get('id');
-            String priceId = (String) price.get('id');
-            String productId = (String) price.get('product');
+    // private SBQQ__Subscription__c createSubscriptionFromStripeItem(
+    //     Map<String, Object> item,
+    //     Map<String, Object> price,
+    //     Id contractId,
+    //     Id accountId,
+    //     Map<String, Product2> productMap,
+    //     Map<String, Object> subscriptionData
+    // ) {
+    //     try {
+    //         String subId = (String) subscriptionData.get('id');
+    //         String stripeSubscriptionItemId = (String) item.get('id');
+    //         String priceId = (String) price.get('id');
+    //         String productId = (String) price.get('product');
 
-            Map<String, Object> recurring = (Map<String, Object>) price.get('recurring');
-            String interval = recurring != null ? (String) recurring.get('interval') : null;
-            Integer intervalCount = recurring != null ? (Integer) recurring.get('interval_count') : 1;
+    //         Map<String, Object> recurring = (Map<String, Object>) price.get('recurring');
+    //         String interval = recurring != null ? (String) recurring.get('interval') : null;
+    //         Integer intervalCount = recurring != null ? (Integer) recurring.get('interval_count') : 1;
 
-            Long billingCycleAnchorUnix = subscriptionData.containsKey('billing_cycle_anchor')
-                ? (Long) subscriptionData.get('billing_cycle_anchor')
-                : null;
-            Long startDateUnix = subscriptionData.containsKey('start_date')
-                ? (Long) subscriptionData.get('start_date')
-                : null;
-            Long cancelAtUnix = subscriptionData.containsKey('cancel_at')
-                ? (Long) subscriptionData.get('cancel_at')
-                : null;
-            Long currentPeriodStartUnix = subscriptionData.containsKey('current_period_start')
-                ? (Long) subscriptionData.get('current_period_start')
-                : null;
-            Long currentPeriodEndUnix = subscriptionData.containsKey('current_period_end')
-                ? (Long) subscriptionData.get('current_period_end')
-                : null;
+    //         Long billingCycleAnchorUnix = subscriptionData.containsKey('billing_cycle_anchor')
+    //             ? (Long) subscriptionData.get('billing_cycle_anchor')
+    //             : null;
+    //         Long startDateUnix = subscriptionData.containsKey('start_date')
+    //             ? (Long) subscriptionData.get('start_date')
+    //             : null;
+    //         Long cancelAtUnix = subscriptionData.containsKey('cancel_at')
+    //             ? (Long) subscriptionData.get('cancel_at')
+    //             : null;
+    //         Long currentPeriodStartUnix = subscriptionData.containsKey('current_period_start')
+    //             ? (Long) subscriptionData.get('current_period_start')
+    //             : null;
+    //         Long currentPeriodEndUnix = subscriptionData.containsKey('current_period_end')
+    //             ? (Long) subscriptionData.get('current_period_end')
+    //             : null;
 
-            Date billingCycleAnchor = date.valueof(toDateTime(billingCycleAnchorUnix));
-            Date startDate = date.valueof(toDateTime(startDateUnix));
-            Date cancelAt = date.valueof(toDateTime(cancelAtUnix));
-            Datetime currentPeriodStart = toDateTime(currentPeriodStartUnix);
-            Datetime currentPeriodEnd = toDateTime(currentPeriodEndUnix);
+    //         Date billingCycleAnchor = date.valueof(toDateTime(billingCycleAnchorUnix));
+    //         Date startDate = date.valueof(toDateTime(startDateUnix));
+    //         Date cancelAt = date.valueof(toDateTime(cancelAtUnix));
+    //         Datetime currentPeriodStart = toDateTime(currentPeriodStartUnix);
+    //         Datetime currentPeriodEnd = toDateTime(currentPeriodEndUnix);
 
-            Integer quantity = (Integer) item.get('quantity');
-            Decimal unitAmount = ((Decimal) price.get('unit_amount')) / 100;
-            Decimal monthlyAmount = calculateMonthlyAmount(unitAmount, interval, intervalCount);
-            Decimal stripeMRR = monthlyAmount * quantity;
-            Decimal stripeARR = stripeMRR * 12;
-            Integer contractTerm = (startDate != null && cancelAt != null) ? startDate.monthsBetween(cancelAt) : null;
-            Decimal customerPrice = contractTerm > 0 ? (stripeMRR * contractTerm) : null;
+    //         Integer quantity = (Integer) item.get('quantity');
+    //         Decimal unitAmount = ((Decimal) price.get('unit_amount')) / 100;
+    //         Decimal monthlyAmount = calculateMonthlyAmount(unitAmount, interval, intervalCount);
+    //         Decimal stripeMRR = monthlyAmount * quantity;
+    //         Decimal stripeARR = stripeMRR * 12;
+    //         Integer contractTerm = (startDate != null && cancelAt != null) ? startDate.monthsBetween(cancelAt) : null;
+    //         Decimal customerPrice = contractTerm > 0 ? (stripeMRR * contractTerm) : null;
 
-            Product2 matchingProduct = productMap.get(productId);
+    //         Product2 matchingProduct = productMap.get(productId);
 
-            SBQQ__Subscription__c subscription = new SBQQ__Subscription__c(
-                // Stripe_Subscription_ID_Actual__c = subId,
-                Stripe_Subscription_ID__c = stripeSubscriptionItemId,
-                // SBQQ__Contract__c = contractId,
-                // SBQQ__Account__c = accountId,
-                // Stripe_Price_ID__c = priceId,
-                // Stripe_Product_ID__c = productId,
-                // SBQQ__Product__c = matchingProduct != null ? matchingProduct.Id : null,
-                SBQQ__Quantity__c = quantity,
-                SBQQ__NetPrice__c = monthlyAmount,
-                SBQQ__ListPrice__c = unitAmount,
-                SBQQ__CustomerPrice__c = customerPrice,
-                Stripe_Monthly_Value__c = stripeMRR,
-                Stripe_ARR__c = stripeARR
-                // Latest_Change_Reason__c = 'Subscription Migration Done From Stripe',
-                // Stripe_Start_Date__c = toDateTime((Long) item.get('current_period_start')).date(),
-                // Stripe_End_Date__c = toDateTime((Long) item.get('current_period_end')).date(),
-                // SBQQ__SubscriptionStartDate__c = startDate,
-                // SBQQ__SubscriptionEndDate__c = cancelAt,
-                // Stripe_Billing_Date__c = billingCycleAnchor,
-                // Stripe_Subscription_Term__c = contractTerm,
-                // Stripe_Interval__c = interval,
-                // Stripe_Activate__c = (Boolean) price.get('active'),
-                // Created_From_Stripe__c = true,
-                // Status__c = (String) subscriptionData.get('status'),
-                // SBQQ__BillingFrequency__c = getBillingFrequency(interval, intervalCount),
-                // Billing_Frequency_Override__c = getBillingFrequency(interval, intervalCount)
-            );
+    //         SBQQ__Subscription__c subscription = new SBQQ__Subscription__c(
+    //             // Stripe_Subscription_ID_Actual__c = subId,
+    //             Stripe_Subscription_ID__c = stripeSubscriptionItemId,
+    //             // SBQQ__Contract__c = contractId,
+    //             // SBQQ__Account__c = accountId,
+    //             // Stripe_Price_ID__c = priceId,
+    //             // Stripe_Product_ID__c = productId,
+    //             // SBQQ__Product__c = matchingProduct != null ? matchingProduct.Id : null,
+    //             SBQQ__Quantity__c = quantity,
+    //             SBQQ__NetPrice__c = monthlyAmount,
+    //             SBQQ__ListPrice__c = unitAmount,
+    //             SBQQ__CustomerPrice__c = customerPrice,
+    //             Stripe_Monthly_Value__c = stripeMRR,
+    //             Stripe_ARR__c = stripeARR
+    //             // Latest_Change_Reason__c = 'Subscription Migration Done From Stripe',
+    //             // Stripe_Start_Date__c = toDateTime((Long) item.get('current_period_start')).date(),
+    //             // Stripe_End_Date__c = toDateTime((Long) item.get('current_period_end')).date(),
+    //             // SBQQ__SubscriptionStartDate__c = startDate,
+    //             // SBQQ__SubscriptionEndDate__c = cancelAt,
+    //             // Stripe_Billing_Date__c = billingCycleAnchor,
+    //             // Stripe_Subscription_Term__c = contractTerm,
+    //             // Stripe_Interval__c = interval,
+    //             // Stripe_Activate__c = (Boolean) price.get('active'),
+    //             // Created_From_Stripe__c = true,
+    //             // Status__c = (String) subscriptionData.get('status'),
+    //             // SBQQ__BillingFrequency__c = getBillingFrequency(interval, intervalCount),
+    //             // Billing_Frequency_Override__c = getBillingFrequency(interval, intervalCount)
+    //         );
 
-            return subscription;
-        } catch (Exception ex) {
-            errorMessages.add('Error creating subscription item: ' + ex.getMessage());
-            return null;
-        }
-    }
+    //         return subscription;
+    //     } catch (Exception ex) {
+    //         errorMessages.add('Error creating subscription item: ' + ex.getMessage());
+    //         return null;
+    //     }
+    // }
 
     // Helper method to get billing frequency from Stripe interval and interval count
-    private static String getBillingFrequency(String interval, Integer intervalCount) {
-        if (interval == 'month') {
-            if (intervalCount == 1) {
-                return 'Monthly';
-            } else if (intervalCount == 3) {
-                return 'Quarterly';
-            } else if (intervalCount == 6) {
-                return 'Semiannual';
-            }
-        } else if (interval == 'year') {
-            if (intervalCount == 1) {
-                return 'Annual';
-            } else if (intervalCount == 2) {
-                return '2-Year';
-            } else if (intervalCount == 3) {
-                return '3-Year';
-            }
-        }
-        return null;
-    }
+    // private static String getBillingFrequency(String interval, Integer intervalCount) {
+    //     if (interval == 'month') {
+    //         if (intervalCount == 1) {
+    //             return 'Monthly';
+    //         } else if (intervalCount == 3) {
+    //             return 'Quarterly';
+    //         } else if (intervalCount == 6) {
+    //             return 'Semiannual';
+    //         }
+    //     } else if (interval == 'year') {
+    //         if (intervalCount == 1) {
+    //             return 'Annual';
+    //         } else if (intervalCount == 2) {
+    //             return '2-Year';
+    //         } else if (intervalCount == 3) {
+    //             return '3-Year';
+    //         }
+    //     }
+    //     return null;
+    // }
 
     private static Datetime toDateTime(Long unixTs) {
         if (unixTs == null)
@@ -364,14 +367,14 @@ public class StripeSubscriptionItemMigration implements Database.Batchable<SObje
         return Datetime.newInstance(unixTs * 1000);
     }
 
-    private static Decimal calculateMonthlyAmount(Decimal unitAmount, String interval, Integer intervalCount) {
-        if (interval == 'month') {
-            return unitAmount / intervalCount;
-        } else if (interval == 'year') {
-            return unitAmount / (12 * intervalCount);
-        }
+    // private static Decimal calculateMonthlyAmount(Decimal unitAmount, String interval, Integer intervalCount) {
+    //     if (interval == 'month') {
+    //         return unitAmount / intervalCount;
+    //     } else if (interval == 'year') {
+    //         return unitAmount / (12 * intervalCount);
+    //     }
 
-        // Default fallback
-        return unitAmount;
-    }
+    //     // Default fallback
+    //     return unitAmount;
+    // }
 }
