@@ -159,17 +159,10 @@ public class StripeCustomerSyncQueueable implements Queueable, Database.AllowsCa
                     Map<String, Object> responseMap = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
 
                     if (operation == 'CREATE') {
-                        stripeGC__Stripe_Account__c stripeOrgAccount = [
-                            SELECT Id, Name
-                            FROM stripeGC__Stripe_Account__c
-                            LIMIT 1
-                        ];
-
                         String stripeCustomerId = (String) responseMap.get('id');
 
                         acc.Stripe_Customer_ID__c = stripeCustomerId;
                         acc.Stripe_Customer_URL__c = 'https://dashboard.stripe.com/customers/' + stripeCustomerId;
-                        acc.Stripe_Org_Account__c = stripeOrgAccount.Id;
 
                         accountsToUpdate.add(acc);
                     }

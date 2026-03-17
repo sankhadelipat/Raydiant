@@ -139,17 +139,6 @@ public class StripeCustomerQueueable implements Queueable, Database.AllowsCallou
                     acc.F52_Primary_Contact__c = billToCon.Id;
                 }
 
-                // Retrieve Stripe Account record
-                if (eventType == 'customer.created') {
-                    stripeGC__Stripe_Account__c stripeOrgAccount = [
-                        SELECT Id, Name
-                        FROM stripeGC__Stripe_Account__c
-                        LIMIT 1
-                    ];
-
-                    acc.Stripe_Org_Account__c = stripeOrgAccount.Id;
-                }
-
                 StripeTriggerHandler.enableBypass('Account');
                 update acc;
                 StripeTriggerHandler.disableBypass('Account');

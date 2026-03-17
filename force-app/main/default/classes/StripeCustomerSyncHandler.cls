@@ -44,4 +44,15 @@ public class StripeCustomerSyncHandler {
             }
         }
     }
+
+    @InvocableMethod(
+        label='Create Stripe Customer'
+        description='Create Stripe Customer for given Account IDs'
+        category='Stripe'
+    )
+    public static void createStripeCustomers(List<Id> accountIds) {
+        if (!accountIds.isEmpty()) {
+            System.enqueueJob(new StripeCustomerSyncQueueable('CREATE', new Set<Id>(accountIds)));
+        }
+    }
 }
