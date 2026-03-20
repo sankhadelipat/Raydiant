@@ -4,7 +4,7 @@ trigger StripePaymentConsumer on Stripe_Capture_Payment__e(after insert) {
 
         if (evt.StripeSubscriptionId__c != null) {
             System.enqueueJob(
-                new StripeSubscriptionScheduler2.PostCheckoutSubscriptionHandler(
+                new StripeCheckoutHandler(
                     evt.SalesforceQuoteId__c,
                     evt.StripeSubscriptionId__c
                 ),

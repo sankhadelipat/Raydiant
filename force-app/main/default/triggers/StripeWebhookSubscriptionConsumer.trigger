@@ -1,7 +1,7 @@
 trigger StripeWebhookSubscriptionConsumer on Stripe_Capture_Subscription__e(after insert) {
     for (Stripe_Capture_Subscription__e evt : Trigger.New) {
         if (String.isNotBlank(evt.StripeSubscriptionId__c)) {
-            StripeSubscriptionScheduler2.handleSubscriptionFromStripe(
+            StripeSubscriptionHandler.handleSubscriptionFromStripe(
                 evt.Salesforce_Quote_Id__c,
                 evt.StripeSubscriptionId__c,
                 evt.Subscription_Source__c,
