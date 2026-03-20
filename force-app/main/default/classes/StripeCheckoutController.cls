@@ -40,7 +40,7 @@ public without sharing class StripeCheckoutController {
             id = quote.Id;
             quoteNumber = quote.Name;
             startDate = quote.SBQQ__StartDate__c;
-            endDate = quote.SBQQ__EndDate__c;
+            endDate = quote.Calculated_End_Date__c;
             expiryDate = quote.SBQQ__ExpirationDate__c;
             mrr = quote.MRR__c;
             subscriptionMrr = quote.Subscription_MRR__c;
@@ -125,7 +125,7 @@ public without sharing class StripeCheckoutController {
                 Id,
                 Name,
                 SBQQ__StartDate__c,
-                SBQQ__EndDate__c,
+                Calculated_End_Date__c,
                 SBQQ__ExpirationDate__c,
                 MRR__c,
                 Subscription_MRR__c,
