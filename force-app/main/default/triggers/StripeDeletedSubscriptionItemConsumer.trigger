@@ -17,6 +17,6 @@ trigger StripeDeletedSubscriptionItemConsumer on Stripe_Capture_Deleted_Subscrip
     // Process deletions for each subscription
     for (String subscriptionId : subscriptionToDeletedItemIds.keySet()) {
         List<String> deletedItemIds = subscriptionToDeletedItemIds.get(subscriptionId);
-        System.enqueueJob(new StripeDeleteSubscriptionItemsQueueable(subscriptionId, deletedItemIds));
+        System.enqueueJob(new StripeDeleteSubscriptionItemsQueueable(subscriptionId, deletedItemIds), 2);
     }
 }

@@ -17,6 +17,6 @@ trigger StripeDeletedInvoiceItemConsumer on Stripe_Capture_Deleted_Invoice_Item_
     // Process deletions for each invoice
     for (String invoiceId : invoiceToDeletedItemIds.keySet()) {
         List<String> deletedItemIds = invoiceToDeletedItemIds.get(invoiceId);
-        System.enqueueJob(new StripeDeleteInvoiceItemsQueueable(invoiceId, deletedItemIds));
+        System.enqueueJob(new StripeDeleteInvoiceItemsQueueable(invoiceId, deletedItemIds), 2);
     }
 }
