@@ -44,6 +44,7 @@ public class StripeSubscriptionMigration implements Database.Batchable<SObject>,
     public void execute(Database.BatchableContext bc, List<Contract> scope) {
         try {
             Set<Id> conIds = new Set<Id>();
+            Map<Id, Contract> oldToNewContractMap = new Map<Id, Contract>();
             List<SBQQ__Subscription__c> subscriptionItemsToInsert = new List<SBQQ__Subscription__c>();
             List<Contract> UpdateConatrct = new List<Contract>();
             Map<String, SBQQ__Subscription__c> priceIdToSubscriptionMap = new Map<String, SBQQ__Subscription__c>();
@@ -414,6 +415,7 @@ public class StripeSubscriptionMigration implements Database.Batchable<SObject>,
             List<Contract> activatedContracts = new List<Contract>();
             Integer i = 0;
             Map<Id, Id> oldToNewContractIdMap = new Map<Id, Id>();
+            List<Id> oldContractIds = new List<Id>(oldToNewContractMap.keySet());
             for (Database.SaveResult r : conResults) {
                 // Id oldId = oldContractIds[i];
 
@@ -426,9 +428,13 @@ public class StripeSubscriptionMigration implements Database.Batchable<SObject>,
             if (!activatedContracts.isEmpty())
                 update activatedContracts;
 
-            if (!subscriptionsToInsert.isEmpty())
+            // update Subscriptions
+            if (!subscriptionsToInsert.isEmpty()) {
                 insert subscriptionsToInsert;
-
+                // Database.insert(subscriptionsToInsert, false);
+                system.debug('Subscription insert---');
+            }
+            //
             if (!subscriptionItemsToInsert.isEmpty())
                 update subscriptionItemsToInsert;
 

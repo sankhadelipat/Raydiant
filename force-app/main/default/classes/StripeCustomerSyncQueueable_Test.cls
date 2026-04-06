@@ -1,9 +1,6 @@
 @isTest
 public class StripeCustomerSyncQueueable_Test {
 
-    // ------------------------------
-    // MOCK FOR SUCCESS (200)
-    // ------------------------------
     private class StripeSuccessMock implements HttpCalloutMock {
         public HttpResponse respond(HttpRequest req) {
             HttpResponse res = new HttpResponse();
@@ -17,9 +14,6 @@ public class StripeCustomerSyncQueueable_Test {
         }
     }
 
-    // ------------------------------
-    // MOCK FOR ERROR (400)
-    // ------------------------------
     private class StripeErrorMock implements HttpCalloutMock {
         public HttpResponse respond(HttpRequest req) {
             HttpResponse res = new HttpResponse();
@@ -29,27 +23,15 @@ public class StripeCustomerSyncQueueable_Test {
         }
     }
 
-    // ------------------------------
-    // COMMON TEST DATA
-    // ------------------------------
     @testSetup
     static void setupData() {
-
         // Required Custom Setting
         insert new Stripe_Details__c(
             Name = 'Stripe Details',
             Serect_Key__c = 'sk_test_123'
         );
-
-        // Required Stripe Org Account
-        insert new stripeGC__Stripe_Account__c(
-            Name = 'Test Stripe Org'
-        );
     }
 
-    // --------------------------------------------------------
-    // TEST 1: CREATE STRIPE CUSTOMER WHEN ACCOUNT HAS NO ID
-    // --------------------------------------------------------
     @isTest
     static void testCreateStripeCustomer() {
         Test.startTest();
@@ -84,10 +66,6 @@ public class StripeCustomerSyncQueueable_Test {
         System.assert(updatedAcc.Stripe_Customer_URL__c.contains(updatedAcc.Stripe_Customer_ID__c));
     }
 
-
-    // --------------------------------------------------------
-    // TEST 2: UPDATE STRIPE CUSTOMER WHEN ACCOUNT HAS ID
-    // --------------------------------------------------------
     @isTest
     static void testUpdateStripeCustomer() {
 		Test.startTest();
@@ -128,10 +106,6 @@ public class StripeCustomerSyncQueueable_Test {
         System.assertEquals('cus_test_sync_123', updatedAcc.Stripe_Customer_ID__c);
     }
 
-
-    // --------------------------------------------------------
-    // TEST 3: FAILURE PATH → Stripe returns an error
-    // --------------------------------------------------------
     @isTest
     static void testStripeCalloutFailure() {
 

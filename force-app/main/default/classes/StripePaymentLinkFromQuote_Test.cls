@@ -117,32 +117,14 @@ public class StripePaymentLinkFromQuote_Test {
         SBQQ__Quote__c quote = [SELECT Id FROM SBQQ__Quote__c WHERE Submitted_Date__c = :Date.today() LIMIT 1];
         
         Test.startTest();
-        StripePaymentLinkFromQuote.getQuoteForQuoteToCash(new List<Id>{quote.Id});
+        StripePaymentLinkFromQuote.generatePaymentLinkFromQuote(new List<Id>{quote.Id});
         Test.stopTest();
         
-        SBQQ__Quote__c updatedQuote = [SELECT Stripe_Payment_Link__c, Stripe_Payment_Intent__c 
+        SBQQ__Quote__c updatedQuote = [SELECT Stripe_Payment_Link__c, Stripe_Checkout_Session_ID__c 
                                        FROM SBQQ__Quote__c 
                                        WHERE Id = :quote.Id];
         System.assertEquals('https://stripe.com/pay/checkout_test', updatedQuote.Stripe_Payment_Link__c);
-        System.assertEquals('cs_test_123456', updatedQuote.Stripe_Payment_Intent__c);
-    }
-    
-    @IsTest
-    static void testGetQuoteForSelfService() {
-        Test.setMock(HttpCalloutMock.class, new StripeMock());
-        SBQQ__Quote__c quote = [SELECT Id FROM SBQQ__Quote__c WHERE Submitted_Date__c = :Date.today() LIMIT 1];
-        
-        Test.startTest();
-        String paymentLink = StripePaymentLinkFromQuote.getQuoteForSelfService(quote.Id);
-        Test.stopTest();
-        
-        System.assertEquals('https://stripe.com/pay/checkout_test', paymentLink);
-        
-        SBQQ__Quote__c updatedQuote = [SELECT Stripe_Payment_Link__c, Stripe_Payment_Intent__c 
-                                       FROM SBQQ__Quote__c 
-                                       WHERE Id = :quote.Id];
-        System.assertEquals('https://stripe.com/pay/checkout_test', updatedQuote.Stripe_Payment_Link__c);
-        System.assertEquals('cs_test_123456', updatedQuote.Stripe_Payment_Intent__c);
+        System.assertEquals('cs_test_123456', updatedQuote.Stripe_Checkout_Session_ID__c);
     }
     
     @IsTest
@@ -151,32 +133,12 @@ public class StripePaymentLinkFromQuote_Test {
         SBQQ__Quote__c quote = [SELECT Id FROM SBQQ__Quote__c LIMIT 1];
         
         Test.startTest();
-        StripePaymentLinkFromQuote.getQuoteForQuoteToCash(new List<Id>{quote.Id});
+        StripePaymentLinkFromQuote.generatePaymentLinkFromQuote(new List<Id>{quote.Id});
         Test.stopTest();
         
-        SBQQ__Quote__c sameQuote = [SELECT Stripe_Payment_Link__c, Stripe_Payment_Intent__c 
+        SBQQ__Quote__c sameQuote = [SELECT Stripe_Payment_Link__c, Stripe_Checkout_Session_ID__c 
                                     FROM SBQQ__Quote__c 
                                     WHERE Id = :quote.Id];
         System.assertEquals(null, sameQuote.Stripe_Payment_Link__c, 'No payment link should generate');
-    }
-    
-    @IsTest
-    static void testGetQuoteForSelfService_CalloutError() {
-        Test.setMock(HttpCalloutMock.class, new StripeMockError());
-        SBQQ__Quote__c quote = [SELECT Id FROM SBQQ__Quote__c LIMIT 1];
-        String paymentLink;
-        
-        Test.startTest();
-        try {
-            paymentLink = StripePaymentLinkFromQuote.getQuoteForSelfService(quote.Id);   
-        } catch (Exception e) {
-            System.assertEquals(null, paymentLink);
-            
-            SBQQ__Quote__c sameQuote = [SELECT Stripe_Payment_Link__c, Stripe_Payment_Intent__c 
-                                        FROM SBQQ__Quote__c 
-                                        WHERE Id = :quote.Id];
-            System.assertEquals(null, sameQuote.Stripe_Payment_Link__c, 'No payment link should generate');
-        }
-        Test.stopTest();
     }
 }

@@ -1,121 +1,135 @@
-@isTest
-public class StripePaymentIntentQueueable_Test {
-    // Mock class to simulate successful Stripe PaymentIntent callout
-    private class StripeHttpMockSuccess implements HttpCalloutMock {
+@IsTest
+private class StripePaymentIntentQueueable_Test {
+
+    private class StripeInvoiceWithPaymentMock implements HttpCalloutMock {
         public HTTPResponse respond(HTTPRequest req) {
             HttpResponse res = new HttpResponse();
-            res.setStatusCode(200);
-            
-            // Sample response body simulating Stripe PaymentIntent
-            res.setBody('{' +
-                        '"id":"pi_12345",' +
-                        '"amount":5000,' +
-                        '"currency":"usd",' +
-                        '"status":"succeeded",' +
-                        '"latest_charge": {' +
-                        '"id":"ch_12345",' +
-                        '"receipt_url":"https://stripe.com/receipt"' +
-                        '},' +
-                        '"invoice":"in_12345",' +
-                        '"payment_method":"pm_12345",' +
-                        '"customer":"cus_12345",' +
-                        '"created":1693234800' +
-                        '}');
+            res.setHeader('Content-Type', 'application/json');
+
+            // Match invoice retrieve call
+            if (req.getEndpoint().contains('/v1/invoices/')) {
+                res.setStatusCode(200);
+                res.setBody(
+                    '{' +
+                        '"id":"in_test_123",' +
+                        '"payments":{' +
+                            '"data":[' +
+                                '{' +
+                                    '"payment":{' +
+                                        '"payment_intent":"pi_test_123"' +
+                                    '}' +
+                                '}' +
+                            ']' +
+                        '}' +
+                    '}'
+                );
+                return res;
+            }
+
+            res.setStatusCode(400);
+            res.setBody('{"error":"Unhandled endpoint"}');
             return res;
         }
     }
-    
-    // // Mock class to simulate failed Stripe callout
-    // private class StripeHttpMockFailure implements HttpCalloutMock {
-    //     public HTTPResponse respond(HTTPRequest req) {
-    //         HttpResponse res = new HttpResponse();
-    //         res.setStatusCode(400);
-    //         res.setBody('{"error":"Bad request"}');
-    //         return res;
-    //     }
-    // }
-    
-    // @TestSetup
-    // static void setupTestData() {
-    //     // Create Stripe Details record
-    //     Stripe_Details__c sd = new Stripe_Details__c(
-    //         Name = 'Stripe Details',
-    //         Serect_Key__c = 'sk_test_12345',
-    //         Publishable_Key__c = 'pk_test_12345'
-    //     );
-    //     insert sd;
-        
-    //     // Create a test Account
-    //     Account acct = new Account(
-    //         Name = 'Test Account'
-    //     );
-    //     insert acct;
-        
-    //     // Create a test Quote
-    //     SBQQ__Quote__c quote = new SBQQ__Quote__c(
-    //         //Name = 'Test Quote',
-    //         SBQQ__Account__c = acct.Id
-    //         // SBQQ__NetAmount__c = 5000
-    //     );
-    //     insert quote;
-        
-    //     // Create test stripe invoice
-    //     Stripe_Invoice__c inv = new Stripe_Invoice__c(
-    //         Account__c = acct.Id,
-    //         Amount_Paid__c = 100.00,
-    //         Quote_CPQ__c = quote.Id
-    //     );
-    //     insert inv;
-    // }
-    
-    // @IsTest
-    // static void testExecuteQueueableSuccess() {
-    //     SBQQ__Quote__c quote = [SELECT Id FROM SBQQ__Quote__c LIMIT 1];
-    //     Stripe_Invoice__c inv  =[SELECT Id FROM Stripe_Invoice__c LIMIT 1];
-        
-    //     Test.setMock(HttpCalloutMock.class, new StripeHttpMockSuccess());
-        
-    //     StripePaymentIntentQueueable queueableJob = new StripePaymentIntentQueueable(
-    //         inv.Id,
-    //         'pi_12345',
-    //         'sub_123',
-    //         quote.Id,
-    //         true,
-    //         false
-    //     );
-        
-    //     Test.startTest();
-    //     System.enqueueJob(queueableJob);
-    //     Test.stopTest();
-        
-    //     // Assert that Payment_Transaction__c record was inserted
-    //     Payment_Transaction__c pt = [SELECT Id, Stripe_Payment_ID__c, Status__c, Amount_Paid__c FROM Payment_Transaction__c LIMIT 1];
-    //     System.assertEquals('pi_12345', pt.Stripe_Payment_ID__c);
-    //     System.assertEquals('Success', pt.Status__c);
-    //     System.assertEquals(50, pt.Amount_Paid__c); // 5000 / 100
-    // }
-    
-    // @IsTest
-    // static void testExecuteQueueableFailure() {
-    //     SBQQ__Quote__c quote = [SELECT Id FROM SBQQ__Quote__c LIMIT 1];
-        
-    //     Test.setMock(HttpCalloutMock.class, new StripeHttpMockFailure());
-        
-    //     StripePaymentIntentQueueable queueableJob = new StripePaymentIntentQueueable(
-    //         null,
-    //         'pi_fail',
-    //         'sub_123',
-    //         quote.Id,
-    //         true,
-    //         false
-    //     );
-        
-    //     Test.startTest();
-    //     System.enqueueJob(queueableJob);
-    //     Test.stopTest();
-        
-    //     // Assert that Logger__c record was created
-    //     Integer loggerCount = [SELECT COUNT() FROM Logger__c WHERE Apex_Class__c='StripePaymentIntentQueueable'];
-    //     System.assertEquals(1, loggerCount);
-    // }
+
+    @TestSetup
+    static void setupData() {
+
+        // Stripe config
+        insert new Stripe_Details__c(
+            Name = 'Stripe Details',
+            Serect_Key__c = 'sk_test_123456',
+            Publishable_Key__c = 'pk_test_123456'
+        );
+
+        Account acc = new Account(
+            Name = 'Test Account'
+        );
+        insert acc;
+
+        // Contract MUST be Draft first
+        Contract con = new Contract(
+            AccountId = acc.Id,
+            StartDate = Date.today(),
+            ContractTerm = 12,
+            Status = 'Draft'
+        );
+        insert con;
+
+        con.Status = 'Activated';
+        update con;
+
+        // Stripe Invoice record
+        Stripe_Invoice__c inv = new Stripe_Invoice__c(
+            Stripe_Invoice_ID__c = 'in_test_123',
+            Contract__c = con.Id,
+            Quote_CPQ__c = null
+        );
+        insert inv;
+    }
+
+    @IsTest
+    static void testPaymentIntentLinkedToInvoice() {
+
+        Test.setMock(HttpCalloutMock.class, new StripeInvoiceWithPaymentMock());
+
+        Test.startTest();
+        System.enqueueJob(
+            new StripePaymentIntentQueueable('in_test_123')
+        );
+        Test.stopTest();
+
+        // Verify Payment Transaction was created / updated
+        Stripe_Payment_Transaction__c pt = [
+            SELECT Id,
+                   Stripe_PaymentIntent_ID__c,
+                   Stripe_Invoice__c,
+                   Contract__c
+            FROM Stripe_Payment_Transaction__c
+            WHERE Stripe_PaymentIntent_ID__c = 'pi_test_123'
+            LIMIT 1
+        ];
+
+        System.assertEquals(
+            'pi_test_123',
+            pt.Stripe_PaymentIntent_ID__c,
+            'PaymentIntent ID should match'
+        );
+
+        System.assertNotEquals(
+            null,
+            pt.Stripe_Invoice__c,
+            'Invoice should be linked'
+        );
+
+        System.assertNotEquals(
+            null,
+            pt.Contract__c,
+            'Contract should be linked'
+        );
+    }
+
+    @IsTest
+    static void testInvoiceNotFound_HandledGracefully() {
+
+        Test.setMock(HttpCalloutMock.class, new StripeInvoiceWithPaymentMock());
+
+        Test.startTest();
+        System.enqueueJob(
+            new StripePaymentIntentQueueable('in_does_not_exist')
+        );
+        Test.stopTest();
+
+        // Logger should be created
+        List<Logger__c> logs = [
+            SELECT Id
+            FROM Logger__c
+            WHERE Apex_Class__c = 'StripePaymentIntentQueueable'
+        ];
+
+        System.assert(
+            !logs.isEmpty(),
+            'Error should be logged when invoice is missing'
+        );
+    }
 }

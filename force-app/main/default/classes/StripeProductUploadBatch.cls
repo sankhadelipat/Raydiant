@@ -13,8 +13,7 @@ public class StripeProductUploadBatch implements Database.Batchable<SObject>, Da
             Stripe_Product_ID__c, IsActive, Grant_Scope_ID__c, RAY_JSON_Text__c,SBQQ__SubscriptionPricing__c,
             SBQQ__SubscriptionType__c,Customer_Facing_Pricing__c,RAY_Category__c,Product_Line__c
             FROM Product2
-            WHERE Stripe_Product_ID__c = null and isActive = true
-            // LIMIT 100
+            WHERE Stripe_Product_ID__c = null AND isActive = true
         ]);
     }
     

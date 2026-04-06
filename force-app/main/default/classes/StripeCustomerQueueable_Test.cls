@@ -48,9 +48,6 @@ public class StripeCustomerQueueable_Test {
             Serect_Key__c = 'sk_test_123'
         );
         insert details;
-        
-        // Insert a Stripe Org Account
-        insert new stripeGC__Stripe_Account__c(Name = 'Test Stripe Org');
     }
     
     @isTest

@@ -19,7 +19,7 @@ public class StripeDeleteInvoiceItems_Test {
             Account__c = testAccount.Id,
             Amount_Due__c = 5000,
             CurrencyIsoCode = 'USD',
-            Payment_Status__c = 'open'
+            Status__c = 'Open'
         );
         insert testInvoice;
 

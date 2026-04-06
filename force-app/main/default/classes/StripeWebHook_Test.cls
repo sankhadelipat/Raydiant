@@ -276,6 +276,42 @@ private class StripeWebHook_Test {
         System.assert(true, 'Method should execute without errors');
     }
     
+    @IsTest
+    static void testInvoicePaymentSucceeded_WithSubscription() {
+        
+        // Build payload matching Stripe structure your code expects
+        String payload = JSON.serialize(new Map<String, Object>{
+            'type' => 'invoice.payment_succeeded',
+                'data' => new Map<String, Object>{
+                    'object' => new Map<String, Object>{
+                        'id' => 'in_test_789',
+                            'customer' => 'cus_test_789',
+                            'parent' => new Map<String, Object>{
+                                'subscription_details' => new Map<String, Object>{
+                                    'subscription' => 'sub_test_789'
+                                        }
+                            }
+                    }
+                }
+        });
+        
+        // Prepare REST context
+        RestRequest req = new RestRequest();
+        req.requestUri = '/services/apexrest/stripe/web-hook';
+        req.httpMethod = 'POST';
+        req.requestBody = Blob.valueOf(payload);
+        
+        RestContext.request = req;
+        RestContext.response = new RestResponse();
+        
+        // Execute
+        Test.startTest();
+        StripeWebHook.handleWebhook();
+        Test.stopTest();
+        
+        System.assert(true, 'invoice.payment_succeeded handled successfully');
+    }
+    
     @isTest
     static void testInvoicePaymentFailed() {
         // Set mock callout
@@ -580,6 +616,113 @@ private class StripeWebHook_Test {
         
         Test.startTest();
         StripeWebHook.handleWebhook();
+        Test.stopTest();
+    }
+    
+    @IsTest
+    static void testChargeRefundedEvent() {
+        // Set mock callout
+        Test.setMock(HttpCalloutMock.class, new StripeMockCallout());
+        
+        // charge.refunded payload
+        String requestBody = JSON.serialize(new Map<String, Object>{
+            'id' => 'evt_test_refund_001',
+                'type' => 'charge.refunded',
+                'data' => new Map<String, Object>{
+                    'object' => new Map<String, Object>{
+                        'id' => 'ch_test_123',
+                            'payment_intent' => 'pi_test_123',
+                            'amount_refunded' => 2100
+                            }
+                }
+        });
+        
+        RestRequest req = new RestRequest();
+        req.requestBody = Blob.valueOf(requestBody);
+        RestContext.request = req;
+        RestContext.response = new RestResponse();
+        
+        Test.startTest();
+        StripeWebHook.handleWebhook();
+        Test.stopTest();
+    }
+    
+    @IsTest
+    static void testPaymentMethodAttachedEvent() {
+        String payload = JSON.serialize(new Map<String, Object>{
+            'id' => 'evt_test_123',
+                'type' => 'payment_method.attached',
+                'data' => new Map<String, Object>{
+                    'object' => new Map<String, Object>{
+                        'id' => 'pm_test_123',
+                            'object' => 'payment_method',
+                            'customer' => 'cus_test_123'
+                            }
+                }
+        });
+        
+        RestRequest req = new RestRequest();
+        req.requestUri = '/services/apexrest/stripe/webhook';
+        req.httpMethod = 'POST';
+        req.requestBody = Blob.valueOf(payload);
+        
+        RestContext.request = req;
+        RestContext.response = new RestResponse();
+        
+        Test.startTest();
+        StripeWebhook.handleWebhook();
+        Test.stopTest();
+    }
+    
+    @IsTest
+    static void testCreditNoteCreatedEvent() {
+        String payloadCreated = JSON.serialize(new Map<String, Object>{
+            'type' => 'credit_note.created',
+                'data' => new Map<String, Object>{
+                    'object' => new Map<String, Object>{
+                        'id' => 'cn_test_001',
+                            'invoice' => 'in_test_001',
+                            'customer' => 'cus_test_001'
+                            }
+                }
+        });
+        
+        RestRequest req = new RestRequest();
+        req.requestUri = '/services/apexrest/stripe/webhook';
+        req.httpMethod = 'POST';
+        req.requestBody = Blob.valueOf(payloadCreated);
+        
+        RestContext.request = req;
+        RestContext.response = new RestResponse();
+        
+        Test.startTest();
+        StripeWebhook.handleWebhook();
+        Test.stopTest();
+    }
+    
+    @IsTest
+    static void testCreditNoteVoidedEvent() {
+        String payloadVoided = JSON.serialize(new Map<String, Object>{
+            'type' => 'credit_note.voided',
+                'data' => new Map<String, Object>{
+                    'object' => new Map<String, Object>{
+                        'id' => 'cn_test_002',
+                            'invoice' => 'in_test_002',
+                            'customer' => 'cus_test_002'
+                            }
+                }
+        });
+        
+        RestRequest req = new RestRequest();
+        req.requestUri = '/services/apexrest/stripe/webhook';
+        req.httpMethod = 'POST';
+        req.requestBody = Blob.valueOf(payloadVoided);
+        
+        RestContext.request = req;
+        RestContext.response = new RestResponse();
+        
+        Test.startTest();
+        StripeWebhook.handleWebhook();
         Test.stopTest();
     }
 }

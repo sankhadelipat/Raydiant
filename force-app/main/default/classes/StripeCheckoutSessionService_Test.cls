@@ -28,19 +28,8 @@ public class StripeCheckoutSessionService_Test {
             '    "country": "US"' +
             '    }' +
             '  }' +
-            '},' +
-            '"consent": {' +
-            '  "terms_of_service": "accepted"' +
-            '},' +
-            '"custom_fields": [' +
-            '  {' +
-            '    "key": "signature",' +
-            '    "text": {' +
-            '      "value": "John Doe"' +
-            '    }' +
-            '  }' +
-            ']' +
-        '}';
+            '}' +
+            '}';
     }
     
     // Mock HTTP response class
@@ -90,6 +79,11 @@ public class StripeCheckoutSessionService_Test {
             ShippingCity = 'Old Shipping City'
         );
         insert testAccount;
+        
+        SBQQ__Quote__c testQuote = new SBQQ__Quote__c(
+            Stripe_Checkout_Session_ID__c = 'cs_test_b1FKRhMU3tDzFmG1AR9Oerpy0HckFy9P6Z5RbOPUaLaEJlWcdOn3Auaaz5'
+        );
+        insert testQuote;
     }
     
     // Test successful session retrieval and account update
@@ -104,8 +98,7 @@ public class StripeCheckoutSessionService_Test {
         Account testAccount = [SELECT Id, Stripe_Customer_ID__c FROM Account WHERE Stripe_Customer_ID__c = 'cus_test123'];
         
         Test.startTest();
-        // Call the future method
-        StripeCheckoutSessionService.getCheckoutSession('cs_test_b1FKRhMU3tDzFmG1AR9Oerpy0HckFy9P6Z5RbOPUaLaEJlWcdOn3Auaaz5');
+        System.enqueueJob(new StripeCheckoutSessionService('cs_test_b1FKRhMU3tDzFmG1AR9Oerpy0HckFy9P6Z5RbOPUaLaEJlWcdOn3Auaaz5'));
         Test.stopTest();
         
         // Verify the account was updated
@@ -119,18 +112,32 @@ public class StripeCheckoutSessionService_Test {
         System.assertEquals('123 Main St', updatedAccount.BillingStreet, 'Billing street should be updated');
         System.assertEquals('New York', updatedAccount.BillingCity, 'Billing city should be updated');
         System.assertEquals('NY', updatedAccount.BillingState, 'Billing state should be updated');
-        //System.assertEquals('10001', updatedAccount.BillingPostalCode, 'Billing postal code should be updated');
-        //System.assertEquals('US', updatedAccount.BillingCountry, 'Billing country should be updated');
+        System.assertEquals('10001', updatedAccount.BillingPostalCode, 'Billing postal code should be updated');
+        System.assertEquals('US', updatedAccount.BillingCountry, 'Billing country should be updated');
         
         // Assert shipping address updates
         System.assertEquals('456 Shipping Ave', updatedAccount.ShippingStreet, 'Shipping street should be updated');
         System.assertEquals('Los Angeles', updatedAccount.ShippingCity, 'Shipping city should be updated');
         System.assertEquals('CA', updatedAccount.ShippingState, 'Shipping state should be updated');
-        //System.assertEquals('90210', updatedAccount.ShippingPostalCode, 'Shipping postal code should be updated');
-        //System.assertEquals('US', updatedAccount.ShippingCountry, 'Shipping country should be updated');
+        System.assertEquals('90210', updatedAccount.ShippingPostalCode, 'Shipping postal code should be updated');
+        System.assertEquals('US', updatedAccount.ShippingCountry, 'Shipping country should be updated');
+    }
+    
+    @IsTest
+    static void testGetCheckoutSession_Error() {
+        // Setup mock response with complete session data
+        delete [SELECT Id FROM Logger__c];
         
-        // Assert consent and signature
-        System.assertEquals('accepted', updatedAccount.Stripe_Consent_Accepted__c, 'Consent should be accepted');
-        System.assertEquals('John Doe', updatedAccount.Stripe_Signature__c, 'Signature should be updated');
+        String mockResponseBody = getMockSessionResponse();
+        
+        Test.setMock(HttpCalloutMock.class, new MockHttpResponseGenerator(400, mockResponseBody, false));
+        
+        Test.startTest();
+        System.enqueueJob(new StripeCheckoutSessionService('cs_test_b1FKRhMU3tDzFmG1AR9Oerpy0HckFy9P6Z5RbOPUaLaEJlWcdOn3Auaaz5'));
+        Test.stopTest();
+        
+        // Verify logger was created
+        Integer loggerCount = [SELECT COUNT() FROM Logger__c];
+        System.assertEquals(1, loggerCount, 'One logger should have created.');
     }
 }

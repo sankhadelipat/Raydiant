@@ -48,6 +48,17 @@ public class StripeInvoiceMigration_Test {
     }
     
     @IsTest
+    static void testBatchSuccess_NextBatch() {
+        // Setup mock response
+        Test.setMock(HttpCalloutMock.class, new StripeInvoiceMock());
+        
+        Test.startTest();
+        StripeInvoiceMigration batch = new StripeInvoiceMigration('in_test1');
+        Database.executeBatch(batch, 1);
+        Test.stopTest();
+    }
+    
+    @IsTest
     static void testBatchWithStripeError() {
         // Setup error mock response
         Test.setMock(HttpCalloutMock.class, new StripeErrorMock());
