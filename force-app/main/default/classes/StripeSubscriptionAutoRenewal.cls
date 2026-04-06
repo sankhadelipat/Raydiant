@@ -132,8 +132,14 @@ public class StripeSubscriptionAutoRenewal implements Database.Batchable<SObject
                 );
 
                 if (scheduleId != null) {
-                    contract.Renewed_Schedule_ID__c = scheduleId;
-                    contractsToUpdate.add(contract);
+                    Contract updatedContract = new Contract(
+                        Id = contract.Id,
+                        Renewed_End_Date__c = newEnd,
+                        Renewed_Schedule_ID__c = scheduleId,
+                        Latest_Change_Reason__c = 'Auto-renewed: ' + DateTime.now().format()
+                    );
+
+                    contractsToUpdate.add(updatedContract);
                     successCount++;
                 } else {
                     errorCount++;

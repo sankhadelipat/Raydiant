@@ -76,23 +76,34 @@ public class StripeSubscriptionAutoRenewal2 implements Database.Batchable<SObjec
 
                 String subscriptionScheduleId;
 
+                // Calculate new start and end dates
+                Date newStart = contract.EndDate; // Start immediately after expiration
+                Integer daysBetween = contract.StartDate.daysBetween(contract.EndDate);
+                Date newEnd = contract.ContractTerm != null
+                    ? newStart.addMonths(contract.ContractTerm)
+                    : newStart.addDays(daysBetween);
+
                 // Check if contract already has a schedule ID
                 if (String.isNotBlank(contract.Stripe_Subscription_Schedule_ID__c)) {
                     // Update existing schedule
                     subscriptionScheduleId = updateExistingSchedule(
-                        subscriptionScheduleId,
+                        contract.Stripe_Subscription_Schedule_ID__c,
                         contract,
-                        subscriptionItems
+                        subscriptionItems,
+                        newStart,
+                        newEnd
                     );
                 } else {
                     // Create new schedule
                     subscriptionScheduleId = createNewSchedule(contract);
 
-                    if (String.isBlank(subscriptionScheduleId)) {
+                    if (String.isNotBlank(subscriptionScheduleId)) {
                         subscriptionScheduleId = updateExistingSchedule(
                             subscriptionScheduleId,
                             contract,
-                            subscriptionItems
+                            subscriptionItems,
+                            newStart,
+                            newEnd
                         );
                     }
                 }
@@ -100,11 +111,13 @@ public class StripeSubscriptionAutoRenewal2 implements Database.Batchable<SObjec
                 if (String.isNotBlank(subscriptionScheduleId)) {
                     Contract updatedContract = new Contract(
                         Id = contract.Id,
-                        Renewed_End_Date__c = contract.EndDate.addMonths(12),
+                        Renewed_End_Date__c = newEnd,
+                        Renewed_Schedule_ID__c = subscriptionScheduleId,
                         Stripe_Subscription_Schedule_ID__c = subscriptionScheduleId,
-                        Latest_Change_Reason__c = 'Auto-renewed: 12-month phase scheduled in Stripe'
+                        Latest_Change_Reason__c = 'Auto-renewed: ' + DateTime.now().format()
                     );
-                    contractsToUpdate.add(contract);
+
+                    contractsToUpdate.add(updatedContract);
                     successCount++;
                 } else {
                     errorCount++;
@@ -180,7 +193,9 @@ public class StripeSubscriptionAutoRenewal2 implements Database.Batchable<SObjec
     private String updateExistingSchedule(
         String subscriptionScheduleId,
         Contract contract,
-        List<SBQQ__Subscription__c> subscriptionItems
+        List<SBQQ__Subscription__c> subscriptionItems,
+        Date startDate,
+        Date endDate
     ) {
         try {
             // First get current schedule to get ALL existing phases exactly as they are
@@ -198,10 +213,8 @@ public class StripeSubscriptionAutoRenewal2 implements Database.Batchable<SObjec
             }
 
             // Calculate phase dates
-            Long phaseStart =
-                DateTime.newInstance(contract.EndDate.addDays(1), Time.newInstance(0, 0, 0, 0)).getTime() / 1000;
-            Long phaseEnd =
-                DateTime.newInstance(contract.EndDate.addMonths(12), Time.newInstance(0, 0, 0, 0)).getTime() / 1000;
+            Long phaseStart = DateTime.newInstance(startDate, Time.newInstance(0, 0, 0, 0)).getTime() / 1000;
+            Long phaseEnd = DateTime.newInstance(endDate, Time.newInstance(0, 0, 0, 0)).getTime() / 1000;
 
             Map<String, Object> existingSchedule = (Map<String, Object>) JSON.deserializeUntyped(getRes.getBody());
             List<Object> existingPhases = (List<Object>) existingSchedule.get('phases');
@@ -253,12 +266,10 @@ public class StripeSubscriptionAutoRenewal2 implements Database.Batchable<SObjec
                 }
             }
 
-            // Now add the NEW 12-month phase at the end
+            // Now add new phase at the end with new dates and items
             Integer newPhaseIndex = existingPhases.size();
-            // bodyParts.add('phases[' + newPhaseIndex + '][start_date]=' + phaseStart);
-            // bodyParts.add('phases[' + newPhaseIndex + '][end_date]=' + phaseEnd);
-            bodyParts.add('phases[' + newPhaseIndex + '][duration][interval]=month');
-            bodyParts.add('phases[' + newPhaseIndex + '][duration][interval_count]=12');
+            bodyParts.add('phases[' + newPhaseIndex + '][start_date]=' + phaseStart);
+            bodyParts.add('phases[' + newPhaseIndex + '][end_date]=' + phaseEnd);
             bodyParts.add('phases[' + newPhaseIndex + '][proration_behavior]=none');
             bodyParts.add('phases[' + newPhaseIndex + '][billing_cycle_anchor]=automatic');
 
