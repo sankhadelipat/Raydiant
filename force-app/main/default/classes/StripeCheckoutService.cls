@@ -236,7 +236,7 @@ public class StripeCheckoutService {
                 for (SBQQ__Quote__c qt : new List<SBQQ__Quote__c>{ quote }) {
                     qt.Stripe_Payment_Link__c =
                         paySiteDetail.SecureURL +
-                        'apex/StripeCheckoutPage?session=' +
+                        'apex/StripeCheckoutPageV2?session=' +
                         checkoutSessionId+'&client=' + clientSecret;
                     qt.Stripe_Checkout_Session_ID__c = checkoutSessionId;
                     updateQuoteList.add(qt);
