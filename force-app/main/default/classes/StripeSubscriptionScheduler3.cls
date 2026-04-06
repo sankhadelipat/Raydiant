@@ -2,6 +2,20 @@ public class StripeSubscriptionScheduler3 {
     private static final Stripe_Details__c stripeDetails = Stripe_Details__c.getInstance('Stripe Details');
     private static final String SECRET_KEY = stripeDetails.Serect_Key__c;
 
+    // -------- FLOW INPUT --------
+    public class FlowInput {
+        @InvocableVariable(required=true)
+        public Id quoteId;
+    }
+
+    // -------- FLOW OUTPUT --------
+    public class FlowResult {
+        @InvocableVariable
+        public Boolean isSuccess;
+        @InvocableVariable
+        public String message;
+    }
+
     /**
      * Amends existing Stripe subscription based on CPQ Amendment Quote. It handles both subscription updates, new subscription items addition & existing subscription removal. The method is designed to be called from an invocable context, allowing it to be easily integrated into CPQ amendment processes.
      */
@@ -10,12 +24,17 @@ public class StripeSubscriptionScheduler3 {
         description='Updates existing Stripe subscription using CPQ Amendment Quote'
         category='Stripe'
     )
-    public static void amendStripeSubscription(List<Id> quoteIds) {
-        try {
-            if (quoteIds == null || quoteIds.isEmpty())
-                return;
+    public static List<FlowResult> amendStripeSubscription(List<FlowInput> inputs) {
+        FlowResult result = new FlowResult();
+        List<FlowResult> results = new List<FlowResult>{ result };
 
-            // Get Quote + Contract
+        if (inputs == null || inputs.isEmpty()) {
+            result.isSuccess = false;
+            result.message = 'No quote Ids provided';
+            return results;
+        }
+
+        try {
             SBQQ__Quote__c quote = [
                 SELECT
                     Id,
@@ -30,7 +49,7 @@ public class StripeSubscriptionScheduler3 {
                     SBQQ__PaymentTerms__c,
                     CurrencyIsoCode
                 FROM SBQQ__Quote__c
-                WHERE Id = :quoteIds[0]
+                WHERE Id = :inputs[0].quoteId
                 LIMIT 1
             ];
 
@@ -39,7 +58,7 @@ public class StripeSubscriptionScheduler3 {
             }
 
             Contract con = [
-                SELECT Id, Stripe_Subscription_ID__c
+                SELECT Id, Status, Stripe_Subscription_ID__c
                 FROM Contract
                 WHERE Id = :quote.SBQQ__MasterContract__c
                 LIMIT 1
@@ -48,13 +67,15 @@ public class StripeSubscriptionScheduler3 {
             if (String.isBlank(con.Stripe_Subscription_ID__c)) {
                 throw new HandledException('Missing Stripe Subscription ID on Contract');
             }
+            if (con.Status != 'Activated') {
+                throw new HandledException('Contract must be Active to amend subscription');
+            }
 
             // Get all subscriptions related to the contract
             List<SBQQ__Subscription__c> allSubs = [
                 SELECT Id, Stripe_Subscription_ID__c
                 FROM SBQQ__Subscription__c
-                WHERE SBQQ__Contract__c = :con.Id
-                AND Stripe_Subscription_ID__c != NULL
+                WHERE SBQQ__Contract__c = :con.Id AND Stripe_Subscription_ID__c != NULL
             ];
 
             if (allSubs.isEmpty()) {
@@ -140,14 +161,16 @@ public class StripeSubscriptionScheduler3 {
             for (SBQQ__Subscription__c sub : allSubs) {
                 // If NOT used → DELETE from subscription
                 if (!usedSubs.contains(sub.Id)) {
-                    bodyParts.add('items[' + index + '][id]=' + EncodingUtil.urlEncode(sub.Stripe_Subscription_ID__c, 'UTF-8'));
+                    bodyParts.add(
+                        'items[' + index + '][id]=' + EncodingUtil.urlEncode(sub.Stripe_Subscription_ID__c, 'UTF-8')
+                    );
                     bodyParts.add('items[' + index + '][deleted]=true');
                     index++;
                 }
             }
 
             // Enable proration
-            bodyParts.add('proration_behavior=create_prorations');
+            bodyParts.add('proration_behavior=always_invoice');
 
             String body = String.join(bodyParts, '&');
 
@@ -172,6 +195,10 @@ public class StripeSubscriptionScheduler3 {
                     );
                 }
                 update quoteLinesToUpdate;
+
+                result.isSuccess = true;
+                result.message = 'Stripe Subscription Updated Successfully';
+                return results;
             } else {
                 throw new CalloutException('Stripe Update Failed: ' + res.getBody());
             }
@@ -187,6 +214,10 @@ public class StripeSubscriptionScheduler3 {
                 Object_Name__c = 'SBQQ__Quote__c'
             );
             insert logger;
+
+            result.isSuccess = false;
+            result.message = e.getMessage();
+            return results;
         }
     }
 

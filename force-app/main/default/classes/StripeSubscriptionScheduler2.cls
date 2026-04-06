@@ -2,6 +2,20 @@ public class StripeSubscriptionScheduler2 {
     private static final Stripe_Details__c stripeDetails = Stripe_Details__c.getInstance('Stripe Details');
     private static final String SECRET_KEY = stripeDetails.Serect_Key__c;
 
+    // -------- FLOW INPUT --------
+    public class FlowInput {
+        @InvocableVariable(required=true)
+        public Id quoteId;
+    }
+
+    // -------- FLOW OUTPUT --------
+    public class FlowResult {
+        @InvocableVariable
+        public Boolean isSuccess;
+        @InvocableVariable
+        public String message;
+    }
+
     /**
      * Quote To Invoice || Subscription
      * Creates Stripe Subscription when Quote is Accepted with current or past start date
@@ -12,9 +26,18 @@ public class StripeSubscriptionScheduler2 {
         description='Create Stripe Subscription When Quote Accepted'
         category='Stripe'
     )
-    public static void createStripeSubscriptionAsync(List<Id> quoteId) {
+    public static List<FlowResult> createStripeSubscriptionAsync(List<FlowInput> inputs) {
+        FlowResult result = new FlowResult();
+        List<FlowResult> results = new List<FlowResult>{ result };
+
+        if (inputs == null || inputs.isEmpty()) {
+            result.isSuccess = false;
+            result.message = 'No quote Ids provided';
+            return results;
+        }
+
         try {
-            List<SBQQ__Quote__c> quoteList = [
+            SBQQ__Quote__c quote = [
                 SELECT
                     Id,
                     SBQQ__StartDate__c,
@@ -27,15 +50,11 @@ public class StripeSubscriptionScheduler2 {
                     SBQQ__PaymentTerms__c,
                     CurrencyIsoCode
                 FROM SBQQ__Quote__c
-                WHERE Id = :quoteId[0]
+                WHERE Id = :inputs[0].quoteId
                 LIMIT 1
             ];
-            if (quoteList.isEmpty())
-                return;
 
-            SBQQ__Quote__c quote = quoteList[0];
-            List<id> quoteIds = new List<Id>();
-            quoteIds.add(quote.Id);
+            List<Id> quoteIds = new List<Id>{ quote.Id };
 
             Long currentTimeUnix = DateTime.now().getTime() / 1000;
             Date startDate = quote.SBQQ__StartDate__c;
@@ -52,7 +71,10 @@ public class StripeSubscriptionScheduler2 {
             if (currentTimeUnix < unixTimestamp) {
                 StripeSubscriptionScheduler.createStripeSchedule(quoteIds);
                 StripeInvoiceCallout2.invoiceGeneration(quoteIds, true);
-                return;
+
+                result.isSuccess = true;
+                result.message = 'Stripe Subscription Scheduled Successfully';
+                return results;
             }
 
             List<SBQQ__QuoteLine__c> quoteLines = [
@@ -73,9 +95,11 @@ public class StripeSubscriptionScheduler2 {
             ];
 
             if (quoteLines.IsEmpty()) {
-                System.debug('Enter One Time Product Calling StripeInvoiceCallout2 CLass to generate Invoice');
                 StripeInvoiceCallout2.invoiceGeneration(quoteIds, false);
-                return;
+
+                result.isSuccess = true;
+                result.message = 'Stripe Invoice Generated Successfully for One Time Products';
+                return results;
             }
 
             // prepare price id with Quote line price //
@@ -177,9 +201,7 @@ public class StripeSubscriptionScheduler2 {
 
             // Prepare subscription body
             List<String> bodyParts = new List<String>();
-            bodyParts.add(
-                'customer=' + EncodingUtil.urlEncode(quoteList[0].SBQQ__Account__r.Stripe_Customer_ID__c, 'UTF-8')
-            );
+            bodyParts.add('customer=' + EncodingUtil.urlEncode(quote.SBQQ__Account__r.Stripe_Customer_ID__c, 'UTF-8'));
 
             Integer daysUntilDue;
 
@@ -209,7 +231,7 @@ public class StripeSubscriptionScheduler2 {
             bodyParts.add('collection_method=send_invoice');
             bodyParts.add('payment_behavior=default_incomplete');
             bodyParts.add('payment_settings[save_default_payment_method]=on_subscription');
-            bodyParts.add('currency=' + (quoteList[0].CurrencyIsoCode));
+            bodyParts.add('currency=' + (quote.CurrencyIsoCode));
             bodyParts.add('proration_behavior=always_invoice');
             bodyParts.add('billing_mode[type]=flexible');
 
@@ -361,6 +383,10 @@ public class StripeSubscriptionScheduler2 {
                 update quoteLinesToUpdate;
 
                 System.enqueueJob(new StripeInvoiceCallout(invoiceId, quote.Id));
+
+                result.isSuccess = true;
+                result.message = 'Stripe Subscription Created Successfully';
+                return results;
             } else {
                 System.debug('Stripe Subscription Error: ' + subRes.getBody());
                 throw new CalloutException('Stripe Subscription Error: ' + subRes.getBody());
@@ -377,6 +403,10 @@ public class StripeSubscriptionScheduler2 {
                 Object_Name__c = 'SBQQ__Quote__c'
             );
             insert logger;
+
+            result.isSuccess = false;
+            result.message = e.getMessage();
+            return results;
         }
     }
 }

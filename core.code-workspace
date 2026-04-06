@@ -1,0 +1,19 @@
+{
+  "folders": [
+    {
+      "path": "d:/Dev/Raydiant"
+    }
+  ],
+  "settings": {
+    "eslint.workingDirectories": [
+      "d:/Dev/Raydiant"
+    ],
+    "eslint.validate": [
+      "javascript",
+      "typescript"
+    ],
+    "eslint.options": {
+      "overrideConfigFile": "d:\\Dev\\Raydiant\\.eslintrc.json"
+    }
+  }
+}
