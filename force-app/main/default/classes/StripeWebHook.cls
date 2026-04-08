@@ -446,13 +446,13 @@ global without sharing class StripeWebHook {
                 ? (String) subscriptionDetails.get('subscription')
                 : null;
 
-            List<Stripe_Capture_Intent__e> stripeIntentList = new List<Stripe_Capture_Intent__e>();
-            Stripe_Capture_Intent__e stripeIntent = new Stripe_Capture_Intent__e();
-            stripeIntent.Stripe_Invoice_ID__c = invoiceId;
-            stripeIntentList.add(stripeIntent);
+            // List<Stripe_Capture_Intent__e> stripeIntentList = new List<Stripe_Capture_Intent__e>();
+            // Stripe_Capture_Intent__e stripeIntent = new Stripe_Capture_Intent__e();
+            // stripeIntent.Stripe_Invoice_ID__c = invoiceId;
+            // stripeIntentList.add(stripeIntent);
 
-            Database.SaveResult[] results1 = EventBus.publish(stripeIntentList);
-            System.debug('results--' + results1);
+            // Database.SaveResult[] results1 = EventBus.publish(stripeIntentList);
+            // System.debug('results--' + results1);
 
             if (subscriptionId != null) {
                 List<Stripe_Capture_Subscription_Promotion__e> stripeInvoicePromotionList = new List<Stripe_Capture_Subscription_Promotion__e>();

@@ -71,9 +71,6 @@ public class StripeInvoiceQueueable implements Queueable, Database.AllowsCallout
                 Long finalizesAt = (Long) result.get('automatically_finalizes_at');
                 String currencyCode = (String) result.get('currency');
                 String status = (String) result.get('status');
-                Boolean paidOutOfBand = result.containsKey('paid_out_of_band')
-                    ? (Boolean) result.get('paid_out_of_band')
-                    : false;
                 Decimal prePaymentCreditAmount = result.containsKey('pre_payment_credit_notes_amount')
                     ? (Decimal) result.get('pre_payment_credit_notes_amount') / 100
                     : 0;
@@ -240,35 +237,9 @@ public class StripeInvoiceQueueable implements Queueable, Database.AllowsCallout
                     upsert lineItems Stripe_Invoice_line_Item_Id__c;
                 }
 
-                // ── OOB Payment Fix (Blake Reeves / StargateCRM - 2026-03-27) ──────────
-                // Out-of-band payments (ACH, wire transfer) have no PaymentIntent, so
-                // StripeTransactionQueueable never fires and no transaction record is created.
-                // If the invoice is paid with no PaymentIntent, we create the record here.
-                if (status == 'paid' && paidOutOfBand) {
-                    List<Stripe_Payment_Transaction__c> existingTxns = [
-                        SELECT Id
-                        FROM Stripe_Payment_Transaction__c
-                        WHERE Stripe_Invoice__c = :invoiceID
-                        LIMIT 1
-                    ];
-
-                    if (existingTxns.isEmpty()) {
-                        Stripe_Payment_Transaction__c txn = new Stripe_Payment_Transaction__c();
-                        txn.Stripe_Invoice__c = invoiceID;
-                        txn.Account__c = accountId;
-                        txn.Quote_CPQ__c = quoteList.isEmpty() ? null : quoteList[0].Id;
-                        txn.Contract__c = contracts.isEmpty() ? null : contracts[0].Id;
-                        txn.Amount__c = invoice.Amount_Paid__c;
-                        txn.Amount_Paid__c = invoice.Amount_Paid__c;
-                        txn.CurrencyIsoCode = currencyCode.toUpperCase();
-                        txn.Status__c = 'Succeeded';
-                        txn.Stripe_Transaction_Status__c = 'succeeded';
-                        txn.Stripe_PaymentIntent_ID__c = 'OOB-' + stripeInvoiceId;
-                        txn.Payment_Date__c = invoice.Invoice_Date__c;
-
-                        insert txn;
-                        System.debug('OOB Stripe_Payment_Transaction__c created: ' + txn.Id);
-                    }
+                // If invoice is paid, attach a payment transaction record
+                if (status == 'paid') {
+                    System.enqueueJob(new StripePaymentIntentQueueable(stripeInvoiceId), 5);
                 }
             } else {
                 System.debug('Failed to fetch invoice from Stripe. Status: ' + res.getStatusCode());

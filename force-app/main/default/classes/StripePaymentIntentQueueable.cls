@@ -11,7 +11,7 @@ public class StripePaymentIntentQueueable implements Queueable, Database.AllowsC
     public void execute(QueueableContext context) {
         try {
             List<Stripe_Invoice__c> invoices = [
-                SELECT Id, Contract__c, Quote_CPQ__c
+                SELECT Id, Contract__c, Quote_CPQ__c, Account__c
                 FROM Stripe_Invoice__c
                 WHERE Stripe_Invoice_ID__c = :stripeInvoiceId
                 LIMIT 1
@@ -33,42 +33,64 @@ public class StripePaymentIntentQueueable implements Queueable, Database.AllowsC
             if (res.getStatusCode() == 200) {
                 Map<String, Object> result = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
                 system.debug('result---' + result);
-                String paymentIntentId;
 
-                // Extract Payment Intent ID
+                // ================= PROCESS ALL PAYMENTS =================
                 if (result.containsKey('payments') && result.get('payments') != null) {
                     Map<String, Object> payments = (Map<String, Object>) result.get('payments');
 
                     if (payments.containsKey('data') && payments.get('data') != null) {
                         List<Object> paymentData = (List<Object>) payments.get('data');
 
-                        if (!paymentData.isEmpty()) {
-                            Map<String, Object> firstPayment = (Map<String, Object>) paymentData[0];
+                        List<Stripe_Payment_Transaction__c> transactionsToUpsert = new List<Stripe_Payment_Transaction__c>();
+                        List<String> outOfBandPaymentRecordIds = new List<String>();
 
-                            if (firstPayment.containsKey('payment') && firstPayment.get('payment') != null) {
-                                Map<String, Object> paymentDetails = (Map<String, Object>) firstPayment.get('payment');
+                        for (Object obj : paymentData) {
+                            Map<String, Object> paymentWrapper = (Map<String, Object>) obj;
 
-                                if (
-                                    paymentDetails.containsKey('payment_intent') &&
-                                    paymentDetails.get('payment_intent') != null
-                                ) {
-                                    paymentIntentId = (String) paymentDetails.get('payment_intent');
-                                }
+                            if (!paymentWrapper.containsKey('payment') || paymentWrapper.get('payment') == null)
+                                continue;
+
+                            Map<String, Object> paymentDetails = (Map<String, Object>) paymentWrapper.get('payment');
+
+                            // ================= PAYMENT INTENT =================
+                            if (
+                                paymentDetails.containsKey('payment_intent') &&
+                                paymentDetails.get('payment_intent') != null
+                            ) {
+                                String paymentIntentId = (String) paymentDetails.get('payment_intent');
+                                String paymentType = (String) paymentDetails.get('type');
+
+                                // ================= UPSERT RECORD =================
+                                Stripe_Payment_Transaction__c pt = new Stripe_Payment_Transaction__c();
+                                pt.Stripe_PaymentIntent_ID__c = paymentIntentId;
+                                pt.Stripe_Invoice__c = invoices[0].Id;
+                                pt.Contract__c = invoices[0].Contract__c;
+                                pt.Quote_CPQ__c = invoices[0].Quote_CPQ__c;
+                                pt.Payment_Type__c = paymentType;
+
+                                transactionsToUpsert.add(pt);
+                            }
+                            // ================= PAYMENT RECORD =================
+                            else if (
+                                paymentDetails.containsKey('payment_record') &&
+                                paymentDetails.get('payment_record') != null
+                            ) {
+                                String paymentRecordId = (String) paymentDetails.get('payment_record');
+
+                                outOfBandPaymentRecordIds.add(paymentRecordId);
+                            } else {
+                                continue;
                             }
                         }
+
+                        if (!transactionsToUpsert.isEmpty()) {
+                            upsert transactionsToUpsert Stripe_PaymentIntent_ID__c;
+                        }
+
+                        if (!outOfBandPaymentRecordIds.isEmpty()) {
+                            System.enqueueJob(new StripeOutOfBandQueueable(outOfBandPaymentRecordIds, invoices[0]));
+                        }
                     }
-                }
-                System.debug('Captured PaymentIntent ID: ' + paymentIntentId);
-
-                if (paymentIntentId != null && !invoices.isEmpty()) {
-                    // Update the Stripe_Payment_Transaction__c record with the Invoice reference
-                    Stripe_Payment_Transaction__c pt = new Stripe_Payment_Transaction__c();
-                    pt.Stripe_PaymentIntent_ID__c = paymentIntentId;
-                    pt.Stripe_Invoice__c = invoices[0].Id;
-                    pt.Contract__c = invoices[0].Contract__c;
-                    pt.Quote_CPQ__c = invoices[0].Quote_CPQ__c;
-
-                    upsert pt Stripe_PaymentIntent_ID__c;
                 }
             } else {
                 System.debug('Failed to retrieve invoice. Status Code: ' + res.getStatusCode());
