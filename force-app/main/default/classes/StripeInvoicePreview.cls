@@ -2,15 +2,10 @@ public class StripeInvoicePreview implements Queueable, Database.AllowsCallouts 
     private static final Stripe_Details__c stripeDetails = Stripe_Details__c.getInstance('Stripe Details');
     private static final String SECRET_KEY = stripeDetails.Serect_Key__c;
 
-    public enum PreviewType {
-        SUBSCRIPTION,
-        SUBSCRIPTION_SCHEDULE
-    }
-
     private String stripeId;
-    private PreviewType previewType;
+    private String previewType; // SUBSCRIPTION | SUBSCRIPTION_SCHEDULE
 
-    public StripeInvoicePreview(String stripeId, PreviewType previewType) {
+    public StripeInvoicePreview(String stripeId, String previewType) {
         this.stripeId = stripeId;
         this.previewType = previewType;
     }
@@ -23,9 +18,9 @@ public class StripeInvoicePreview implements Queueable, Database.AllowsCallouts 
             req.setHeader('Authorization', 'Basic ' + EncodingUtil.base64Encode(Blob.valueOf(SECRET_KEY + ':')));
             req.setHeader('Content-Type', 'application/x-www-form-urlencoded');
 
-            if (previewType == StripeInvoicePreview.PreviewType.SUBSCRIPTION) {
+            if (previewType == 'SUBSCRIPTION') {
                 req.setBody('subscription=' + EncodingUtil.urlEncode(stripeId, 'UTF-8'));
-            } else if (previewType == StripeInvoicePreview.PreviewType.SUBSCRIPTION_SCHEDULE) {
+            } else if (previewType == 'SUBSCRIPTION_SCHEDULE') {
                 req.setBody('schedule=' + EncodingUtil.urlEncode(stripeId, 'UTF-8'));
             }
 
@@ -60,14 +55,14 @@ public class StripeInvoicePreview implements Queueable, Database.AllowsCallouts 
     private void handlePreviewResponse() {
         List<Contract> contracts;
 
-        if (previewType == StripeInvoicePreview.PreviewType.SUBSCRIPTION) {
+        if (previewType == 'SUBSCRIPTION') {
             contracts = [
                 SELECT Id, Next_Billing_Date__c, Next_Billing_Amount__c
                 FROM Contract
                 WHERE Stripe_Subscription_ID__c = :stripeId
                 LIMIT 1
             ];
-        } else if (previewType == StripeInvoicePreview.PreviewType.SUBSCRIPTION_SCHEDULE) {
+        } else if (previewType == 'SUBSCRIPTION_SCHEDULE') {
             contracts = [
                 SELECT Id, Next_Billing_Date__c, Next_Billing_Amount__c
                 FROM Contract
@@ -96,14 +91,14 @@ public class StripeInvoicePreview implements Queueable, Database.AllowsCallouts 
 
         List<Contract> contracts;
 
-        if (previewType == StripeInvoicePreview.PreviewType.SUBSCRIPTION) {
+        if (previewType == 'SUBSCRIPTION') {
             contracts = [
                 SELECT Id, Next_Billing_Date__c, Next_Billing_Amount__c
                 FROM Contract
                 WHERE Stripe_Subscription_ID__c = :stripeId
                 LIMIT 1
             ];
-        } else if (previewType == StripeInvoicePreview.PreviewType.SUBSCRIPTION_SCHEDULE) {
+        } else if (previewType == 'SUBSCRIPTION_SCHEDULE') {
             contracts = [
                 SELECT Id, Next_Billing_Date__c, Next_Billing_Amount__c
                 FROM Contract

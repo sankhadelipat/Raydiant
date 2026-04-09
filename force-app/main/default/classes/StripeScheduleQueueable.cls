@@ -123,7 +123,6 @@ public class StripeScheduleQueueable implements Queueable, Database.AllowsCallou
                 Stripe_Subscription_URL__c = 'https://dashboard.stripe.com/subscription_schedules/' + scheduleId,
                 Collection_Method__c = collectionMethod,
                 StartDate = startDate,
-                Status = 'Pending',
                 ContractTerm = calculateContractTerm(startDate, endDate),
                 Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
                 CustomerSignedId = quoteList[0].SBQQ__Account__r.blng__BillToContact__c,
@@ -132,6 +131,11 @@ public class StripeScheduleQueueable implements Queueable, Database.AllowsCallou
                 Stripe_Subscription_Start_Date__c = String.valueOf(startDateUnix)
             );
 
+            if (status == 'canceled') {
+                contract.Status = 'canceled';
+            } else {
+                contract.Status = 'Pending';
+            }
             if (endDate != null) {
                 contract.EndDate = endDate;
             }
@@ -139,7 +143,9 @@ public class StripeScheduleQueueable implements Queueable, Database.AllowsCallou
                 contract.Renewed_From_Contract__c = renewedFromContract;
             }
 
+            StripeTriggerHandler.enableBypass('Contract');
             upsert contract Stripe_Subscription_Schedule_ID__c;
+            StripeTriggerHandler.disableBypass('Contract');
 
             // Insert Subscription Items
             List<SBQQ__Subscription__c> subscriptionItemsToInsert = new List<SBQQ__Subscription__c>();
@@ -246,9 +252,14 @@ public class StripeScheduleQueueable implements Queueable, Database.AllowsCallou
                 insert subscriptionItemsToInsert;
                 System.debug('Inserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
 
-                System.enqueueJob(
-                    new StripeInvoicePreview(scheduleId, StripeInvoicePreview.PreviewType.SUBSCRIPTION_SCHEDULE)
-                );
+                if (status != 'canceled') {
+                    Stripe_Capture_Invoice_Preview__e event = new Stripe_Capture_Invoice_Preview__e(
+                        StripeId__c = scheduleId,
+                        PreviewType__c = 'SUBSCRIPTION_SCHEDULE'
+                    );
+
+                    EventBus.publish(event);
+                }
             } else {
                 System.debug('No subscription records to insert');
                 return;
@@ -351,7 +362,6 @@ public class StripeScheduleQueueable implements Queueable, Database.AllowsCallou
                 Stripe_Subscription_URL__c = 'https://dashboard.stripe.com/subscription_schedules/' + scheduleId,
                 Collection_Method__c = collectionMethod,
                 StartDate = startDate,
-                Status = 'Pending',
                 ContractTerm = calculateContractTerm(startDate, endDate),
                 Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
                 CustomerSignedId = accts.size() > 0 ? accts[0].blng__BillToContact__c : null,
@@ -360,6 +370,11 @@ public class StripeScheduleQueueable implements Queueable, Database.AllowsCallou
                 Stripe_Subscription_Start_Date__c = String.valueOf(startDateUnix)
             );
 
+            if (status == 'canceled') {
+                contract.Status = 'canceled';
+            } else {
+                contract.Status = 'Pending';
+            }
             if (endDate != null) {
                 contract.EndDate = endDate;
             }
@@ -367,7 +382,9 @@ public class StripeScheduleQueueable implements Queueable, Database.AllowsCallou
                 contract.Renewed_From_Contract__c = renewedFromContract;
             }
 
+            StripeTriggerHandler.enableBypass('Contract');
             upsert contract Stripe_Subscription_Schedule_ID__c;
+            StripeTriggerHandler.disableBypass('Contract');
 
             // Insert Subscription Items
             List<SBQQ__Subscription__c> subscriptionItemsToInsert = new List<SBQQ__Subscription__c>();
@@ -458,9 +475,14 @@ public class StripeScheduleQueueable implements Queueable, Database.AllowsCallou
                 insert subscriptionItemsToInsert;
                 System.debug('Inserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
 
-                System.enqueueJob(
-                    new StripeInvoicePreview(scheduleId, StripeInvoicePreview.PreviewType.SUBSCRIPTION_SCHEDULE)
-                );
+                if (status != 'canceled') {
+                    Stripe_Capture_Invoice_Preview__e event = new Stripe_Capture_Invoice_Preview__e(
+                        StripeId__c = scheduleId,
+                        PreviewType__c = 'SUBSCRIPTION_SCHEDULE'
+                    );
+
+                    EventBus.publish(event);
+                }
             } else {
                 System.debug('No subscription records to insert');
                 return;

@@ -41,7 +41,10 @@ public class StripeSubscriptionHandler {
                 if (!pending.isEmpty()) {
                     existingContract = pending[0];
                     existingContract.Stripe_Subscription_ID__c = subcriptionId;
+                    
+                    StripeTriggerHandler.enableBypass('Contract');
                     update existingContract;
+                    StripeTriggerHandler.disableBypass('Contract');
 
                     // Delete All SBQQ_Subscription__c records related to this contract
                     List<SBQQ__Subscription__c> subsToDelete = [
@@ -51,19 +54,20 @@ public class StripeSubscriptionHandler {
                     ];
 
                     if (!subsToDelete.isEmpty()) {
+                        StripeTriggerHandler.enableBypass('SBQQ__Subscription__c');
                         delete subsToDelete;
+                        StripeTriggerHandler.disableBypass('SBQQ__Subscription__c');
+                        
                         System.debug('Deleted ' + subsToDelete.size() + ' SBQQ__Subscription__c records.');
                     }
                 }
             }
 
             // Upsert Subscription record
-            if (quoteId != null) {
+            if (subscriptionSource == 'amazon' || subscriptionSource == 'self_service') {
+                System.enqueueJob(new StripeSubscriptionQueueable(subRes.getBody(), quoteId), 1);
+            } else {
                 System.enqueueJob(new StripeSubscriptionQueueable(subRes.getBody(), quoteId));
-            } else if ((subscriptionSource == 'amazon' || subscriptionSource == 'self_service') && quoteId == null) {
-                System.enqueueJob(new StripeSubscriptionQueueable(subRes.getBody(), null), 1);
-            } else if (quoteId == null) {
-                System.enqueueJob(new StripeSubscriptionQueueable(subRes.getBody(), null));
             }
         }
     }
@@ -90,11 +94,7 @@ public class StripeSubscriptionHandler {
             System.debug('subResponse---' + subResponse);
 
             // Upsert Subscription record
-            if (quoteId != null) {
-                System.enqueueJob(new StripeScheduleQueueable(subRes.getBody(), quoteId));
-            } else if (quoteId == null) {
-                System.enqueueJob(new StripeScheduleQueueable(subRes.getBody(), null));
-            }
+            System.enqueueJob(new StripeScheduleQueueable(subRes.getBody(), quoteId));
         }
     }
 

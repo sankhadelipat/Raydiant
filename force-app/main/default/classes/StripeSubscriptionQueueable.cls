@@ -158,6 +158,16 @@ public class StripeSubscriptionQueueable implements Queueable, Database.AllowsCa
 
             upsert contract Stripe_Subscription_ID__c;
 
+            if (status == 'canceled') {
+                contract.Status = 'canceled';
+            } else {
+                contract.Status = 'Activated';
+            }
+
+            StripeTriggerHandler.enableBypass('Contract');
+            update contract;
+            StripeTriggerHandler.disableBypass('Contract');
+
             // Create Subscription Items
             List<SBQQ__Subscription__c> subscriptionItemsToInsert = new List<SBQQ__Subscription__c>();
             Map<String, SBQQ__QuoteLine__c> priceIdToQuoteLineMap = new Map<String, SBQQ__QuoteLine__c>();
@@ -264,14 +274,14 @@ public class StripeSubscriptionQueueable implements Queueable, Database.AllowsCa
                 upsert subscriptionItemsToInsert SBQQ__Subscription__c.Stripe_Subscription_ID__c;
                 System.debug('Upserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
 
-                List<Contract> contractsToUpdate = new List<Contract>();
-                Contract conToUpdate = new Contract(Id = contract.Id, Status = 'Activated');
-                contractsToUpdate.add(conToUpdate);
-                update contractsToUpdate;
+                if (status != 'canceled') {
+                    Stripe_Capture_Invoice_Preview__e event = new Stripe_Capture_Invoice_Preview__e(
+                        StripeId__c = subscriptionId,
+                        PreviewType__c = 'SUBSCRIPTION'
+                    );
 
-                System.enqueueJob(
-                    new StripeInvoicePreview(subscriptionId, StripeInvoicePreview.PreviewType.SUBSCRIPTION)
-                );
+                    EventBus.publish(event);
+                }
             } else {
                 System.debug('No subscription records to insert');
                 return;
@@ -442,6 +452,16 @@ public class StripeSubscriptionQueueable implements Queueable, Database.AllowsCa
 
             upsert contract Stripe_Subscription_ID__c;
 
+            if (status == 'canceled') {
+                contract.Status = 'canceled';
+            } else {
+                contract.Status = 'Activated';
+            }
+
+            StripeTriggerHandler.enableBypass('Contract');
+            update contract;
+            StripeTriggerHandler.disableBypass('Contract');
+
             // Create Subscription Items
             List<SBQQ__Subscription__c> subscriptionItemsToInsert = new List<SBQQ__Subscription__c>();
             // Collect all unique product IDs from subscription items
@@ -532,14 +552,14 @@ public class StripeSubscriptionQueueable implements Queueable, Database.AllowsCa
                 upsert subscriptionItemsToInsert SBQQ__Subscription__c.Stripe_Subscription_ID__c;
                 System.debug('Upserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
 
-                List<Contract> contractsToUpdate = new List<Contract>();
-                Contract conToUpdate = new Contract(Id = contract.Id, Status = 'Activated');
-                contractsToUpdate.add(conToUpdate);
-                update contractsToUpdate;
+                if (status != 'canceled') {
+                    Stripe_Capture_Invoice_Preview__e event = new Stripe_Capture_Invoice_Preview__e(
+                        StripeId__c = subscriptionId,
+                        PreviewType__c = 'SUBSCRIPTION'
+                    );
 
-                System.enqueueJob(
-                    new StripeInvoicePreview(subscriptionId, StripeInvoicePreview.PreviewType.SUBSCRIPTION)
-                );
+                    EventBus.publish(event);
+                }
             } else {
                 System.debug('No subscription records to insert');
                 return;
