@@ -10,7 +10,7 @@ trigger ContractDoNotRenewTrigger on Contract(after update) {
             con.DO_NOT_RENEW__c == true &&
             oldCon.DO_NOT_RENEW__c == false &&
             con.Renewal_Scheduled__c == true &&
-            con.EndDate > today &&
+            con.EndDate >= today &&
             con.EndDate <= thirtyDaysFromToday
         ) {
             contractsToCancel.add(con.Id);

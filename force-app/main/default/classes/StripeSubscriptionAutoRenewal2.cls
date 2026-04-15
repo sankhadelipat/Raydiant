@@ -8,8 +8,9 @@ public class StripeSubscriptionAutoRenewal2 implements Database.Batchable<SObjec
     private List<String> errorMessages = new List<String>();
 
     public Database.QueryLocator start(Database.BatchableContext bc) {
-        // Find contracts that expire tomorrow and have auto-renewal enabled and are active
-        Date tomorrow = Date.today().addDays(1);
+        // Find contracts that is going to expire within 30 days and have auto-renewal enabled and are active
+        Date today = Date.today();
+        Date thirtyDaysFromToday = Date.today().addDays(30);
 
         return Database.getQueryLocator(
             [
@@ -19,6 +20,11 @@ public class StripeSubscriptionAutoRenewal2 implements Database.Batchable<SObjec
                     Account.Stripe_Customer_ID__c,
                     Stripe_Subscription_ID__c,
                     Stripe_Subscription_Schedule_ID__c,
+                    Renewed_Schedule_ID__c,
+                    Renewed_Start_Date__c,
+                    Renewed_End_Date__c,
+                    Backup_Renewed_Start_Date__c,
+                    Backup_Renewed_End_Date__c,
                     EndDate,
                     StartDate,
                     ContractTerm,
@@ -27,11 +33,11 @@ public class StripeSubscriptionAutoRenewal2 implements Database.Batchable<SObjec
                     Stripe_Billing_Date__c
                 FROM Contract
                 WHERE
-                    EndDate = :tomorrow
-                    AND (Renewed_End_Date__c = NULL
-                    OR Renewed_End_Date__c = :tomorrow)
+                    EndDate >= :today
+                    AND EndDate <= :thirtyDaysFromToday
                     AND Status = 'Activated'
                     AND DO_NOT_RENEW__c = FALSE
+                    AND Renewal_Scheduled__c = FALSE
                     AND Stripe_Subscription_ID__c != NULL
                     AND Account.Stripe_Customer_ID__c != NULL
             ]
@@ -78,10 +84,14 @@ public class StripeSubscriptionAutoRenewal2 implements Database.Batchable<SObjec
 
                 // Calculate new start and end dates
                 Date newStart = contract.EndDate; // Start immediately after expiration
-                Integer daysBetween = contract.StartDate.daysBetween(contract.EndDate);
-                Date newEnd = contract.ContractTerm != null
-                    ? newStart.addMonths(contract.ContractTerm)
-                    : newStart.addDays(daysBetween);
+                Integer daysBetween = contract.Backup_Renewed_Start_Date__c != null &&
+                    contract.Backup_Renewed_End_Date__c != null
+                    ? contract.Backup_Renewed_Start_Date__c.daysBetween(contract.Backup_Renewed_End_Date__c)
+                    : contract.Renewed_Start_Date__c != null &&
+                          contract.Renewed_End_Date__c != null
+                          ? contract.Renewed_Start_Date__c.daysBetween(contract.Renewed_End_Date__c)
+                          : contract.StartDate.daysBetween(contract.EndDate);
+                Date newEnd = newStart.addDays(daysBetween);
 
                 // Check if contract already has a schedule ID
                 if (String.isNotBlank(contract.Stripe_Subscription_Schedule_ID__c)) {
@@ -111,9 +121,11 @@ public class StripeSubscriptionAutoRenewal2 implements Database.Batchable<SObjec
                 if (String.isNotBlank(subscriptionScheduleId)) {
                     Contract updatedContract = new Contract(
                         Id = contract.Id,
+                        Backup_Renewed_Start_Date__c = null,
+                        Backup_Renewed_End_Date__c = null,
+                        Renewed_Start_Date__c = newStart,
                         Renewed_End_Date__c = newEnd,
                         Renewed_Schedule_ID__c = subscriptionScheduleId,
-                        Stripe_Subscription_Schedule_ID__c = subscriptionScheduleId,
                         Latest_Change_Reason__c = 'Auto-renewed: ' + DateTime.now().format()
                     );
 
@@ -268,7 +280,7 @@ public class StripeSubscriptionAutoRenewal2 implements Database.Batchable<SObjec
 
             // Now add new phase at the end with new dates and items
             Integer newPhaseIndex = existingPhases.size();
-            bodyParts.add('phases[' + newPhaseIndex + '][start_date]=' + phaseStart);
+            // bodyParts.add('phases[' + newPhaseIndex + '][start_date]=' + phaseStart);
             bodyParts.add('phases[' + newPhaseIndex + '][end_date]=' + phaseEnd);
             bodyParts.add('phases[' + newPhaseIndex + '][proration_behavior]=none');
             bodyParts.add('phases[' + newPhaseIndex + '][billing_cycle_anchor]=automatic');
