@@ -10,6 +10,9 @@ public class StripeInvoiceCallout implements Queueable, Database.AllowsCallouts 
         this.quoteId = quoteId;
     }
 
+    /**
+     * When a quote is accepted this class is called to check whether there are any one-time quote lines. If there are, it creates price ids for those quote lines and adds them to the existing subscription invoice in Stripe.
+     */
     public void execute(QueueableContext context) {
         try {
             List<SBQQ__Quote__c> quoteList = [
@@ -198,8 +201,8 @@ public class StripeInvoiceCallout implements Queueable, Database.AllowsCallouts 
                     throw new CalloutException('Stripe callout failed: ' + res3.getBody());
                 }
             }
-            // invoice update ///
-
+            
+            // invoice update //
             Integer dueOffsetDays = 0;
             String terms = quoteList[0].SBQQ__PaymentTerms__c != null
                 ? quoteList[0].SBQQ__PaymentTerms__c.toLowerCase()

@@ -186,6 +186,14 @@ public class StripeSubscriptionScheduler3 {
 
             if (res.getStatusCode() == 200) {
                 System.debug('Stripe subscription updated successfully');
+                Map<String, Object> subResponse = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
+
+                String subscriptionId = (String) subResponse.get('id');
+                String invoiceId = (String) subResponse.get('latest_invoice');
+                System.debug('Created Stripe Subscription ID: ' + subscriptionId);
+                System.debug('Latest Invoice ID: ' + invoiceId);
+
+                // StripeInvoiceCallout2.invoiceGeneration(new List<Id>{ quote.Id }, true);
 
                 System.debug('Quote Lines and Price IDs:' + JSON.serializePretty(quoteLineToPriceIdMap));
                 List<SBQQ__QuoteLine__c> quoteLinesToUpdate = new List<SBQQ__QuoteLine__c>();
@@ -195,6 +203,8 @@ public class StripeSubscriptionScheduler3 {
                     );
                 }
                 update quoteLinesToUpdate;
+
+                System.enqueueJob(new StripeInvoiceCallout(invoiceId, quote.Id));
 
                 result.isSuccess = true;
                 result.message = 'Stripe Subscription Updated Successfully';

@@ -12,9 +12,9 @@ public class StripeInvoiceCallout2 {
         }
     }
 
-    // ----------------------
-    // Core processing per quote
-    // ----------------------
+    /**
+     * When a quote is accepted and there is at least one one-time quote line, this method creates price ids for those quote lines and adds them to a new invoice in Stripe.
+     */
     private static void processSingleQuote(Id quoteId, Boolean billToday) {
         try {
             SBQQ__Quote__c quote = [
