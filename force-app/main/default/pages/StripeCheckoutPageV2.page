@@ -13,7 +13,7 @@
             <link rel="preconnect" href="https://fonts.googleapis.com" />
             <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
             <link
-                href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+                href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap"
                 rel="stylesheet"
             />
             <style>
@@ -286,11 +286,65 @@
                     text-align: center;
                     margin-top: 16px;
                 }
+
+                /* ========== TC SCROLL BOX ========== */
+                .tos-scroll-wrapper {
+                    position: relative;
+                    margin-bottom: 14px;
+                }
+                .tos-scroll-box {
+                    height: 250px;
+                    overflow-y: scroll;
+                    border: 1px solid #d0d5dd;
+                    border-radius: 6px;
+                    padding: 12px 14px;
+                    font-size: 11px;
+                    line-height: 1.6;
+                    color: #4a4f5e;
+                    background: #f7f9fc;
+                    box-sizing: border-box;
+                }
+                .tos-scroll-box h3 {
+                    font-size: 12px;
+                    font-weight: 700;
+                    color: #1a1f36;
+                    margin: 0 0 8px 0;
+                }
+                .tos-scroll-box p {
+                    margin: 0 0 10px 0;
+                }
+                .tos-scroll-box .tos-section {
+                    margin-bottom: 12px;
+                }
+                .tos-scroll-box .tos-section-title {
+                    font-weight: 700;
+                    color: #1a1f36;
+                }
+                .tos-scroll-hint {
+                    font-size: 11px;
+                    color: #635bff;
+                    text-align: center;
+                    margin-top: 5px;
+                    font-weight: 500;
+                    transition: opacity 0.3s ease;
+                }
+                .tos-scroll-hint.hidden {
+                    opacity: 0;
+                    pointer-events: none;
+                }
+                /* Disabled checkbox styling */
+                #terms-checkbox:disabled {
+                    opacity: 0.35;
+                    cursor: not-allowed;
+                }
+                #terms-checkbox:not(:disabled) {
+                    cursor: pointer;
+                }
             </style>
         </head>
 
         <body>
-            <!-- EXPIRED STATE & COMPLETE STATE -->
+            <!-- EXPIRED STATE &amp; COMPLETE STATE -->
             <apex:outputPanel rendered="{!OR(status == 'complete', status == 'expired')}">
                 <div class="container1">
                     <h4>You're all done here</h4>
@@ -359,7 +413,7 @@
                                 <span
                                     >Qty {!TEXT(ql.quantity)}
                                     <apex:outputPanel rendered="{!NOT(ISBLANK(ql.billingFrequencyOverride))}">
-                                        • Billed {!ql.billingFrequencyOverride}
+                                        &bull; Billed {!ql.billingFrequencyOverride}
                                     </apex:outputPanel>
                                 </span>
                                 <apex:outputPanel rendered="{!ql.quantity > 1}">
@@ -397,10 +451,90 @@
                         </div>
 
                         <div class="section tos">
+
+                            <!-- ===== SCROLLABLE TC BOX ===== -->
+                            <div class="tos-scroll-wrapper">
+                                <div class="tos-scroll-box" id="tos-scroll-box" onscroll="handleTosScroll(this)">
+                                    <h3>TERMS OF USE</h3>
+                                    <p>This Terms of Service ("TOS") contains the exclusive terms and conditions between Displai Systems, Inc. ("we," "us," "our" or "Company"), a Delaware corporation and You, the customer specifically identified in the order form referencing this TOS ("You", "you", "your"), regarding access and use of the Services. The terms "You", "you" and "your" will refer to you, your heirs, and assigns, and the organization you represent, including its subsidiaries and affiliates, and their respective officers, directors, employees and agents. By accessing, using, purchasing or registering for the Services, you are agreeing to these terms for yourself and the organization you represent, and representing to Displai that you have the authority to bind that organization (in which case, the terms "You", "you" and "your" will refer to that organization) under all applicable laws. ONCE ACCEPTED, THESE TOS BECOME A BINDING LEGAL COMMITMENT BETWEEN YOU AND DISPLAI. IF YOU DO NOT AGREE TO BE BOUND BY THESE TOS, YOU SHOULD NOT ACCESS, USE, PURCHASE OR REGISTER FOR DISPLAI SERVICES.</p>
+                                    <p>Pursuant to this TOS, you may order from Displai licenses to access and use Displai's Services. The specifics of each order will be set forth on a written or electronic order form, quote and/or invoice (each, an "Order Form") provided by Displai or made available on the Displai website. Terms not defined below shall have the meaning given to them in the Order Form.</p>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">1. Modifications to the TOS.</span> Displai reserves the right to modify the TOS, at any time and without prior notice (except with respect to Section 15 governing arbitration). We will post modifications on the Services and/or use other means to notify you. By continuing to access or use the Services, you are agreeing to be bound by the modified TOS.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">2. Registration.</span> You may only register for the Services if you are at least 18 years of age (or have reached the age of majority if that is not 18 years of age where you live). You will be required to create an account with an email and a password. You agree to provide accurate, current and complete information during registration and at all other times when you use the Services. We reserve the right in our sole discretion to refuse to keep accounts for, or provide services to, any individual or organization. You may not share your account credentials with any individual who is not an authorized user. You are responsible for safeguarding your password.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">3. The Services.</span> The Displai Services include a proprietary software application to be hosted and made available by Displai on a software-as-a-service basis and technology through which digital feeds, apps, and content created and provided by you or third parties (the "Digital Displays") can be hosted and displayed (collectively, the "Services"). The Services may also contain links, text, graphics, images, audio, video, information, code, or other materials provided by Displai ("Displai Content"). Displai does not guarantee that any parts of the Services will be available at all times, and Displai may change, update, or discontinue the Services without notice to you.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">4. Digital Displays; Third Party Content.</span> You expressly agree and acknowledge that you will not hold Displai responsible for the Digital Displays or any other third-party content created by you or third parties that may be hosted or displayed on or through the Services, and you agree to indemnify and hold Displai harmless from and against any claims or damages arising out of or resulting from the Digital Displays or any other third-party content. Displai does not review or guarantee the existence, quality, or legality of the Digital Displays; the truth or accuracy of Digital Displays; or that Digital Displays will not contain offensive content. Displai does not guarantee that any parts of the Services will be available at all times, and Displai may change, update, or discontinue the Services without notice to you.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">5. Intellectual Property.</span> You acknowledge that the Services and Displai Content are the proprietary intellectual property of Displai or its licensors. The Services are protected by copyright, trademark, and other laws. Except as expressly provided in these TOS, Displai and its licensors exclusively own all right, title, and interest in and to the Services and Displai Content, including all associated intellectual property rights. We grant you (and to the extent applicable, your employees or individual contractors acting for your exclusive benefit) a limited, non-exclusive, non-transferable license, without the right to sublicense, to access and use the Services solely for your internal business purposes and as permitted by these TOS. Your use of the Services is governed by these TOS, and you agree not to: (i) rent, lease, sublicense, distribute, resell, transfer, copy, modify, create derivative works of, publicly display, publicly perform, transmit, stream, broadcast or time-share the Services commercially exploit, or make the Services available to any third party, in whole or in part, (iii) except to the limited extent any of the following are expressly prohibited by law, decompile, disassemble, reverse-compile, reverse-assemble or otherwise reverse-engineer any aspect of the Services (including Displai Content), (iv) permit anyone else to do any of the foregoing, or (v) otherwise use the Services and any Displai Content in any way that is not expressly permitted by this TOS. All trademarks, service marks, logos, trade names and any other proprietary designations of Displai used herein are trademarks or registered trademarks of Displai. If you choose to provide feedback, comments and suggestions for improvements to the Services or otherwise ("Feedback"), you grant us an irrevocable, non-exclusive, royalty-free, perpetual, worldwide license to use, modify, prepare derivative works, publish, distribute and sublicense the Feedback. No rights or licenses are granted to you other than the express rights granted in these TOS.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">6. Confidentiality.</span> "Confidential Information" means, with respect to a party (the "disclosing party"), information that pertains to such party's business, including, without limitation, technical, marketing, financial, employee, planning, product roadmaps and documentation, Customer Content (as defined in Section 7), performance results, pricing, and other confidential or proprietary information. Confidential Information will be designated and/or marked as confidential when disclosed, provided that any information that the party receiving such information (the "receiving party") knew or reasonably should have known, under the circumstances, was considered confidential or proprietary by the disclosing party, will be considered Confidential Information of the disclosing party even if not designated or marked as such. The receiving party shall preserve the confidentiality of the disclosing party's Confidential Information and treat such Confidential Information with at least the same degree of care that receiving party uses to protect its own Confidential Information, but not less than a reasonable standard of care. The receiving party will use the Confidential Information of the disclosing party only to exercise rights and perform obligations under these TOS. Confidential Information of the disclosing party will be disclosed only to those employees and contractors of the receiving party with a need to know such information.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">7. Your Responsibilities.</span> You are solely responsible for all data, information, feedback, suggestions, text, content and other materials that you upload, post, deliver, provide or otherwise transmit or store in connection with or relating to the Services ("Customer Content"). You, not Displai, own Customer Content and are solely responsible for the quality and legality of your Customer Content. You acknowledge that the Service may integrate with one or more third party data providers (each, a "Third Party Provider") and you are solely responsible for the following: (a) having Internet access and an active Third Party Provider account, if applicable, in order to use the Services; (b) ensuring that all registration and account information and data are current and accurate; (c) managing all account activity; (d) maintaining the confidentiality and security of your username, password and account information; and (e) securing all consents and permissions to enable you to maintain your Third Party Provider accounts.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">8. Fees.</span> We may offer subscriptions or other offers (e.g., free trials), containing different options and features. You agree to pay the usage fees set forth in your Order Form, as applicable, and any applicable taxes. We may change the fees and charges in effect, or add new fees and charges from time to time. Payment obligations can't be canceled and fees paid are non-refundable. If at any time you are overdue on your account, Displai may suspend your access to the Services and/or terminate these TOS. Unless you have filed a fee dispute, if you are overdue on payment and fail to pay within ten (10) days of the payment due date, then at our sole discretion we may assess a late fee of either 1.5% per month, or the maximum amount allowable by law, whichever is less. If you fail to pay any unpaid and due amounts within fifteen (15) days of the payment due date, we may terminate your account. You must notify us in writing if you dispute any portion of any fees paid or payable by you under this TOS within 60 days of the applicable charge.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">9. Subscription Term; Termination.</span> The period of these TOS will commence on the date they are accepted by you and continue for a period of time depending on the Services you have selected (the "Initial Period"). Unless otherwise set forth in the Order Form, the Subscription Term shall automatically renew for successive periods equal to the term specified in the Order Form at the prices published by Displai applicable to such successive periods, unless either party notifies the other party of its intent not to renew at least thirty (30) days prior to the conclusion of the then-current term. You have the right to terminate these TOS at any time during the Subscription Term in the event that Displai has materially breached these TOS and does not cure such breach within thirty (30) days following notice from you. All Customer Content on the Services (if any) may be permanently deleted by Displai thirty days after any termination of your account.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">10. Rules of Conduct.</span> You expressly agree not to do any of the following in using the Services: (a) send communications which are unlawful, threatening, abusive, harassing, defamatory, vulgar, obscene, offensive, or libelous; (b) utilize the intellectual property of any other person or entity without their prior and explicit written permission; (c) violate any law, rule or regulation; (d) transmit viruses or corrupted data or otherwise burden or interfere with the operation of the Services; (e) adapt or hack the Services or otherwise attempt to gain unauthorized access; (f) collect or store personally identifiable information about any user without their explicit permission; (g) develop a competing product or service; (h) impose an unreasonable load on our infrastructure; or (i) impersonate another person.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">11. Customer Breach.</span> You are in breach of these TOS if you (a) fail to meet your material obligations, including any nonpayment of Fees as stated in Section 9, under these TOS; or (b) file or initiate proceedings seeking liquidation, reorganization or other relief under any bankruptcy, insolvency or other similar law. Upon your breach, Displai may suspend or terminate Displai's performance and obligations to you without any notice or further liability. Upon your breach, you further agree to pay Displai liquidated damages equal to one hundred twenty-five US dollars ($125) per each Digital Display or Displai device utilized through the Services.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">12. Representations and Warranty Disclaimers.</span> Each party represents and warrants that it has full power and authority to enter into these TOS. Displai represents and warrants that it will perform the Services in a professional and workmanlike manner. THE SERVICES AND DISPLAI CONTENT ARE PROVIDED ON AN "AS IS" AND "AS AVAILABLE" BASIS, WITHOUT WARRANTY OF ANY KIND. WE EXPLICITLY DISCLAIM ANY WARRANTIES OF FITNESS FOR A PARTICULAR PURPOSE, MERCHANTABILITY, QUIET ENJOYMENT OR NON-INFRINGEMENT. WE MAKE NO WARRANTY THAT THE SERVICES OR DISPLAI CONTENT WILL MEET YOUR REQUIREMENTS OR BE AVAILABLE ON AN UNINTERRUPTED, SECURE, OR ERROR-FREE BASIS.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">13. Limitations.</span> YOU UNDERSTAND AND AGREE THAT UNDER NO LEGAL THEORY SHALL WE BE LIABLE TO YOU FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL OR EXEMPLARY DAMAGES, INCLUDING WITHOUT LIMITATION DAMAGES FOR LOSS OF PROFITS, GOODWILL, OR OTHER LOSSES (EVEN IF WE HAVE BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES), RESULTING FROM OR IN CONNECTION WITH YOUR USE OF THE SERVICES. OUR LIABILITY TO YOU FOR ANY CAUSE WHATSOEVER WILL AT ALL TIMES BE LIMITED TO THE AMOUNT PAID, IF ANY, BY YOU TO US FOR THE SERVICES THAT GAVE RISE TO THE LIABILITY DURING THE 12 MONTHS PRECEDING THE CLAIM.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">14. Indemnification.</span> You agree to defend, indemnify, and hold Displai harmless from and against any claims, liabilities, damages, losses, and expenses, including, without limitation, reasonable legal fees, arising out of or in any way connected with your access to or use of the Services and/or the Displai Content, your breach of any law or the rights of a third party, or your violation of these TOS.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">15. Dispute Resolution and Binding Arbitration.</span> If you have any dispute with us, you agree that before taking any formal action, you will contact us and provide a written description of the dispute and your contact information. The parties agree that good faith negotiations shall be a condition to either party initiating a lawsuit or arbitration. Except as provided herein, if we cannot resolve a dispute informally, any dispute will be resolved only by binding arbitration in San Francisco, CA or another location that we have both agreed to. The arbitration will be conducted under the rules of JAMS (www.jamsadr.com). ARBITRATION MEANS THAT YOU WAIVE YOUR RIGHT TO A JURY TRIAL. Both parties agree that any claims or controversies must be brought against each other on an individual basis only — no class actions.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">16. General Provisions.</span> You may not assign your rights or obligations under or transfer these TOS without our prior written consent. We may assign or transfer these TOS without restriction. These TOS supersede all prior and contemporaneous proposals, statements, and agreements, oral and written. If any provision of the TOS is found invalid or unenforceable, that provision will be enforced to the maximum extent permissible by law, and the other provisions of the TOS will remain in force. These TOS shall be governed by the laws of California regardless of any conflicts of law principles. Except for claims that must be arbitrated, all claims must be resolved exclusively by a state or federal court located in the Northern District of California.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">17. Contacting Displai.</span> If you have any questions, please contact us at support@displai.ai.</p>
+                                    </div>
+                                </div>
+                                <div class="tos-scroll-hint" id="tos-scroll-hint">&#8595; You must scroll through and read all terms to enable the checkbox below — do not skip ahead</div>
+                            </div>
+                            <!-- ===== END TC BOX ===== -->
+
                             <div class="terms">
-                                <input type="checkbox" id="terms-checkbox" />
+                                <input type="checkbox" id="terms-checkbox" disabled="disabled" />
                                 <p>
-                                    I agree to Displai’s
+                                    I agree to Displai's
                                     <a href="https://www.displai.ai/terms-of-service/" target="_blank"
                                         >Terms of Service</a
                                     >
@@ -423,13 +557,11 @@
                         </button>
 
                         <div class="footer">
-                            {!IF(recurringItemCount > 0, 'By subscribing, you authorize Displai to charge you according
-                            to the terms until you cancel.', 'By confirming your payment, you allow Displai to charge
-                            you for this payment and future payments in accordance with their terms.')}
+                            {!IF(recurringItemCount > 0, 'By subscribing, you authorize Displai to charge you according to the terms until you cancel.', 'By confirming your payment, you allow Displai to charge you for this payment and future payments in accordance with their terms.')}
                         </div>
 
                         <div class="footer">
-                            Sales tax applicable in the following states: LA, AZ, OH, FL, CO, MO, MI, NY, TN, MA, CA, MD, ID, PA
+                            Sales tax applicable in the following states: LA, AZ, OH, FL, CO, MO, MI, NY, TN, MA, CA, MD, ID, PA, TX
                         </div>
 
                         <div id="toast" class="toast">
@@ -437,8 +569,6 @@
                                 <span id="toast-message"></span>
                             </div>
                         </div>
-
-                        <!-- <div class="footer">Powered by Stripe · Legal · Contact</div> -->
                     </div>
                 </div>
             </apex:outputPanel>
@@ -510,7 +640,7 @@
                             loader: "always",
                             fonts: [
                                 {
-                                    cssSrc: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+                                    cssSrc: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap"
                                 }
                             ]
                         }
@@ -549,6 +679,22 @@
                     document.getElementById("shipping-address").classList.add("show");
                 }
 
+                // ------------------------------------
+                // TC Scroll Enforcement
+                // ------------------------------------
+                function handleTosScroll(el) {
+                    var threshold = 20; // px from bottom counts as "read"
+                    if (el.scrollTop + el.clientHeight >= el.scrollHeight - threshold) {
+                        var cb = document.getElementById("terms-checkbox");
+                        if (cb.disabled) {
+                            cb.disabled = false;
+                            var hint = document.getElementById("tos-scroll-hint");
+                            hint.textContent = "✓ You've read the terms — please check the box to agree.";
+                            hint.style.color = "#22c55e";
+                        }
+                    }
+                }
+
                 async function handlePay() {
                     if (paymentInProgress) return;
                     paymentInProgress = true;
@@ -570,12 +716,10 @@
 
                         const result = await actions.confirm({
                             returnUrl: "{!$Label.SuccessUrlForPayment}"
-                            //redirect: "if_required"
                         });
 
                         if (result.type === "success") {
                             console.log("Payment successful:", result);
-                            // Optionally, redirect to a thank you page or show a success message
                         } else {
                             const errorMessage = result.error
                                 ? result.error.message
@@ -613,7 +757,8 @@
                 // UI Helpers
                 // ------------------------------------
 
-                function showToast(message, type = "error") {
+                function showToast(message, type) {
+                    type = type || "error";
                     const toast = document.getElementById("toast");
                     const toastMessage = document.getElementById("toast-message");
 

@@ -1,0 +1,972 @@
+<apex:page controller="StripeCheckoutController"
+    showHeader="false"
+    sidebar="false"
+    standardStylesheets="false"
+    cache="false"
+    docType="html-5.0"
+>
+    <html>
+        <head>
+            <title>Checkout</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <script src="https://js.stripe.com/clover/stripe.js"></script>
+            <link rel="icon" type="image/png" href="{!URLFOR($Resource.Displai)}" />
+            <link rel="preconnect" href="https://fonts.googleapis.com" />
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+            <link
+                href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap"
+                rel="stylesheet"
+            />
+            <style>
+                /* ========== GLOBAL ========== */
+                body {
+                    margin: 0;
+                    font-family:
+                        "Inter",
+                        -apple-system,
+                        BlinkMacSystemFont,
+                        sans-serif;
+                    background: #ffffff;
+                    color: #1a1f36;
+                }
+
+                .container1 {
+                    max-width: 280px;
+                    margin: 240px auto;
+                    text-align: center;
+                    font-size: 14px;
+                    color: #303036;
+                }
+                .container1 p {
+                    font-size: 12px;
+                }
+                .container {
+                    width: 100%;
+                    margin: 40px 0;
+                    padding: 0 5%;
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 5%;
+                    box-sizing: border-box;
+                }
+
+                /* ========== LEFT SUMMARY ========== */
+                .contract-card {
+                    background: #f7f9fc;
+                    border: 1px solid #e6ebf1;
+                    border-radius: 12px;
+                    padding: 16px 18px;
+                    margin-bottom: 24px;
+                }
+                .contract-row {
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 13px;
+                    margin-bottom: 8px;
+                }
+                .contract-row:last-child {
+                    margin-bottom: 0;
+                }
+                .contract-label {
+                    color: #697386;
+                    font-weight: 500;
+                }
+                .contract-value {
+                    font-weight: 600;
+                    color: #1a1f36;
+                }
+
+                .summary {
+                    padding-top: 16px;
+                }
+
+                .summary h1 {
+                    font-size: 16px;
+                    font-weight: 600;
+                    margin-bottom: 8px;
+                }
+
+                .price {
+                    font-size: 48px;
+                    font-weight: 800;
+                    margin-bottom: 24px;
+                }
+                .interval {
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: #697386;
+                    margin: 0;
+                }
+
+                .line-item {
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 14px;
+                    margin-bottom: 8px;
+                }
+
+                .muted {
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 12px;
+                    color: #697386;
+                    margin-bottom: 22px;
+                }
+                .product-desc {
+                    font-style: italic;
+                    color: #697386;
+                    font-size: 12px;
+                    margin-top: -6px;
+                    margin-bottom: 8px;
+                }
+
+                /* ========== RIGHT FORM ========== */
+                .readonly {
+                    position: relative;
+                }
+                .readonly label {
+                    position: absolute;
+                    bottom: 50%;
+                    transform: translateY(50%);
+                    padding: 8px 24px;
+                    margin: 0;
+                }
+                .readonly input {
+                    padding-top: 18px;
+                    padding-bottom: 18px;
+                    padding-left: 120px;
+                }
+
+                .checkout {
+                    border-left: 1px solid #e6ebf1;
+                    padding-left: 64px;
+                    min-width: 0;
+                }
+
+                .section {
+                    margin-bottom: 24px;
+                }
+                .section h2 {
+                    font-size: 14px;
+                    font-weight: 600;
+                    margin-bottom: 12px;
+                }
+
+                #payment,
+                #shipping-address {
+                    display: none;
+                }
+                #payment.show,
+                #shipping-address.show {
+                    display: block;
+                }
+
+                label {
+                    font-size: 12px;
+                    font-weight: 500;
+                    display: block;
+                    margin-bottom: 6px;
+                }
+
+                .input-box,
+                select {
+                    width: 100%;
+                    padding: 10px 12px;
+                    font-size: 14px;
+                    border: 1px solid #d0d5dd;
+                    border-radius: 6px;
+                    box-sizing: border-box;
+                }
+
+                .input-box:focus,
+                select:focus {
+                    outline: none;
+                    border-color: #635bff;
+                }
+
+                .radio-group {
+                    border: 1px solid #d0d5dd;
+                    border-radius: 6px;
+                    overflow: hidden;
+                }
+
+                .tos {
+                    font-size: 12px;
+                    color: #697386;
+                }
+                .tos a {
+                    color: #635bff;
+                    text-decoration: none;
+                }
+                .terms {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+
+                .submit-btn {
+                    position: relative;
+                    width: 100%;
+                    background: #635bff;
+                    color: white;
+                    font-size: 14px;
+                    font-weight: 600;
+                    border: none;
+                    border-radius: 6px;
+                    padding: 18px;
+                    cursor: pointer;
+                    margin-top: 12px;
+                    transition: background 0.3s ease;
+                }
+                .submit-btn:hover {
+                    background: #544cff;
+                }
+                .submit-btn:disabled {
+                    background: #d0d5dd;
+                    cursor: not-allowed;
+                }
+
+                /* Spinner hidden by default */
+                .btn-spinner {
+                    position: absolute;
+                    bottom: 28%;
+                    right: 20px;
+                    width: 18px;
+                    height: 18px;
+                    border: 2px solid rgba(255, 255, 255, 0.4);
+                    border-top: 2px solid #ffffff;
+                    border-radius: 50%;
+                    animation: spin 0.6s linear infinite;
+                    display: none;
+                }
+
+                /* When loading */
+                .submit-btn.loading .btn-spinner {
+                    display: inline-block;
+                }
+
+                /* Smooth spin */
+                @keyframes spin {
+                    from {
+                        transform: rotate(0deg);
+                    }
+                    to {
+                        transform: rotate(360deg);
+                    }
+                }
+
+                .toast {
+                    position: fixed;
+                    top: 30px;
+                    right: 30px;
+                    background: #1a1f36;
+                    color: white;
+                    padding: 14px 20px;
+                    border-radius: 4px;
+                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+                    opacity: 0;
+                    transform: translateX(60px);
+                    pointer-events: none;
+                    transition: all 0.3s ease;
+                    z-index: 9999;
+                    min-width: 260px;
+                    font-size: 14px;
+                }
+                .toast.show {
+                    opacity: 1;
+                    transform: translateY(0);
+                    pointer-events: auto;
+                }
+                .toast.error {
+                    background: #e55353;
+                }
+                .toast.success {
+                    background: #22c55e;
+                }
+
+                .footer {
+                    font-size: 11px;
+                    color: #697386;
+                    text-align: center;
+                    margin-top: 16px;
+                }
+
+                /* ========== TC SCROLL BOX ========== */
+                .tos-scroll-wrapper {
+                    position: relative;
+                    margin-bottom: 14px;
+                }
+                .tos-scroll-box {
+                    height: 250px;
+                    overflow-y: scroll;
+                    border: 1px solid #d0d5dd;
+                    border-radius: 6px;
+                    padding: 12px 14px;
+                    font-size: 11px;
+                    line-height: 1.6;
+                    color: #4a4f5e;
+                    background: #f7f9fc;
+                    box-sizing: border-box;
+                }
+                .tos-scroll-box h3 {
+                    font-size: 12px;
+                    font-weight: 700;
+                    color: #1a1f36;
+                    margin: 0 0 8px 0;
+                }
+                .tos-scroll-box p {
+                    margin: 0 0 10px 0;
+                }
+                .tos-scroll-box .tos-section {
+                    margin-bottom: 12px;
+                }
+                .tos-scroll-box .tos-section-title {
+                    font-weight: 700;
+                    color: #1a1f36;
+                }
+                .tos-scroll-hint {
+                    font-size: 11px;
+                    color: #635bff;
+                    text-align: center;
+                    margin-bottom: 5px;
+                    font-weight: 500;
+                    transition: opacity 0.3s ease;
+                }
+                .tos-scroll-hint.hidden {
+                    opacity: 0;
+                    pointer-events: none;
+                }
+                /* Disabled checkbox styling */
+                #terms-checkbox:disabled {
+                    opacity: 0.35;
+                    cursor: not-allowed;
+                }
+                #terms-checkbox:not(:disabled) {
+                    cursor: pointer;
+                }
+
+                /* ========== RESPONSIVE ========== */
+
+                /* Tablet — tighten the gap */
+                @media (max-width: 900px) {
+                    .container {
+                        gap: 4%;
+                        padding: 0 4%;
+                        margin: 24px 0;
+                    }
+                    .checkout {
+                        padding-left: 4%;
+                    }
+                }
+
+                /* Mobile — single column, stacked */
+                @media (max-width: 640px) {
+                    .container {
+                        grid-template-columns: 1fr;
+                        gap: 0;
+                        padding: 0 5%;
+                        margin: 16px 0;
+                    }
+                    .checkout {
+                        border-left: none;
+                        border-top: 1px solid #e6ebf1;
+                        padding-left: 0;
+                        padding-top: 24px;
+                        margin-top: 8px;
+                    }
+                    .price {
+                        font-size: 36px;
+                    }
+                    .summary {
+                        padding-top: 8px;
+                    }
+                    .tos-scroll-box {
+                        height: 200px;
+                    }
+                    .toast {
+                        top: 16px;
+                        right: 16px;
+                        left: 16px;
+                        min-width: unset;
+                    }
+                }
+            </style>
+        </head>
+
+        <body>
+            <!-- EXPIRED STATE &amp; COMPLETE STATE -->
+            <apex:outputPanel rendered="{!OR(status == 'complete', status == 'expired')}">
+                <div class="container1">
+                    <h4>You're all done here</h4>
+                    <p>You've either completed your payment or this checkout session has timed out.</p>
+                </div>
+            </apex:outputPanel>
+
+            <!-- OPEN STATE -->
+            <apex:outputPanel rendered="{!status == 'open'}">
+                <div class="container">
+                    <!-- LEFT -->
+                    <div class="summary">
+                        <img
+                            src="{!URLFOR($Resource.DisplaiLogo)}"
+                            alt="Displai Logo"
+                            width="120"
+                            style="margin: -22px 0 -8px 0"
+                        />
+
+                        <h1>{!subscriptionHeadline}</h1>
+
+                        <div class="price">
+                            <span id="price-value"></span>
+                            <apex:outputPanel rendered="{!AND(onetimeItemCount = 0, recurringItemCount > 0)}">
+                                <span class="interval">per {!LOWER(interval)}</span>
+                            </apex:outputPanel>
+                            <apex:outputPanel rendered="{!AND(onetimeItemCount > 0, recurringItemCount > 0)}">
+                                <p class="interval">Then ${!recurringAmount} per {!LOWER(interval)}</p>
+                            </apex:outputPanel>
+                        </div>
+
+                        <div class="contract-card">
+                            <div class="contract-row">
+                                <span class="contract-label">Quote</span>
+                                <span class="contract-value">#{!quoteData.quoteNumber}</span>
+                            </div>
+                            <div class="contract-row">
+                                <span class="contract-label">Term</span>
+                                <span class="contract-value"> {!quoteData.subscriptionTerm} months </span>
+                            </div>
+                            <div class="contract-row">
+                                <span class="contract-label">Starts</span>
+                                <span class="contract-value"> {!TEXT(quoteData.startDate)} </span>
+                            </div>
+                            <div class="contract-row">
+                                <span class="contract-label">Ends</span>
+                                <span class="contract-value"> {!TEXT(quoteData.endDate)} </span>
+                            </div>
+                            <div class="contract-row">
+                                <span class="contract-label">Sales Rep</span>
+                                <span class="contract-value"> {!quoteData.salesRepName} </span>
+                            </div>
+                        </div>
+
+                        <apex:repeat value="{!quoteLinesData}" var="ql">
+                            <div class="line-item">
+                                <span style="font-weight: 500">{!ql.productName}</span>
+                                <span>${!IF(ql.chargeType == 'Recurring', ql.mrr, ql.netTotal)}</span>
+                            </div>
+                            <apex:outputPanel rendered="{!NOT(ISBLANK(ql.productDescription))}">
+                                <div class="product-desc">
+                                    <span>{!ql.productDescription}</span>
+                                </div>
+                            </apex:outputPanel>
+                            <div class="muted">
+                                <span
+                                    >Qty {!TEXT(ql.quantity)}
+                                    <apex:outputPanel rendered="{!NOT(ISBLANK(ql.billingFrequencyOverride))}">
+                                        &bull; Billed {!ql.billingFrequencyOverride}
+                                    </apex:outputPanel>
+                                </span>
+                                <apex:outputPanel rendered="{!ql.quantity > 1}">
+                                    <span>${!ql.listPrice} each</span>
+                                </apex:outputPanel>
+                            </div>
+                        </apex:repeat>
+                    </div>
+
+                    <!-- RIGHT -->
+                    <div class="checkout">
+                        <!-- BILLING CONTACT -->
+                        <div class="section">
+                            <h2>Billing contact</h2>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                                <div>
+                                    <label for="billing-first-name">First name *</label>
+                                    <input
+                                        id="billing-first-name"
+                                        class="input-box"
+                                        type="text"
+                                        value="{!quoteData.billToFirstName}"
+                                        placeholder="First name"
+                                    />
+                                </div>
+                                <div>
+                                    <label for="billing-last-name">Last name *</label>
+                                    <input
+                                        id="billing-last-name"
+                                        class="input-box"
+                                        type="text"
+                                        value="{!quoteData.billToLastName}"
+                                        placeholder="Last name"
+                                    />
+                                </div>
+                            </div>
+                            <label for="billing-email">Billing email *</label>
+                            <input
+                                id="billing-email"
+                                class="input-box"
+                                type="email"
+                                value="{!quoteData.billToEmail}"
+                                placeholder="billing@company.com"
+                            />
+                        </div>
+
+                        <!-- SHIPPING ADDRESS -->
+                        <div class="section">
+                            <h2>Shipping address</h2>
+                            <div style="margin-bottom:10px;">
+                                <label for="shipping-street">Street *</label>
+                                <input
+                                    id="shipping-street"
+                                    class="input-box"
+                                    type="text"
+                                    value="{!quoteData.shippingStreet}"
+                                    placeholder="123 Main St"
+                                />
+                            </div>
+                            <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px;">
+                                <div>
+                                    <label for="shipping-city">City *</label>
+                                    <input
+                                        id="shipping-city"
+                                        class="input-box"
+                                        type="text"
+                                        value="{!quoteData.shippingCity}"
+                                        placeholder="City"
+                                    />
+                                </div>
+                                <div>
+                                    <label for="shipping-state">State *</label>
+                                    <input
+                                        id="shipping-state"
+                                        class="input-box"
+                                        type="text"
+                                        value="{!quoteData.shippingState}"
+                                        placeholder="CA"
+                                        maxlength="2"
+                                        style="text-transform:uppercase;"
+                                    />
+                                </div>
+                            </div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                                <div>
+                                    <label for="shipping-postal">Postal code *</label>
+                                    <input
+                                        id="shipping-postal"
+                                        class="input-box"
+                                        type="text"
+                                        value="{!quoteData.shippingPostalCode}"
+                                        placeholder="90210"
+                                    />
+                                </div>
+                                <div>
+                                    <label for="shipping-country">Country</label>
+                                    <input
+                                        id="shipping-country"
+                                        class="input-box"
+                                        type="text"
+                                        value="{!quoteData.shippingCountry}"
+                                        placeholder="US"
+                                        maxlength="2"
+                                        style="text-transform:uppercase;"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="payment" class="section">
+                            <h2>Payment method</h2>
+                            <div id="payment-element"></div>
+                        </div>
+
+                        <div class="section tos">
+
+                            <!-- ===== SCROLLABLE TC BOX ===== -->
+                            <div class="tos-scroll-wrapper">
+                                <div class="tos-scroll-hint" id="tos-scroll-hint">&#8595; You must scroll through and read all terms to enable the checkbox below</div>
+                                <div class="tos-scroll-box" id="tos-scroll-box" onscroll="handleTosScroll(this)">
+                                    <h3>DISPLAI SYSTEMS INC. MASTER SERVICES AGREEMENT</h3>
+                                    <p>This Master Services Agreement (this "Agreement") governs the purchase and use of (a) third party hardware ("Products"), (b) Displai offerings sold on a subscription basis for a specified term ("Subscriptions"), and (c) professional and other services provided by Displai Systems Inc. (together with its Affiliates, "Displai") ("Services"), and the entity named on the purchase order or SOW, as applicable, accepted by Displai (each, an "Order") (together with its Affiliates, "Customer"). "Affiliate" means any entity controlled by, controlling, or under common control with a party.</p>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">1. Orders.</span> Any purchase of Products, Subscriptions and/or Services by Customer shall be made pursuant to an Order, each of which shall be deemed accepted upon the earlier of Displai's written confirmation, provisioning of Subscription(s), commencement of Services, or purchase of products or services for Displai's fulfillment of the Order. Products, Subscriptions and Services are further described by and subject to the terms in the official documentation provided, or otherwise made available, to Customer by Displai or the applicable manufacturer ("OEM"), which may be modified by Displai or the OEM from time to time, and any fully executed statements of work as applicable to particular Services (each, an "SOW") all of which are integrated herein by this reference (collectively, "Documentation"). Products, Services and Subscriptions purchased hereunder are non-cancellable and non-refundable. If applicable, Products are subject to the OEM terms and conditions which shall be made available to Customer ("Product Terms"). In the event of a conflict between this Agreement and any Product Terms, the Product Terms shall prevail.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">2. Subscriptions.</span> Subject to Customer's compliance with this Agreement, Displai grants Customer a worldwide, royalty-free, non-exclusive, time-limited, non-transferable (except to a successor in interest as permitted herein), limited license to access and use any Subscriptions in the quantities and during the period of time specified on the Order (the "Subscription Term"). The Subscription Term is firm and may not be reduced or cancelled. Unless terminated as permitted herein, each Subscription Term shall renew automatically at the end of each previous Subscription Term for a period of time equal to the expiring Subscription Term. Unless otherwise agreed in the Order, Displai or the OEM, as applicable, will provide support as detailed in the Documentation and Product Terms as applicable. Products and Services made available through the internet may be temporarily unavailable for scheduled maintenance or unscheduled emergency maintenance. If Customer elects to install or enable Products for use with a Subscription, Customer permits Displai to permit such Products to access Customer data as required for the interoperation and support of such Products with the Subscription. Customer further acknowledges that Subscriptions perform best when operated using Displai provided Products.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">3. Services.</span> Customer acknowledges that Displai will require information, documents, data, records and cooperation by Customer in order to properly perform the Services and that Displai is not responsible for errors, delays or other consequences arising from the failure of Customer to timely and appropriately provide such information, data, records or cooperation. In the event Customer causes delay to the Services, or requires any modifications to an SOW, Displai may require an additional fee. Other changes to scope, hours and deliverables shall be discussed between the parties and may require an additional fee in which case the parties shall agree to a change order reflecting such changes and associated fees prior to the performance of any additional or different work. Change orders may be in the form of an email, confluence documentation, or other form clearly establishing agreement to the changes and fees by authorized representatives of the parties. Customer acknowledges and agrees that, subject to its confidentiality obligations, Displai is not restricted from developing, implementing, marketing or selling services or deliverables for other customers or projects that are similar to the Services or deliverables provided under this Agreement.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">4. Fees and Payment.</span> Customer will pay the fees set forth in the Order ("Fees"). All Fees are non-refundable, non-cancelable, and exclusive of applicable taxes and duties, including, without limitation, VAT, Service Tax, GST, excise taxes, sales and transaction taxes, and gross receipts tax all of which shall be invoiced to and paid by Customer. The aggregate Fees of a Subscription for the full Subscription Term set forth on the Order ("Minimum Commitment") shall not be reduced or canceled at any time during the Subscription Term. Any use of a Subscription in excess of the quantities purchased during any monthly period during the Subscription Term will result in additional charges at the rates set forth in the Order for the duration of the Subscription Term, thereby increasing the Minimum Commitment. Displai will invoice separately monthly in arrears for any additional Fees and approved expenses. Fees for Services based on time may be billed bi-monthly. Unless otherwise agreed as set forth in the relevant Order, all Fees are due and payable within thirty (30) days of the invoice date, and Subscriptions shall be paid annually in advance ("Due Date"). Subject to a good faith dispute, any payment not received from Customer by the Due Date may accrue interest at the rate of one and one-half percent (1.5%) of the outstanding balance per month, or the maximum rate permitted by law, whichever is lower, commencing on the Due Date plus any incurred costs of collection.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">5. Obligations.</span> Customer shall (a) use Products, Subscriptions and Services solely for its own internal benefit and in accordance with this Agreement, (b) be solely responsible for compliance with this Agreement by its users, whether employees or contractors, (c) use reasonable efforts to prevent unauthorized use of or access to Products, Subscriptions or Services or any related account or password and shall notify Displai immediately of any such unauthorized use or access, (d) provide timely cooperation and accurate and complete information, assistance or access reasonably required by Displai in order to perform Services, (e) not access and/or engage in any use of Subscriptions in a manner that abuses or materially disrupts the networks, security systems, of Displai or any third party, and (f) be solely responsible for (i) the accuracy and legality of all data submitted by Customer for processing or use by Displai and any applicable OEM in connection with this Agreement ("Customer Data"), (ii) the means by which it acquires and uses such Customer Data, including compliance with any regulations and laws applicable to the Customer Data, (iii) having obtained all rights in the Customer Data necessary to permit compliance with all obligations under this Agreement, and (iv) backing up Customer Data such that it may be deleted at any time unless otherwise agreed in writing.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">6. Restrictions.</span> Customer shall not, and shall not allow others to (a) directly or indirectly sell, resell, transfer, sublicense, lease, time-share, market or otherwise make available to any third party (except subcontractors) any Product, Subscription, Documentation, or any portion thereof, (b) attempt to gain unauthorized access to or disrupt the integrity or performance of a Product or Subscription or the data contained therein (including but not limited to hacking or penetration testing), (c) modify, copy or create derivative works based on any Products, Subscriptions, Services or any Displai Confidential Information, (d) decompile, disassemble, reverse engineer or otherwise attempt to derive source code from Products or Subscriptions, in whole or in part, (e) use or enable the use of Products or Subscriptions in violation of applicable laws, rules or regulations, (f) access or use a Product or Subscription for the purpose of building or enabling a competitive product or service or copying its features, (g) circumvent or attempt to circumvent contractual or other usage restrictions, or (h) use Products or Subscriptions for purposes of evaluation, benchmarking or other comparative analysis intended for publication outside the Customer organization without the prior written consent of Displai and any applicable OEM.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">7. Intellectual Property.</span> Except as explicitly set forth herein or in an SOW, no transfer of ownership of any Confidential Information, nor any copyright, patent, trade secret, trademark, moral and any other similar intellectual property rights worldwide ("Intellectual Property Rights") will occur under this Agreement. Customer acknowledges and agrees that Displai may collect anonymized, aggregated, and/or de-identified statistical and other performance information related to Customer's use of Subscriptions, which information will not include personal information, and Displai may use such information for its own legitimate business purposes, including, among other things, support, reporting, research, improvements to Subscriptions, industry collaboration, and other reasonable business purposes. In the event that Customer provides Displai with suggestions, enhancement requests, recommendations, proposals, documents, or other feedback (collectively, "Feedback"), Customer grants Displai a royalty-free, worldwide, transferable, sub-licensable, irrevocable, perpetual license to use, modify, and distribute such Feedback in any manner without compensation to Customer or attribution of any kind.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">8. Warranties.</span> Displai warrants that, during the Warranty Period: (a) Subscriptions and Products will operate in substantial conformity with the Documentation, and (b) Services will be provided in a professional and workmanlike manner and substantially in accordance with the SOW. If Customer believes there is a warranty violation, Customer must notify Displai in writing promptly during the Warranty Period, stating in reasonable detail the nature of the alleged non-conformity. As Displai's sole obligation and Customer's exclusive remedy for the warranty violation, Displai will correct or re-perform, at no additional charge, any non-conforming item. If Displai is unable to correct any non-conformity reported in accordance with this Section 8 either party may terminate the affected portion of the applicable Order, and Customer, as its sole remedy, will be entitled to receive a refund of any prepaid unused Fees for the affected Subscriptions, Products, or Services. This warranty will not apply if the non-conformity was caused by misuse of Subscriptions, Products, or Services by Customer or any third-party, or modifications by Customer. The applicable "Warranty Period" runs for the duration of any applicable Subscription Term, twelve (12) months from date of purchase for Products, and from the completion of any Services for thirty (30) days thereafter. EXCEPT FOR THE EXPRESS WARRANTIES SET FORTH IN THIS SECTION 8, DISPLAI, ITS LICENSORS AND EACH APPLICABLE OEM DISCLAIM ANY AND ALL OTHER WARRANTIES, WHETHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, AS WELL AS ANY WARRANTIES OF REGULATORY COMPLIANCE, PERFORMANCE, ACCURACY, AND RELIABILITY. DISPLAI DOES NOT WARRANT THE PRODUCTS, SUBSCRIPTIONS OR SERVICES WILL BE UNINTERRUPTED OR ERROR FREE.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">9. Confidentiality.</span> Information exchanged under this Agreement will be treated as confidential if identified as such at disclosure, or if a person obtaining the information under similar circumstances would consider the information confidential or proprietary ("Confidential Information"). Confidential Information shall be protected by the receiving party with the same degree of care it uses to protect its own similar information and, in no event less than a reasonable degree of care during the Term and for a minimum of three (3) additional years (or for as long as any Confidential Information remains Trade Secret as such term is defined by the Uniform Trade Secrets Act). For the avoidance of doubt, business plans, pricing, data, designs, processes, methods, scripts, specifications, solutions, templates, inventions, know-how, customers, and any other technical and financial information, as well as any derivatives thereof, developed, used or disclosed pursuant to this Agreement is Confidential information. Confidential Information may not be used by the receiving party for any purpose other than as necessary to perform its obligations under this Agreement. Confidential Information may be shared by the receiving party only with those employees, agents or contractors with a need to know such information to support the Purpose, provided such persons or entities are bound by terms no less protective of the Confidential Information than those contained herein. Confidential Information is not information that (a) was known or becomes known to the receiving party without obligation of confidentiality, (b) is independently developed by the receiving party without use or knowledge of the other party's Confidential Information, or (c) where disclosure is required by law or a governmental agency.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">10. License, Data Privacy, and Security.</span> Customer hereby grants Displai and any applicable OEM a non-exclusive, irrevocable during the Term, worldwide, and royalty free license to access and use the Customer Data for the sole purpose and only to the extent necessary to provide the applicable Subscriptions or Services. Displai agrees not to use, access, disclose or process any Customer Data, except to (a) perform the obligations permitted by Customer under this Agreement, and (b) comply with applicable laws. Displai will maintain commercially reasonable administrative, physical and technical safeguards and controls for the availability, security, confidentiality and integrity of Customer Data. To the extent the parties execute a data processing addendum ("DPA") due to the processing of Personal Data (as defined in the DPA), which would be contained in the Customer Data, the terms of such DPA shall be incorporated into this Agreement by this reference.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">11. Term and Termination.</span> This Agreement commences on the Effective Date and ends with termination of this Agreement as permitted herein ("Term"). Subject to the terms and conditions contained in this Agreement, either party may terminate this Agreement or any Order if the other party fails to cure a material breach thereof within thirty (30) days (seven (7) days for non-payment) of being notified in writing of such breach. Termination of this Agreement shall not release Customer from its obligation to pay all outstanding amounts including, but not limited to, any Minimum Commitment. On termination of this Agreement, all Orders shall also terminate with immediate effect, and each party shall promptly return or destroy the other party's Confidential Information subject to its document retention policies or as required by applicable law. In the event of the termination or expiration of this Agreement, the provisions of this Agreement which by their nature should extend beyond the expiration or termination of this Agreement shall survive and any accrued rights to payment shall remain in effect beyond such termination or expiration until fulfilled.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">12. Suspension.</span> In addition to any of its other rights or remedies (including, without limitation, any termination rights) set forth in this Agreement, Displai or OEM, as applicable, may suspend Products, Subscriptions and/or Services: (a) if it reasonably deems such suspension necessary as a result of Customer's breach of Sections 5 or 6, (b) if Displai reasonably determines suspension is necessary to avoid material harm to Displai, OEM or its or their other customers, or (c) as required by law or pursuant to request of governmental entities. For the avoidance of doubt, payment obligations are not suspended or terminated if any such suspension occurs as permitted in this Section 12.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">13. Indemnification.</span></p>
+                                        <p><span class="tos-section-title">13.1 By Customer.</span> Customer agrees to, and shall, indemnify, defend and hold Displai, any applicable OEM, and its and their directors, officers, and employees harmless from the associated costs and fees (including reasonable attorneys' fees and expenses) finally awarded or agreed to in settlement or compromise, to the extent that such fees and costs arise from or relate to a claim, proceeding or suit based on a violation of Customer's obligations pursuant to Sections 5, 6, 7, and/or 10 (each a "Claim").</p>
+                                        <p><span class="tos-section-title">13.2 By Displai.</span> With the exception of claims relating to Products, Displai agrees to, and shall, indemnify, defend and hold Customer harmless from the associated costs and fees (including reasonable attorneys' fees and expenses) finally awarded or agreed to in settlement or compromise, to the extent that such fees and costs arise from or relate to a third party claim, proceeding or suit alleging that Subscriptions or Services infringe a third party patent, copyright or trade secret that is protected in the US. Notwithstanding the foregoing, Displai will have no obligation to Customer under this Section 13.2 to the extent that any such Claim (i) arises or results from the unauthorized or improper use by Customer or a third party of Subscriptions or Services, (ii) arises or results from the combination of Subscriptions or Services with other products or services not provided by Displai, (iii) arises or results from the alteration or modification of Subscriptions or Services by or for Customer without Displai's written consent, (iv) pertains to Products, or (v) could be avoided by Customer's use of alternative products or services provided or offered to Customer by Displai at no additional cost.</p>
+                                        <p><span class="tos-section-title">13.3 Procedure.</span> A party's obligations under this Section 13 shall be conditioned on the party seeking indemnification promptly notifying the indemnifying party of any such Claim and permitting it to assume full control over the defense and settlement of such Claim, provided that the indemnifying party shall keep the other party informed of the progress of any resulting litigation or settlement activities, and shall not settle any such Claim without the other party's written consent if such settlement contains an admission of liability or requires any specific performance by the other party.</p>
+                                        <p><span class="tos-section-title">13.4 IP Remedies.</span> Should Subscriptions or Services provided under this Agreement become, or in Displai's opinion be likely to become, the subject of an infringement Claim subject to Section 13.2, Displai may, at its sole discretion and expense, either (a) procure for Customer the right to exercise its rights under this Agreement, or (b) replace or modify the item to make it non-infringing, provided that the same functions are performed. If Displai determines in its sole discretion that (a) and (b) are not commercially reasonable, then Displai shall notify Customer in writing and, as applicable, suspend or cancel the Subscription Term or Services and provide Customer a pro-rata refund of those Fees received based on the Subscription Term. The foregoing states the entire liability of Displai and Customer's exclusive remedy with respect to any infringement Claim.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">14. Limitation of Liability.</span> EXCEPT FOR A PARTY'S INDEMNIFICATION OBLIGATIONS, DAMAGES RESULTING FROM EITHER PARTY'S GROSS NEGLIGENCE, FRAUD OR WILLFUL MISCONDUCT, CUSTOMER'S PAYMENT OBLIGATIONS, AND ANY DAMAGES THAT MAY NOT BE LIMITED AS A MATTER OF LAW, IN NO EVENT SHALL DISPLAI, OEM, CUSTOMER, OR ANY OF THEIR LICENSORS, SUPPLIERS, OFFICERS OR EMPLOYEES HAVE ANY LIABILITY TO THE OTHER (A) FOR ANY INDIRECT, SPECIAL, INCIDENTAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES, INCLUDING BUT NOT LIMITED TO DAMAGES FOR LOSS OF PROFITS, LOSS OF DATA, BUSINESS INTERRUPTION, COST OF PROCUREMENT OF SUBSTITUTE GOODS, SERVICES OR TECHNOLOGY, OR OTHER DAMAGES OR LOSSES, ARISING OUT OF OR IN CONNECTION WITH THIS AGREEMENT OR ANY SUBSCRIPTIONS OR SERVICES PROVIDED BY DISPLAI OR ITS AUTHORIZED REPRESENTATIVES, HOWEVER CAUSED AND WHETHER IN CONTRACT, TORT OR UNDER ANY OTHER THEORY OF LIABILITY AND WHETHER OR NOT THE PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES, OR (B) FOR AN AMOUNT IN EXCESS OF THE FEES PAID OR PAYABLE BY CUSTOMER TO DISPLAI OR ITS AUTHORIZED REPRESENTATIVES UNDER THE APPLICABLE ORDER DURING THE TWELVE (12) MONTHS IMMEDIATELY PRECEDING THE EVENT THAT GAVE RISE TO THE CLAIM. NEITHER PARTY WILL BE LIABLE FOR PERFORMANCE DELAYS NOR FOR NON-PERFORMANCE DUE TO CAUSES BEYOND ITS REASONABLE CONTROL, EXCEPT FOR PAYMENT OBLIGATIONS.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">15. Non-Solicitation.</span> During the term of this Agreement and for twelve (12) months thereafter, Customer shall not, directly or indirectly, hire or solicit any employee or consultant of Displai, or encourage or induce any employee or consultant of Displai to terminate his or her relationship with Displai; provided, however, that the foregoing shall not prohibit Customer from recruiting generally in the media or from hiring an employee or consultant of Displai who answers any general advertisement or otherwise voluntarily applies for hire without having been specifically targeted by Customer.</p>
+                                    </div>
+
+                                    <div class="tos-section">
+                                        <p><span class="tos-section-title">16. General.</span> This Agreement, including any linked terms set forth herein, together with any applicable Documentation and all Orders constitutes the entire agreement of the parties and supersedes all prior or contemporaneous agreements, proposals or representations, written or oral, concerning its subject matter. No amendment or waiver of any provision of this Agreement shall be effective unless in writing and signed by the party against whom the amendment or waiver is to be asserted. Unless specifically agreed otherwise in a writing signed by both parties, any additional or pre-printed terms on a form submitted by or on behalf of Customer shall be void and of no effect. No failure or delay in exercising any right hereunder shall constitute a waiver of such right. If any provision of this Agreement is held by a court of competent jurisdiction to be contrary to law, such provision shall be modified by the court and interpreted so as best to accomplish the objectives of the original provision to the fullest extent permitted by law, and the remaining provisions shall remain in effect. With the exception of Displai's right to use subcontractors, neither party may assign any of its rights or obligations hereunder, whether by operation of law or otherwise, without the prior written consent of the other. Notwithstanding the foregoing, either party may assign this Agreement in its entirety, without consent of the other party, to its successor in interest in connection with a merger, reorganization, or sale of all or substantially all assets or equity not involving a direct competitor of the other party. This Agreement shall be governed by the laws of the State of California without regard to its conflict of laws principles. Customer irrevocably submits to venue and exclusive personal jurisdiction in the federal and state courts with jurisdiction in the City and County of San Francisco, CA, for any dispute arising out of this Agreement, and waives all objections to jurisdiction and venue of such courts.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- ===== END TC BOX ===== -->
+
+                            <div class="terms">
+                                <input type="checkbox" id="terms-checkbox" disabled="disabled" />
+                                <p>
+                                    I agree to Displai's
+                                    <a href="https://www.displai.ai/terms-of-service/" target="_blank"
+                                        >Master Services Agreement</a
+                                    >
+                                    and
+                                    <a href="https://www.displai.ai/privacy-policy/" target="_blank">Privacy Policy</a>
+                                    <span id="msa-unread-note" style="color:#e55353;font-weight:600;"> (MSA not fully reviewed - please scroll the MSA to review the agreement in full)</span>
+                                </p>
+                            </div>
+                            <p id="scroll-unlock-note" style="font-size:11px;color:#697386;margin:4px 0 0 0;">&#8593; Scroll through the full agreement above to unlock the checkbox.</p>
+                            <label style="margin-top: 12px">{!$Label.StripeSignatureLabel}</label>
+                            <input
+                                type="text"
+                                id="signature-input"
+                                class="input-box"
+                                placeholder="Type your full name"
+                            />
+                        </div>
+
+                        <button class="submit-btn" id="submit-btn" onclick="handlePay()" disabled="disabled">
+                            <span class="btn-text">{!IF(recurringItemCount > 0, 'Subscribe', 'Pay')}</span>
+                            <span class="btn-spinner"></span>
+                        </button>
+
+                        <div class="footer">
+                            {!IF(recurringItemCount > 0, 'By subscribing, you authorize Displai to charge you according to the terms until you cancel.', 'By confirming your payment, you allow Displai to charge you for this payment and future payments in accordance with their terms.')}
+                        </div>
+
+                        <div class="footer">
+                            Sales tax applicable in the following states: AZ, CA, CO, FL, ID, LA, MA, MD, MI, MO, NY, OH, PA, TN, TX
+                        </div>
+
+                        <div id="toast" class="toast">
+                            <div class="toast-content">
+                                <span id="toast-message"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </apex:outputPanel>
+
+            <script>
+                const stripe = Stripe("{!publishableKey}");
+                const clientSecret = "{!clientSecret}";
+                const checkoutSessionId = "{!sessionId}";
+
+                let checkout;
+                let actions;
+                let paymentInProgress = false;
+
+                initializeCheckout();
+
+                async function initializeCheckout() {
+                    const appearance = {
+                        theme: "stripe",
+                        inputs: "condensed",
+                        labels: "floating",
+                        variables: {
+                            colorPrimary: "#635bff",
+                            colorText: "#1a1f36",
+                            colorBackground: "#ffffff",
+                            colorDanger: "#e55353",
+                            fontFamily: "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+                            spacingUnit: "4px",
+                            borderRadius: "6px"
+                        },
+                        rules: {
+                            ".Input": {
+                                backgroundColor: "#ffffff",
+                                borderColor: "#d0d5dd",
+                                boxShadow: "0 1px 2px 0 rgba(18, 52, 86, 0.05)",
+                                padding: "10px 12px",
+                                fontSize: "14px"
+                            },
+                            ".Input:focus": {
+                                borderColor: "#635bff",
+                                boxShadow: "0 1px 2px 0 rgba(99, 91, 255, 0.3)"
+                            },
+                            ".Input--error": {
+                                borderColor: "#e55353",
+                                boxShadow: "0 1px 2px 0 rgba(229, 83, 83, 0.3)"
+                            },
+                            ".Label": {
+                                fontSize: "12px",
+                                fontWeight: "500"
+                            },
+                            ".Label--floating": {
+                                fontSize: "12px",
+                                fontWeight: "500"
+                            },
+                            ".Label--resting": {
+                                color: "#697386",
+                                fontSize: "14px"
+                            },
+                            ".Error": {
+                                color: "#e55353",
+                                fontSize: "12px"
+                            }
+                        }
+                    };
+
+                    checkout = stripe.initCheckout({
+                        clientSecret: clientSecret,
+                        elementsOptions: {
+                            appearance,
+                            loader: "always",
+                            fonts: [
+                                {
+                                    cssSrc: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap"
+                                }
+                            ]
+                        }
+                    });
+
+                    checkout.on("change", (session) => {
+                        console.log("Checkout change event:", session);
+                    });
+
+                    const loadActionResult = await checkout.loadActions();
+                    if (loadActionResult.type === "success") {
+                        actions = loadActionResult.actions;
+                        const session = loadActionResult.actions.getSession();
+                        document.getElementById("price-value").textContent = session.total.total.amount;
+                        console.log("Checkout actions loaded:", actions);
+                    }
+
+                    const paymentElement = checkout.createPaymentElement({
+                        layout: {
+                            type: "accordion",
+                            defaultCollapsed: true,
+                            radios: true,
+                            spacedAccordionItems: false,
+                            paymentMethodLogoPosition: "start"
+                        }
+                    });
+                    paymentElement.mount("#payment-element");
+                    document.getElementById("payment").classList.add("show");
+
+                    // Shipping address is captured via native HTML fields — no Stripe element needed
+                }
+
+                // ------------------------------------
+                // TC Scroll Enforcement
+                // ------------------------------------
+                function handleTosScroll(el) {
+                    var threshold = 20; // px from bottom counts as "read"
+                    if (el.scrollTop + el.clientHeight >= el.scrollHeight - threshold) {
+                        var cb = document.getElementById("terms-checkbox");
+                        if (cb.disabled) {
+                            cb.disabled = false;
+                            var hint = document.getElementById("tos-scroll-hint");
+                            hint.textContent = "✓ You've read the MSA — please check the box to agree.";
+                            hint.style.color = "#22c55e";
+                            var unread = document.getElementById("msa-unread-note");
+                            if (unread) unread.style.display = "none";
+                            var unlockNote = document.getElementById("scroll-unlock-note");
+                            if (unlockNote) unlockNote.style.display = "none";
+                        }
+                    }
+                    checkFormReady();
+                }
+
+                // ------------------------------------
+                // Submit Button Enablement
+                // ------------------------------------
+                function checkFormReady() {
+                    var firstName = (document.getElementById("billing-first-name").value || "").trim();
+                    var lastName  = (document.getElementById("billing-last-name").value || "").trim();
+                    var email     = (document.getElementById("billing-email").value || "").trim();
+                    var street    = (document.getElementById("shipping-street").value || "").trim();
+                    var city      = (document.getElementById("shipping-city").value || "").trim();
+                    var state     = (document.getElementById("shipping-state").value || "").trim();
+                    var postal    = (document.getElementById("shipping-postal").value || "").trim();
+                    var checked   = document.getElementById("terms-checkbox").checked;
+                    var signature = (document.getElementById("signature-input").value || "").trim();
+
+                    var ready = firstName && lastName && email && street && city && state && postal && checked && signature;
+                    document.getElementById("submit-btn").disabled = !ready;
+                }
+
+                // Attach checkFormReady to all required inputs
+                document.addEventListener("DOMContentLoaded", function() {
+                    var fields = ["billing-first-name","billing-last-name","billing-email",
+                                  "shipping-street","shipping-city","shipping-state",
+                                  "shipping-postal","signature-input"];
+                    fields.forEach(function(id) {
+                        var el = document.getElementById(id);
+                        if (el) el.addEventListener("input", checkFormReady);
+                    });
+                    document.getElementById("terms-checkbox").addEventListener("change", checkFormReady);
+                });
+
+                async function handlePay() {
+                    if (paymentInProgress) return;
+                    paymentInProgress = true;
+                    setLoading(true);
+
+                    try {
+                        const termsChecked = document.getElementById("terms-checkbox").checked;
+                        const signatureValue = document.getElementById("signature-input").value.trim();
+
+                        // Billing contact
+                        const billingFirstName = document.getElementById("billing-first-name").value.trim();
+                        const billingLastName = document.getElementById("billing-last-name").value.trim();
+                        const billingEmail = document.getElementById("billing-email").value.trim();
+
+                        // Shipping address
+                        const shippingStreet = document.getElementById("shipping-street").value.trim();
+                        const shippingCity = document.getElementById("shipping-city").value.trim();
+                        const shippingState = document.getElementById("shipping-state").value.trim().toUpperCase();
+                        const shippingPostal = document.getElementById("shipping-postal").value.trim();
+                        const shippingCountry = document.getElementById("shipping-country").value.trim().toUpperCase() || "US";
+
+                        if (!billingFirstName || !billingLastName) {
+                            throw new Error("Please enter the billing contact first and last name.");
+                        }
+                        if (!billingEmail) {
+                            throw new Error("Please enter the billing contact email.");
+                        }
+                        if (!shippingStreet || !shippingCity || !shippingState || !shippingPostal) {
+                            throw new Error("Please complete the shipping address (street, city, state, and postal code are required).");
+                        }
+
+                        if (!termsChecked) {
+                            throw new Error("You must agree to the Master Services Agreement before continuing.");
+                        }
+
+                        if (!signatureValue) {
+                            throw new Error("Please provide your digital signature.");
+                        }
+
+                        const billToName = billingFirstName + " " + billingLastName;
+                        postCheckoutUpdate(signatureValue, billToName, billingEmail, shippingStreet, shippingCity, shippingState, shippingCountry, shippingPostal);
+
+                        const result = await actions.confirm({
+                            returnUrl: "{!$Label.SuccessUrlForPayment}"
+                        });
+
+                        if (result.type === "success") {
+                            console.log("Payment successful:", result);
+                        } else {
+                            const errorMessage = result.error
+                                ? result.error.message
+                                : "Payment failed. Please try again.";
+                            showToast(errorMessage, "error");
+                            setLoading(false);
+                            paymentInProgress = false;
+                        }
+                    } catch (error) {
+                        showToast(error.message, "error");
+                        setLoading(false);
+                        paymentInProgress = false;
+                    }
+                }
+
+                function postCheckoutUpdate(signatureValue, billToName, billToEmail, shippingStreet, shippingCity, shippingState, shippingCountry, shippingPostal) {
+                    Visualforce.remoting.Manager.invokeAction(
+                        "{!$RemoteAction.StripeCheckoutController.handleCheckoutCompletion}",
+                        "{!quoteData.id}",
+                        signatureValue,
+                        "{!ipAddress}",
+                        "{!userAgent}",
+                        billToName,
+                        billToEmail,
+                        shippingStreet,
+                        shippingCity,
+                        shippingState,
+                        shippingCountry,
+                        shippingPostal,
+                        function (result, event) {
+                            if (event.status) {
+                                console.log("Checkout completion handled successfully.");
+                            } else {
+                                console.error("Error handling checkout completion:", event.message);
+                            }
+                        },
+                        { escape: true }
+                    );
+                }
+
+                // ------------------------------------
+                // UI Helpers
+                // ------------------------------------
+
+                function showToast(message, type) {
+                    type = type || "error";
+                    const toast = document.getElementById("toast");
+                    const toastMessage = document.getElementById("toast-message");
+
+                    toastMessage.textContent = message;
+
+                    toast.classList.remove("error", "success");
+                    toast.classList.add(type);
+                    toast.classList.add("show");
+
+                    setTimeout(() => {
+                        toast.classList.remove("show");
+                    }, 4000);
+                }
+
+                function setLoading(state) {
+                    const submitButton = document.querySelector(".submit-btn");
+                    submitButton.disabled = state;
+                    submitButton.classList.toggle("loading", state);
+                }
+            </script>
+        </body>
+    </html>
+</apex:page>
