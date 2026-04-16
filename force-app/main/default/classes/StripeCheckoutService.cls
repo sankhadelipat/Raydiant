@@ -195,6 +195,7 @@ public class StripeCheckoutService {
             }
 
             if (checkoutMode == 'payment') {
+                bodyParts.add('invoice_creation[enabled]=true');
                 bodyParts.add(
                     'payment_intent_data[metadata][salesforce_quote_id]=' + EncodingUtil.urlEncode(quote.Id, 'UTF-8')
                 );
@@ -236,7 +237,7 @@ public class StripeCheckoutService {
                 for (SBQQ__Quote__c qt : new List<SBQQ__Quote__c>{ quote }) {
                     qt.Stripe_Payment_Link__c =
                         paySiteDetail.SecureURL +
-                        'apex/StripeCheckoutPageV2?session=' +
+                        'apex/StripeCheckoutPageV3?session=' +
                         checkoutSessionId+'&client=' + clientSecret;
                     qt.Stripe_Checkout_Session_ID__c = checkoutSessionId;
                     updateQuoteList.add(qt);
