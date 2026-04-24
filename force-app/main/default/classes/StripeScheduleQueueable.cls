@@ -249,7 +249,10 @@ public class StripeScheduleQueueable implements Queueable, Database.AllowsCallou
             System.debug('Total Subscription Items to Insert: ' + subscriptionItemsToInsert.size());
 
             if (!subscriptionItemsToInsert.isEmpty()) {
+                StripeTriggerHandler.enableBypass('SBQQ__Subscription__c');
                 insert subscriptionItemsToInsert;
+                StripeTriggerHandler.disableBypass('SBQQ__Subscription__c');
+
                 System.debug('Inserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
 
                 if (status != 'canceled') {
@@ -472,7 +475,10 @@ public class StripeScheduleQueueable implements Queueable, Database.AllowsCallou
             System.debug('Total Subscription Items to Insert: ' + subscriptionItemsToInsert.size());
 
             if (!subscriptionItemsToInsert.isEmpty()) {
+                StripeTriggerHandler.enableBypass('SBQQ__Subscription__c');
                 insert subscriptionItemsToInsert;
+                StripeTriggerHandler.disableBypass('SBQQ__Subscription__c');
+
                 System.debug('Inserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
 
                 if (status != 'canceled') {

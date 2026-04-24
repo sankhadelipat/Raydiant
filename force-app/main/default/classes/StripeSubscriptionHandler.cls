@@ -135,7 +135,10 @@ public class StripeSubscriptionHandler {
                 }
 
                 if (!subsToCancel.isEmpty()) {
+                    StripeTriggerHandler.enableBypass('SBQQ__Subscription__c');
                     update subsToCancel;
+                    StripeTriggerHandler.disableBypass('SBQQ__Subscription__c');
+                    
                     System.debug('Canceled ' + subsToCancel.size() + ' SBQQ__Subscription__c records');
                 }
             } else {
@@ -194,7 +197,10 @@ public class StripeSubscriptionHandler {
                 }
 
                 if (!subsToCancel.isEmpty()) {
+                    StripeTriggerHandler.enableBypass('SBQQ__Subscription__c');
                     update subsToCancel;
+                    StripeTriggerHandler.disableBypass('SBQQ__Subscription__c');
+
                     System.debug('Canceled ' + subsToCancel.size() + ' SBQQ__Subscription__c records');
                 }
             } else {

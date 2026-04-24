@@ -90,6 +90,7 @@ public class StripeSubscriptionScheduler3 {
                     Quantity_For_Stripe__c,
                     SBQQ__EffectiveQuantity__c,
                     SBQQ__UpgradedSubscription__c,
+                    SBQQ__UpgradedSubscription__r.SBQQ__NetPrice__c,
                     SBQQ__NetTotal__c,
                     SBQQ__Product__r.Name,
                     Billing_Frequency_Override__c,
@@ -270,10 +271,20 @@ public class StripeSubscriptionScheduler3 {
             ? ql.SBQQ__EffectiveQuantity__c
             : qty;
 
-        Decimal unitPrice = (ql.MRR__c != null &&
-            ql.MRR__c != 0)
-            ? ql.MRR__c / effectiveQty
-            : ql.SBQQ__NetTotal__c / effectiveQty;
+        Decimal unitPrice;
+
+        if (ql.MRR__c != null && ql.MRR__c != 0) {
+            unitPrice = ql.MRR__c / effectiveQty;
+        } else if (ql.SBQQ__NetTotal__c != null && ql.SBQQ__NetTotal__c != 0) {
+            unitPrice = ql.SBQQ__NetTotal__c / effectiveQty;
+        } else if (
+            ql.SBQQ__UpgradedSubscription__r.SBQQ__NetPrice__c != null &&
+            ql.SBQQ__UpgradedSubscription__r.SBQQ__NetPrice__c != 0
+        ) {
+            unitPrice = ql.SBQQ__UpgradedSubscription__r.SBQQ__NetPrice__c;
+        } else {
+            unitPrice = 0;
+        }
 
         Decimal multiplier = 1;
         if (priceType == 'recurring') {

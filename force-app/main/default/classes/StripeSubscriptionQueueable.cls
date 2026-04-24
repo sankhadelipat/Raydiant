@@ -271,7 +271,10 @@ public class StripeSubscriptionQueueable implements Queueable, Database.AllowsCa
             System.debug('Total Subscription Items to Insert: ' + subscriptionItemsToInsert.size());
 
             if (!subscriptionItemsToInsert.isEmpty()) {
+                StripeTriggerHandler.enableBypass('SBQQ__Subscription__c');
                 upsert subscriptionItemsToInsert SBQQ__Subscription__c.Stripe_Subscription_ID__c;
+                StripeTriggerHandler.disableBypass('SBQQ__Subscription__c');
+
                 System.debug('Upserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
 
                 if (status != 'canceled') {
@@ -549,7 +552,10 @@ public class StripeSubscriptionQueueable implements Queueable, Database.AllowsCa
             System.debug('Total Subscription Items to Insert: ' + subscriptionItemsToInsert.size());
 
             if (!subscriptionItemsToInsert.isEmpty()) {
+                StripeTriggerHandler.enableBypass('SBQQ__Subscription__c');
                 upsert subscriptionItemsToInsert SBQQ__Subscription__c.Stripe_Subscription_ID__c;
+                StripeTriggerHandler.disableBypass('SBQQ__Subscription__c');
+
                 System.debug('Upserted ' + subscriptionItemsToInsert.size() + ' SBQQ__Subscription__c records');
 
                 if (status != 'canceled') {
