@@ -37,10 +37,14 @@ public class StripeCustomerQueueable implements Queueable, Database.AllowsCallou
                     ? (Map<String, Object>) shipping.get('address')
                     : null;
 
+                // Get customer direct RecordType
+                Id directRecordTypeId = Schema.SObjectType.Account.getRecordTypeInfosByName().get('Direct').getRecordTypeId();
+
                 // Create Account in Salesforce
                 Account acc = new Account(
                     Name = customerName != null ? customerName : 'Stripe Customer ' + stripeCustomerId,
                     Type = 'Customer',
+                    RecordTypeId = directRecordTypeId,
                     Stripe_Customer_ID__c = stripeCustomerId,
                     Stripe_Customer_URL__c = 'https://dashboard.stripe.com/customers/' + stripeCustomerId,
                     Created_by_Stripe__c = raydiantSignupType == 'salesforce' ? false : true,
