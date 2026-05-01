@@ -1,153 +1,93 @@
 /**
- * AccountMRRRollupHandler
+ * AccountMRRRollupHandler - Deep multi-level rollup of Parent_MRR__c (up to 5 levels).
  *
- * Rolls up MRR from child Accounts to their parent, then assigns the
- * correct Account CSM based on the Displai CSM matrix.
- *
- * FIELD RULES (never violate):
- *   Account_Value__c — live real-time MRR on every account (sum of active subs).
- *                      Written by AccountMRRValueTriggerLIVE. NEVER touched here.
- *   Parent_MRR__c  — calculated total written by this class:
- *                      = SUM(children's Account_Value__c) ONLY.
- *                      The parent's own Account_Value__c is intentionally excluded —
- *                      Parent_MRR__c represents the child rollup only.
- *
- * CSM ASSIGNMENT MATRIX (evaluated against total family MRR = own + children):
- *   EX product (Hoopla) at any level        →  Annette Broussard  [TRUMP CARD]
- *   Total family MRR >= $500                →  Vilen Gabrielyan
- *   Total family MRR >= $101                →  Ali Aziz
- *   Total family MRR  < $101 (or null)      →  Francisco Fiedler
+ * Parent_MRR__c = SUM(child.Account_Value__c + child.Parent_MRR__c) at each level.
+ * Never touches Account_Value__c or Account_Team_CSM__c.
  *
  * Author : Stargate / Blake Reeves
- * Created: 2026-03-26
- * Updated: 2026-04-03 — swapped Latest_MRR__c → Account_Value__c (live MRR)
+ * Updated: 2026-04-07 � deep multi-level rollup (was single-level only)
  */
 public class AccountMRRRollupHandler {
 
-    // ── CSM User IDs ─────────────────────────────────────────────────────────
-    private static final Id CSM_ANNETTE   = '0051I000007llZLQAY'; // Annette Broussard
-    private static final Id CSM_VILEN     = '0058W000009o8jpQAA'; // Vilen Gabrielyan
-    private static final Id CSM_ALI       = '0051I000007n36jQAA'; // Ali Aziz
-    private static final Id CSM_FRANCISCO = '0058W00000FtNrxQAF'; // Francisco Fiedler
-
-    // ── MRR Tier Thresholds ──────────────────────────────────────────────────
-    private static final Decimal TIER_VILEN = 500;
-    private static final Decimal TIER_ALI   = 101;  // corrected from 200
-
-    // ────────────────────────────────────────────────────────────────────────
-
     public static void handleTrigger(
-        List<Account> newList,
-        List<Account> oldList,
-        Map<Id, Account> newMap,
-        Map<Id, Account> oldMap,
-        Boolean isInsert,
-        Boolean isUpdate,
-        Boolean isDelete,
-        Boolean isUndelete
+        List<Account> newList, List<Account> oldList,
+        Map<Id, Account> newMap, Map<Id, Account> oldMap,
+        Boolean isInsert, Boolean isUpdate, Boolean isDelete, Boolean isUndelete
     ) {
         Set<Id> parentIds = new Set<Id>();
 
         if (isDelete) {
-            for (Account acc : oldList) {
-                if (acc.ParentId != null) parentIds.add(acc.ParentId);
-            }
-
+            for (Account acc : oldList) { if (acc.ParentId != null) parentIds.add(acc.ParentId); }
         } else if (isUpdate) {
             for (Account acc : newList) {
                 Account oldAcc = oldMap.get(acc.Id);
                 Boolean mrrChanged    = (acc.Account_Value__c != oldAcc.Account_Value__c);
-                Boolean parentChanged = (acc.ParentId      != oldAcc.ParentId);
-
-                if (acc.ParentId != null && (mrrChanged || parentChanged)) {
-                    parentIds.add(acc.ParentId);
-                }
-                // Old parent also needs recalculating if child was reparented
-                if (parentChanged && oldAcc.ParentId != null) {
-                    parentIds.add(oldAcc.ParentId);
-                }
+                Boolean parentChanged = (acc.ParentId         != oldAcc.ParentId);
+                if (acc.ParentId != null && (mrrChanged || parentChanged)) parentIds.add(acc.ParentId);
+                if (parentChanged && oldAcc.ParentId != null) parentIds.add(oldAcc.ParentId);
             }
-
         } else {
-            // Insert or undelete
-            for (Account acc : newList) {
-                if (acc.ParentId != null) parentIds.add(acc.ParentId);
-            }
+            for (Account acc : newList) { if (acc.ParentId != null) parentIds.add(acc.ParentId); }
         }
 
         if (parentIds.isEmpty()) return;
-
-        rollupAndAssignCSM(parentIds);
+        rollupParentMRR(parentIds);
     }
 
     /**
-     * For each parent:
-     *   1. Sums children's Account_Value__c  →  writes to Parent_MRR__c
-     *   2. Assigns Account_Team_CSM__c based on Hoopla trump card + MRR matrix
+     * Deep multi-level rollup.
+     * 1. Walk UP from triggered parents collecting all ancestor levels.
+     * 2. Process BOTTOM-UP: levels[0] first, carrying fresh values upward.
+     * 3. Single DML update for all ancestors.
      */
     @TestVisible
-    public static void rollupAndAssignCSM(Set<Id> parentIds) {
+    public static void rollupParentMRR(Set<Id> parentIds) {
 
-        // ── Step 1: Get parent account details ───────────────────────────────
-        Map<Id, Account> parentMap = new Map<Id, Account>([
-            SELECT Id, Account_Value__c, EX_Product_Formula__c
-            FROM   Account
-            WHERE  Id IN :parentIds
-        ]);
+        // Step 1: collect ancestor levels
+        List<Set<Id>> levels = new List<Set<Id>>();
+        Set<Id> currentLevel = new Set<Id>(parentIds);
+        levels.add(currentLevel);
 
-        // ── Step 2: Aggregate children's MRR ────────────────────────────────
-        Map<Id, Decimal> childSumMap = new Map<Id, Decimal>();
-        for (Id pid : parentIds) {
-            childSumMap.put(pid, 0);
-        }
-        for (AggregateResult ar : [
-            SELECT ParentId, SUM(Account_Value__c) totalMRR
-            FROM   Account
-            WHERE  ParentId IN :parentIds
-            GROUP BY ParentId
-        ]) {
-            Id      pid   = (Id)      ar.get('ParentId');
-            Decimal total = (Decimal) ar.get('totalMRR');
-            childSumMap.put(pid, total != null ? total : 0);
+        for (Integer i = 0; i < 5; i++) {
+            Set<Id> nextLevel = new Set<Id>();
+            for (Account a : [SELECT Id, ParentId FROM Account WHERE Id IN :currentLevel AND ParentId != null]) {
+                nextLevel.add(a.ParentId);
+            }
+            if (nextLevel.isEmpty()) break;
+            levels.add(nextLevel);
+            currentLevel = nextLevel;
         }
 
-        // ── Step 3: Build update list ────────────────────────────────────────
-        List<Account> toUpdate = new List<Account>();
+        // Step 2: process bottom-up with in-memory carry
+        Map<Id, Decimal> freshParentMRR = new Map<Id, Decimal>();
 
-        for (Id pid : parentIds) {
-            Account parent = parentMap.get(pid);
-            if (parent == null) continue;
+        for (Integer i = 0; i < levels.size(); i++) {
+            Set<Id> levelIds = levels[i];
+            Map<Id, Decimal> childSumByParent = new Map<Id, Decimal>();
+            for (Id pid : levelIds) childSumByParent.put(pid, 0);
 
-            // Parent_MRR__c = children's MRR only (parent's own Account_Value__c excluded)
-            Decimal ownMRR    = parent.Account_Value__c != null ? parent.Account_Value__c : 0;
-            Decimal childSum  = childSumMap.containsKey(pid) ? childSumMap.get(pid) : 0;
-            Decimal parentMRR = childSum; // stored value — children only
-
-            // CSM thresholds evaluate total family MRR (own + children)
-            Decimal totalFamilyMRR = ownMRR + childSum;
-
-            // CSM assignment — Hoopla is the trump card
-            Id assignedCSM;
-            String exFormula = parent.EX_Product_Formula__c;
-            if (String.isNotBlank(exFormula) && exFormula.contains('EX')) {
-                assignedCSM = CSM_ANNETTE;
-            } else if (totalFamilyMRR >= TIER_VILEN) {
-                assignedCSM = CSM_VILEN;
-            } else if (totalFamilyMRR >= TIER_ALI) {
-                assignedCSM = CSM_ALI;
-            } else {
-                assignedCSM = CSM_FRANCISCO;
+            for (Account child : [
+                SELECT Id, ParentId, Account_Value__c, Parent_MRR__c
+                FROM   Account WHERE ParentId IN :levelIds
+            ]) {
+                Decimal ownMRR      = child.Account_Value__c != null ? child.Account_Value__c : 0;
+                Decimal childRollup = freshParentMRR.containsKey(child.Id)
+                    ? freshParentMRR.get(child.Id)
+                    : (child.Parent_MRR__c != null ? child.Parent_MRR__c : 0);
+                Decimal running = childSumByParent.get(child.ParentId);
+                childSumByParent.put(child.ParentId, (running != null ? running : 0) + ownMRR + childRollup);
             }
 
-            toUpdate.add(new Account(
-                Id                  = pid,
-                Parent_MRR__c     = parentMRR,
-                Account_Team_CSM__c = assignedCSM
-            ));
+            for (Id pid : levelIds) {
+                freshParentMRR.put(pid, childSumByParent.containsKey(pid) ? childSumByParent.get(pid) : 0);
+            }
         }
 
-        if (!toUpdate.isEmpty()) {
-            update toUpdate;
+        // Step 3: single DML
+        List<Account> toUpdate = new List<Account>();
+        for (Id pid : freshParentMRR.keySet()) {
+            toUpdate.add(new Account(Id = pid, Parent_MRR__c = freshParentMRR.get(pid)));
         }
+        if (!toUpdate.isEmpty()) update toUpdate;
     }
 }

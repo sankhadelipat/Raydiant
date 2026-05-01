@@ -4,32 +4,22 @@ global class CSMAssignmentBatch implements Database.Batchable<SObject>,
 
     public static Boolean isRunning = false;
 
-    private static final Set<String> HOOPLA_PRODUCTS = new Set<String>{
-        'Hoopla User License - Standard',
-        'Hoopla Dynamics 365 Integration',
-        'Hoopla Gold Package [legacy]',
-        'Hoopla User License - Fan',
-        'Display License - Hoopla TV'
-    };
-
     private Id annetteId;
     private Id franciscoId;
     private Id aliId;
     private Id vilenId;
 
-    private Integer totalUpdated        = 0;
-    private Integer totalSkipped        = 0;
-    private Integer totalAlreadyCorrect = 0;
+    private Integer totalUpdated = 0;
+    private Integer totalSkipped = 0;
+    private Integer totalLocked  = 0;
 
     global CSMAssignmentBatch() {
         Map<String, Id> csmById = new Map<String, Id>();
         for (User u : [
             SELECT Id, Name FROM User
-            WHERE Name IN ('Annette Broussard','Francisco Fiedler','Ali Aziz','Vilen Gabrielyan')
-            AND IsActive = true ORDER BY Id ASC LIMIT 10
-        ]) {
-            csmById.put(u.Name, u.Id);
-        }
+            WHERE  Name IN ('Annette Broussard','Francisco Fiedler','Ali Aziz','Vilen Gabrielyan')
+            AND    IsActive = true ORDER BY Id ASC LIMIT 10
+        ]) { csmById.put(u.Name, u.Id); }
         annetteId   = csmById.get('Annette Broussard');
         franciscoId = csmById.get('Francisco Fiedler');
         aliId       = csmById.get('Ali Aziz');
@@ -43,8 +33,8 @@ global class CSMAssignmentBatch implements Database.Batchable<SObject>,
     global Database.QueryLocator start(Database.BatchableContext bc) {
         isRunning = true;
         return Database.getQueryLocator([
-            SELECT Id, ParentId, Account_Value__c, Account_Team_CSM__c
-            FROM Account WHERE ParentId = null
+            SELECT Id, ParentId, Account_Value__c, Parent_MRR__c, Account_Team_CSM__c, CSM_Lock__c
+            FROM   Account WHERE ParentId = null
         ]);
     }
 
@@ -54,119 +44,85 @@ global class CSMAssignmentBatch implements Database.Batchable<SObject>,
 
         Map<Id, List<Account>> childrenByParent = new Map<Id, List<Account>>();
         Set<Id> childIds = new Set<Id>();
-
-        for (Account child : [
-            SELECT Id, ParentId, Account_Value__c, Account_Team_CSM__c
-            FROM Account WHERE ParentId IN :topIds
-        ]) {
-            if (!childrenByParent.containsKey(child.ParentId)) {
+        for (Account child : [SELECT Id, ParentId, Account_Value__c, Account_Team_CSM__c
+                              FROM Account WHERE ParentId IN :topIds]) {
+            if (!childrenByParent.containsKey(child.ParentId))
                 childrenByParent.put(child.ParentId, new List<Account>());
-            }
             childrenByParent.get(child.ParentId).add(child);
-            allFamilyIds.add(child.Id);
-            childIds.add(child.Id);
+            allFamilyIds.add(child.Id); childIds.add(child.Id);
         }
 
         Map<Id, List<Account>> grandchildrenByParent = new Map<Id, List<Account>>();
         if (!childIds.isEmpty()) {
-            for (Account gc : [
-                SELECT Id, ParentId, Account_Value__c, Account_Team_CSM__c
-                FROM Account WHERE ParentId IN :childIds
-            ]) {
-                if (!grandchildrenByParent.containsKey(gc.ParentId)) {
+            for (Account gc : [SELECT Id, ParentId, Account_Value__c, Account_Team_CSM__c
+                               FROM Account WHERE ParentId IN :childIds]) {
+                if (!grandchildrenByParent.containsKey(gc.ParentId))
                     grandchildrenByParent.put(gc.ParentId, new List<Account>());
-                }
                 grandchildrenByParent.get(gc.ParentId).add(gc);
                 allFamilyIds.add(gc.Id);
             }
         }
 
-        Map<Id, Boolean> acctHasHoopla = new Map<Id, Boolean>();
-        Map<Id, Boolean> acctHasAnySub = new Map<Id, Boolean>();
+        Map<Id, Id> acctToTop = new Map<Id, Id>();
+        for (Id topId : topIds) acctToTop.put(topId, topId);
+        for (Id topId : childrenByParent.keySet()) {
+            for (Account child : childrenByParent.get(topId)) {
+                acctToTop.put(child.Id, topId);
+                List<Account> gcs = grandchildrenByParent.get(child.Id);
+                if (gcs != null) for (Account gc : gcs) acctToTop.put(gc.Id, topId);
+            }
+        }
+
+        Set<Id> familiesWithHoopla  = new Set<Id>();
+        Set<Id> familiesWithAnySub  = new Set<Id>();
         for (SBQQ__Subscription__c sub : [
-            SELECT Id, SBQQ__Account__c, SBQQ__Product__r.Name
-            FROM SBQQ__Subscription__c WHERE SBQQ__Account__c IN :allFamilyIds
+            SELECT SBQQ__Account__c, SBQQ__Product__r.Name
+            FROM   SBQQ__Subscription__c WHERE SBQQ__Account__c IN :allFamilyIds
         ]) {
-            Id acctId = sub.SBQQ__Account__c;
-            String prodName = sub.SBQQ__Product__r != null ? sub.SBQQ__Product__r.Name : '';
-            acctHasAnySub.put(acctId, true);
-            if (HOOPLA_PRODUCTS.contains(prodName)) acctHasHoopla.put(acctId, true);
+            Id topId = acctToTop.get(sub.SBQQ__Account__c);
+            if (topId == null) continue;
+            familiesWithAnySub.add(topId);
+            String pName = sub.SBQQ__Product__r != null ? sub.SBQQ__Product__r.Name : '';
+            if (pName != null && pName.containsIgnoreCase('Hoopla')) familiesWithHoopla.add(topId);
         }
 
         List<Account> toUpdate = new List<Account>();
 
         for (Account topAcct : scope) {
+
+            if (topAcct.CSM_Lock__c == true) { totalLocked++; continue; }
+
             List<Account> children = childrenByParent.get(topAcct.Id);
             Boolean isFamily = (children != null && !children.isEmpty());
 
-            Boolean familyHasHoopla = acctHasHoopla.containsKey(topAcct.Id);
-            Boolean familyHasAnySub = acctHasAnySub.containsKey(topAcct.Id);
+            if (!familiesWithAnySub.contains(topAcct.Id)) { totalSkipped++; continue; }
 
-            if (isFamily) {
-                for (Account child : children) {
-                    if (!familyHasHoopla && acctHasHoopla.containsKey(child.Id)) familyHasHoopla = true;
-                    if (!familyHasAnySub && acctHasAnySub.containsKey(child.Id)) familyHasAnySub = true;
-                    List<Account> gcs = grandchildrenByParent.get(child.Id);
-                    if (gcs != null) {
-                        for (Account gc : gcs) {
-                            if (!familyHasHoopla && acctHasHoopla.containsKey(gc.Id)) familyHasHoopla = true;
-                            if (!familyHasAnySub && acctHasAnySub.containsKey(gc.Id)) familyHasAnySub = true;
-                            if (familyHasHoopla && familyHasAnySub) break;
-                        }
-                    }
-                    if (familyHasHoopla && familyHasAnySub) break;
-                }
-            }
-
-            if (!familyHasAnySub) {
-                if (topAcct.Account_Team_CSM__c != null) {
-                    toUpdate.add(new Account(Id = topAcct.Id, Account_Team_CSM__c = null));
-                    totalUpdated++;
-                }
+            if (familiesWithHoopla.contains(topAcct.Id)) {
+                assignIfDifferent(topAcct, annetteId, toUpdate);
                 if (isFamily) {
                     for (Account child : children) {
-                        if (child.Account_Team_CSM__c != null) {
-                            toUpdate.add(new Account(Id = child.Id, Account_Team_CSM__c = null));
-                            totalUpdated++;
-                        }
+                        assignIfDifferent(child, annetteId, toUpdate);
                         List<Account> gcs = grandchildrenByParent.get(child.Id);
-                        if (gcs != null) {
-                            for (Account gc : gcs) {
-                                if (gc.Account_Team_CSM__c != null) {
-                                    toUpdate.add(new Account(Id = gc.Id, Account_Team_CSM__c = null));
-                                    totalUpdated++;
-                                }
-                            }
-                        }
+                        if (gcs != null) for (Account gc : gcs) assignIfDifferent(gc, annetteId, toUpdate);
                     }
                 }
-                totalSkipped++;
                 continue;
             }
 
-            Id determinedCSM = familyHasHoopla ? annetteId : csmFromMRR(topAcct.Account_Value__c);
+            Decimal ownMRR   = topAcct.Account_Value__c != null ? topAcct.Account_Value__c : 0;
+            Decimal childMRR = topAcct.Parent_MRR__c    != null ? topAcct.Parent_MRR__c    : 0;
+            Id topCSM = csmFromMRR(ownMRR + childMRR);
+            assignIfDifferent(topAcct, topCSM, toUpdate);
 
-            if (determinedCSM == null) { totalSkipped++; continue; }
-
-            if (topAcct.Account_Team_CSM__c != determinedCSM) {
-                toUpdate.add(new Account(Id = topAcct.Id, Account_Team_CSM__c = determinedCSM));
-                totalUpdated++;
-            } else { totalAlreadyCorrect++; }
-
-            if (isFamily) {
-                for (Account child : children) {
-                    if (child.Account_Team_CSM__c != determinedCSM) {
-                        toUpdate.add(new Account(Id = child.Id, Account_Team_CSM__c = determinedCSM));
-                        totalUpdated++;
-                    } else { totalAlreadyCorrect++; }
-                    List<Account> gcs = grandchildrenByParent.get(child.Id);
-                    if (gcs != null) {
-                        for (Account gc : gcs) {
-                            if (gc.Account_Team_CSM__c != determinedCSM) {
-                                toUpdate.add(new Account(Id = gc.Id, Account_Team_CSM__c = determinedCSM));
-                                totalUpdated++;
-                            } else { totalAlreadyCorrect++; }
-                        }
+            if (!isFamily) continue;
+            for (Account child : children) {
+                Id childCSM = (topCSM != null) ? topCSM : csmFromMRR(child.Account_Value__c);
+                assignIfDifferent(child, childCSM, toUpdate);
+                List<Account> gcs = grandchildrenByParent.get(child.Id);
+                if (gcs != null) {
+                    for (Account gc : gcs) {
+                        Id gcCSM = (childCSM != null) ? childCSM : csmFromMRR(gc.Account_Value__c);
+                        assignIfDifferent(gc, gcCSM, toUpdate);
                     }
                 }
             }
@@ -179,13 +135,20 @@ global class CSMAssignmentBatch implements Database.Batchable<SObject>,
         isRunning = false;
         System.debug(LoggingLevel.INFO,
             'CSMAssignmentBatch COMPLETE | Updated: ' + totalUpdated +
-            ' | Already correct: ' + totalAlreadyCorrect +
-            ' | Skipped (no subs): ' + totalSkipped);
+            ' | Skipped (no subs): ' + totalSkipped +
+            ' | Locked (CSM_Lock__c): ' + totalLocked);
+    }
+
+    private void assignIfDifferent(Account acct, Id newCSM, List<Account> toUpdate) {
+        if (acct.Account_Team_CSM__c != newCSM) {
+            toUpdate.add(new Account(Id = acct.Id, Account_Team_CSM__c = newCSM));
+            totalUpdated++;
+        }
     }
 
     private Id csmFromMRR(Decimal mrr) {
-        if (mrr == null || mrr <= 100) return franciscoId;
-        if (mrr <= 499) return aliId;
+        if (mrr == null || mrr < 200) return franciscoId;
+        if (mrr < 500)               return aliId;
         return vilenId;
     }
 }

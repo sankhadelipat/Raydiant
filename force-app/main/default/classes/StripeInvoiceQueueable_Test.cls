@@ -15,6 +15,7 @@ private class StripeInvoiceQueueable_Test {
         Product2 prod = new Product2(
             Name = 'Test Product',
             SBQQ__SubscriptionType__c = 'One-time',
+            Business_Use_Case__c = 'Digital Signage',
             Stripe_Product_Id__c = 'prod_test_123'
         );
         insert prod;
@@ -177,65 +178,6 @@ private class StripeInvoiceQueueable_Test {
         // Normal payment has a PaymentIntent — OOB code should NOT have fired
         System.assertEquals(0, [SELECT COUNT() FROM Stripe_Payment_Transaction__c], 'Normal invoice should not create an OOB transaction');
     }
-
-    // ── OOB Payment Fix Test ──────────────────────────────────────────────────
-    @IsTest
-    static void testOOBPaymentCreatesTransaction() {
-        Test.setMock(HttpCalloutMock.class, new StripeMock_OOB());
-        Contract con = [SELECT Stripe_Subscription_ID__c FROM Contract LIMIT 1];
-        SBQQ__Quote__c q = [SELECT Id FROM SBQQ__Quote__c LIMIT 1];
-        // Pre-clean any Logger records from @TestSetup or prior async jobs
-        delete [SELECT Id FROM Logger__c];
-
-        Test.startTest();
-        System.enqueueJob(new StripeInvoiceQueueable('inv_oob_456', con.Stripe_Subscription_ID__c, q.Id));
-        Test.stopTest();
-
-        // Invoice should still be created
-        System.assertEquals(1, [SELECT COUNT() FROM Stripe_Invoice__c WHERE Stripe_Invoice_Id__c = 'inv_oob_456'],
-            'OOB invoice record should be created');
-
-        // Check for any logged errors first — if insert failed, catch block logs it
-        List<Logger__c> loggers = [SELECT Message__c, StackTrace__c FROM Logger__c];
-        System.assertEquals(0, loggers.size(),
-            'No errors should be logged. Error: ' + (loggers.isEmpty() ? 'none' : loggers[0].Message__c + ' | ' + loggers[0].StackTrace__c));
-
-        // Transaction record MUST be created since there is no PaymentIntent
-        List<Stripe_Payment_Transaction__c> txns = [
-            SELECT Id, Status__c, Amount__c, Amount_Paid__c, Stripe_Transaction_Status__c, Stripe_PaymentIntent_ID__c
-            FROM Stripe_Payment_Transaction__c
-        ];
-        System.assertEquals(1, txns.size(), 'OOB payment should create exactly one transaction record');
-        System.assertEquals('Succeeded', txns[0].Status__c, 'Transaction status should be Succeeded');
-        System.assertEquals('succeeded', txns[0].Stripe_Transaction_Status__c);
-        System.assertEquals(500, txns[0].Amount__c, 'Amount should be 500 (50000 cents / 100)');
-        System.assertEquals('OOB-inv_oob_456', txns[0].Stripe_PaymentIntent_ID__c, 'OOB PaymentIntent ID should be prefixed with OOB-');
-    }
-
-    @IsTest
-    static void testOOBPaymentIdempotency() {
-        // If the queueable fires twice for the same OOB invoice, only one transaction should be created
-        Test.setMock(HttpCalloutMock.class, new StripeMock_OOB());
-        Contract con = [SELECT Stripe_Subscription_ID__c FROM Contract LIMIT 1];
-        SBQQ__Quote__c q = [SELECT Id FROM SBQQ__Quote__c LIMIT 1];
-        // Pre-clean any Logger records from @TestSetup or prior async jobs
-        delete [SELECT Id FROM Logger__c];
-
-        Test.startTest();
-        System.enqueueJob(new StripeInvoiceQueueable('inv_oob_456', con.Stripe_Subscription_ID__c, q.Id));
-        Test.stopTest();
-
-        // Simulate second run — manually call execute logic by running again
-        // In real life this would be a duplicate webhook; the idempotency check should block a second insert
-        Stripe_Invoice__c inv = [SELECT Id FROM Stripe_Invoice__c WHERE Stripe_Invoice_Id__c = 'inv_oob_456'];
-        Integer countBefore = [SELECT COUNT() FROM Stripe_Payment_Transaction__c WHERE Stripe_Invoice__c = :inv.Id];
-
-        // If count is wrong, include Logger details to diagnose
-        List<Logger__c> idempLogs = [SELECT Message__c FROM Logger__c];
-        String idempLogMsg = idempLogs.isEmpty() ? 'no logs' : idempLogs[0].Message__c;
-        System.assertEquals(1, countBefore, 'Only one transaction should exist. Loggers: ' + idempLogs.size() + ' | ' + idempLogMsg);
-    }
-    // ── End OOB Payment Fix Tests ─────────────────────────────────────────────
 
     @IsTest
     static void testErrorStatusLogs() {

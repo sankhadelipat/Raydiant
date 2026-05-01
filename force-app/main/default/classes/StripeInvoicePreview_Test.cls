@@ -74,7 +74,7 @@ public class StripeInvoicePreview_Test {
         System.enqueueJob(
             new StripeInvoicePreview(
                 'sub_123',
-                StripeInvoicePreview.PreviewType.SUBSCRIPTION
+                'SUBSCRIPTION'
             )
         );
         Test.stopTest();
@@ -101,7 +101,7 @@ public class StripeInvoicePreview_Test {
         System.enqueueJob(
             new StripeInvoicePreview(
                 'sub_sched_123',
-                StripeInvoicePreview.PreviewType.SUBSCRIPTION_SCHEDULE
+                'SUBSCRIPTION_SCHEDULE'
             )
         );
         Test.stopTest();
@@ -140,7 +140,7 @@ public class StripeInvoicePreview_Test {
         System.enqueueJob(
             new StripeInvoicePreview(
                 'sub_123',
-                StripeInvoicePreview.PreviewType.SUBSCRIPTION
+                'SUBSCRIPTION'
             )
         );
         Test.stopTest();
@@ -176,7 +176,7 @@ public class StripeInvoicePreview_Test {
         System.enqueueJob(
             new StripeInvoicePreview(
                 'sub_sched_123',
-                StripeInvoicePreview.PreviewType.SUBSCRIPTION_SCHEDULE
+                'SUBSCRIPTION_SCHEDULE'
             )
         );
         Test.stopTest();
@@ -211,7 +211,7 @@ public class StripeInvoicePreview_Test {
         System.enqueueJob(
             new StripeInvoicePreview(
                 'sub_123',
-                StripeInvoicePreview.PreviewType.SUBSCRIPTION
+                'SUBSCRIPTION'
             )
         );
         Test.stopTest();

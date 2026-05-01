@@ -298,12 +298,12 @@ public class StripeSubscriptionScheduler {
             bodyParts.add('metadata[salesforce_quote_id]=' + EncodingUtil.urlEncode(quote.Id, 'UTF-8'));
             bodyParts.add('metadata[subscription_schedule]=true');
             bodyParts.add('metadata[subscription_source]=salesforce');
-            bodyParts.add('billing_mode[type]=flexible');
+            // bodyParts.add('billing_mode[type]=flexible');
 
             // Phase settings
             bodyParts.add('phases[0][currency]=' + quote.CurrencyIsoCode);
             bodyParts.add('phases[0][end_date]=' + String.valueOf(EndDateunixTimestamp));
-            bodyParts.add('phases[0][proration_behavior]=always_invoice');
+            // bodyParts.add('phases[0][proration_behavior]=always_invoice');
             bodyParts.add('phases[0][metadata][salesforce_quote_id]=' + EncodingUtil.urlEncode(quote.Id, 'UTF-8'));
             bodyParts.add('phases[0][metadata][subscription_source]=salesforce');
             bodyParts.add('phases[0][metadata][subscription_schedule]=true');

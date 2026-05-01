@@ -6,8 +6,13 @@
  * trigger wiring, and governor limit safety via recalculate() and
  * real DML on SBQQ__Subscription__c.
  *
+ * Active_Subscriptions_Rollup__c is also validated — since F52_Active__c
+ * cannot be forced true in tests, count will always be 0, but we confirm
+ * the field is written (not null) and never left stale.
+ *
  * Author : Stargate / Blake Reeves
  * Created: 2026-04-03
+ * Updated: 2026-04-07 — added Active_Subscriptions_Rollup__c assertions
  */
 @isTest
 private class AccountMRRValueHandlerTest {
@@ -28,7 +33,7 @@ private class AccountMRRValueHandlerTest {
         return sub;
     }
 
-    // ── recalculate() with no active subs → Account_Value__c = 0 ─────────────
+    // ── recalculate() with no active subs → both fields = 0 ──────────────────
 
     @isTest
     static void testRecalculateNoSubs() {
@@ -38,9 +43,11 @@ private class AccountMRRValueHandlerTest {
         AccountMRRValueHandler.recalculate(new Set<Id>{ acc.Id });
         Test.stopTest();
 
-        Account result = [SELECT Account_Value__c FROM Account WHERE Id = :acc.Id];
+        Account result = [SELECT Account_Value__c, Active_Subscriptions_Rollup__c FROM Account WHERE Id = :acc.Id];
         System.assertEquals(0, result.Account_Value__c,
             'No active subs — Account_Value__c should be 0');
+        System.assertEquals(0, result.Active_Subscriptions_Rollup__c,
+            'No active subs — Active_Subscriptions_Rollup__c should be 0');
     }
 
     // ── recalculate() with empty set — should not error ───────────────────────
@@ -64,11 +71,14 @@ private class AccountMRRValueHandlerTest {
         Test.stopTest();
 
         List<Account> results = [
-            SELECT Account_Value__c FROM Account WHERE Id IN (:acc1.Id, :acc2.Id)
+            SELECT Account_Value__c, Active_Subscriptions_Rollup__c
+            FROM Account WHERE Id IN (:acc1.Id, :acc2.Id)
         ];
         for (Account a : results) {
             System.assertNotEquals(null, a.Account_Value__c,
                 'Account_Value__c should be set after recalculate');
+            System.assertNotEquals(null, a.Active_Subscriptions_Rollup__c,
+                'Active_Subscriptions_Rollup__c should be set after recalculate');
         }
     }
 
@@ -82,9 +92,11 @@ private class AccountMRRValueHandlerTest {
         createSub(acc.Id);
         Test.stopTest();
 
-        Account result = [SELECT Account_Value__c FROM Account WHERE Id = :acc.Id];
+        Account result = [SELECT Account_Value__c, Active_Subscriptions_Rollup__c FROM Account WHERE Id = :acc.Id];
         System.assertNotEquals(null, result.Account_Value__c,
             'Trigger should fire and set Account_Value__c on insert');
+        System.assertNotEquals(null, result.Active_Subscriptions_Rollup__c,
+            'Trigger should fire and set Active_Subscriptions_Rollup__c on insert');
     }
 
     // ── Trigger fires on update ───────────────────────────────────────────────
@@ -99,9 +111,11 @@ private class AccountMRRValueHandlerTest {
         update sub;
         Test.stopTest();
 
-        Account result = [SELECT Account_Value__c FROM Account WHERE Id = :acc.Id];
+        Account result = [SELECT Account_Value__c, Active_Subscriptions_Rollup__c FROM Account WHERE Id = :acc.Id];
         System.assertNotEquals(null, result.Account_Value__c,
             'Trigger should fire and set Account_Value__c on update');
+        System.assertNotEquals(null, result.Active_Subscriptions_Rollup__c,
+            'Trigger should fire and set Active_Subscriptions_Rollup__c on update');
     }
 
     // ── Trigger fires on delete ───────────────────────────────────────────────
@@ -115,9 +129,11 @@ private class AccountMRRValueHandlerTest {
         delete sub;
         Test.stopTest();
 
-        Account result = [SELECT Account_Value__c FROM Account WHERE Id = :acc.Id];
+        Account result = [SELECT Account_Value__c, Active_Subscriptions_Rollup__c FROM Account WHERE Id = :acc.Id];
         System.assertEquals(0, result.Account_Value__c,
             'Account_Value__c should be 0 after last sub deleted');
+        System.assertEquals(0, result.Active_Subscriptions_Rollup__c,
+            'Active_Subscriptions_Rollup__c should be 0 after last sub deleted');
     }
 
     // ── Trigger fires on undelete ─────────────────────────────────────────────
@@ -132,9 +148,11 @@ private class AccountMRRValueHandlerTest {
         undelete sub;
         Test.stopTest();
 
-        Account result = [SELECT Account_Value__c FROM Account WHERE Id = :acc.Id];
+        Account result = [SELECT Account_Value__c, Active_Subscriptions_Rollup__c FROM Account WHERE Id = :acc.Id];
         System.assertNotEquals(null, result.Account_Value__c,
             'Trigger should fire and set Account_Value__c on undelete');
+        System.assertNotEquals(null, result.Active_Subscriptions_Rollup__c,
+            'Trigger should fire and set Active_Subscriptions_Rollup__c on undelete');
     }
 
     // ── Bulk — 200 subs, no governor limit errors ─────────────────────────────
@@ -155,8 +173,10 @@ private class AccountMRRValueHandlerTest {
         insert subs;
         Test.stopTest();
 
-        Account result = [SELECT Account_Value__c FROM Account WHERE Id = :acc.Id];
+        Account result = [SELECT Account_Value__c, Active_Subscriptions_Rollup__c FROM Account WHERE Id = :acc.Id];
         System.assertNotEquals(null, result.Account_Value__c,
             'Bulk insert should complete without governor errors');
+        System.assertNotEquals(null, result.Active_Subscriptions_Rollup__c,
+            'Bulk insert should set Active_Subscriptions_Rollup__c without governor errors');
     }
 }

@@ -35,6 +35,16 @@ public without sharing class StripeCheckoutController {
         public String accountBillToEmail { get; private set; }
         public String salesRepName { get; private set; }
         public String CurrencyIsoCode { get; private set; }
+        // Billing contact fields
+        public String billToFirstName { get; private set; }
+        public String billToLastName { get; private set; }
+        public String billToEmail { get; private set; }
+        // Shipping address fields
+        public String shippingStreet { get; private set; }
+        public String shippingCity { get; private set; }
+        public String shippingState { get; private set; }
+        public String shippingCountry { get; private set; }
+        public String shippingPostalCode { get; private set; }
 
         public QuoteDTO(SBQQ__Quote__c quote) {
             id = quote.Id;
@@ -53,6 +63,20 @@ public without sharing class StripeCheckoutController {
             accountBillToEmail = quote.SBQQ__Account__r.Bill_To_Email__c;
             salesRepName = quote.Owner.Name;
             CurrencyIsoCode = quote.CurrencyIsoCode;
+            // Billing contact
+            billToFirstName = quote.Bill_To_Contact__r.FirstName;
+            billToLastName = quote.Bill_To_Contact__r.LastName;
+            billToEmail = String.isNotBlank(quote.Bill_To_Email__c)
+                ? quote.Bill_To_Email__c
+                : quote.SBQQ__Account__r.Bill_To_Email__c;
+            // Shipping address
+            shippingStreet = quote.SBQQ__ShippingStreet__c;
+            shippingCity = quote.SBQQ__ShippingCity__c;
+            shippingState = quote.SBQQ__ShippingState__c;
+            shippingCountry = String.isNotBlank(quote.SBQQ__ShippingCountry__c)
+                ? quote.SBQQ__ShippingCountry__c
+                : 'US';
+            shippingPostalCode = quote.SBQQ__ShippingPostalCode__c;
         }
     }
 
@@ -132,10 +156,18 @@ public without sharing class StripeCheckoutController {
                 SBQQ__NetAmount__c,
                 SBQQ__Account__c,
                 Bill_To_Contact__c,
+                Bill_To_Contact__r.FirstName,
+                Bill_To_Contact__r.LastName,
+                Bill_To_Email__c,
                 SBQQ__SubscriptionTerm__c,
                 Billing_Frequency_Override__c,
                 SBQQ__Account__r.Stripe_Customer_ID__c,
                 SBQQ__Account__r.Bill_To_Email__c,
+                SBQQ__ShippingStreet__c,
+                SBQQ__ShippingCity__c,
+                SBQQ__ShippingState__c,
+                SBQQ__ShippingCountry__c,
+                SBQQ__ShippingPostalCode__c,
                 Owner.Name,
                 CurrencyIsoCode
             FROM SBQQ__Quote__c
@@ -256,22 +288,44 @@ public without sharing class StripeCheckoutController {
     }
 
     @RemoteAction
-    public static void handleCheckoutCompletion(String quoteId, String signature, String ipAddress, String userAgent) {
+    public static void handleCheckoutCompletion(
+        String quoteId,
+        String signature,
+        String ipAddress,
+        String userAgent,
+        String billToName,
+        String billToEmail,
+        String shippingStreet,
+        String shippingCity,
+        String shippingState,
+        String shippingCountry,
+        String shippingPostalCode
+    ) {
         try {
             System.debug('Signature: ' + signature);
             System.debug('IP Address: ' + ipAddress);
             System.debug('User Agent: ' + userAgent);
+            System.debug('Bill To Name: ' + billToName);
+            System.debug('Bill To Email: ' + billToEmail);
 
-            // Update Quote with signature and metadata
+            // Update Quote with signature, metadata, billing contact, and shipping address
             SBQQ__Quote__c qt = new SBQQ__Quote__c(
                 Id = quoteId,
                 Digital_Signature__c = signature,
                 Signature_Timestamp__c = Datetime.now(),
                 Signature_IP_Address__c = ipAddress,
-                Signature_User_Agent__c = userAgent
+                Signature_User_Agent__c = userAgent,
+                Bill_To_Contact_Conga__c = billToName,
+                Bill_To_Email__c = billToEmail,
+                Shipping_Street__c = shippingStreet,
+                SBQQ__ShippingStreet__c = shippingStreet,
+                SBQQ__ShippingCity__c = shippingCity,
+                SBQQ__ShippingState__c = shippingState,
+                SBQQ__ShippingCountry__c = shippingCountry,
+                SBQQ__ShippingPostalCode__c = shippingPostalCode
             );
 
-            update qt;
+            Database.update(qt, System.AccessLevel.SYSTEM_MODE);
         } catch (Exception e) {
             Logger__c logger = new Logger__c(
                 Name = 'Stripe Checkout Completion Handling Error',

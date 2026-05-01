@@ -18,13 +18,17 @@ global class MonthlyMRRSnapshotJob implements Schedulable, Database.Batchable<sO
     // Batchable — start / execute / finish
     // ---------------------------------------------------------------
     global Database.QueryLocator start(Database.BatchableContext bc) {
+        // Include accounts where Account_Value__c > 0 (active MRR)
+        // AND accounts where Latest_MRR__c > 0 but Account_Value__c = 0
+        // — these are cancelled/churned accounts that need their Latest_MRR__c
+        // zeroed out so the parent rollup (AccountMRRRollupHandler) recalculates.
         return Database.getQueryLocator([
-            SELECT Id, Name, Account_Value__c, Total_ARR__c,
+            SELECT Id, Name, Account_Value__c, Latest_MRR__c, Total_ARR__c,
                    Active_Subscriptions_Rollup__c,
                    Lifetime_Value_SFBilling_and_stripe__c,
                    Outstanding_AR__c
             FROM Account
-            WHERE Account_Value__c > 0
+            WHERE Account_Value__c > 0 OR Latest_MRR__c > 0
         ]);
     }
 
@@ -32,8 +36,20 @@ global class MonthlyMRRSnapshotJob implements Schedulable, Database.Batchable<sO
         List<Account> accounts = (List<Account>) scope;
         System.debug('Processing batch of ' + accounts.size() + ' accounts');
 
-        List<MRR_Snapshot__c> snapshots = buildSnapshots(accounts, Date.today());
+        // Only create MRR snapshots for accounts with active revenue —
+        // no point snapshotting $0 accounts.
+        List<Account> activeAccounts = new List<Account>();
+        for (Account acct : accounts) {
+            if (acct.Account_Value__c != null && acct.Account_Value__c > 0) {
+                activeAccounts.add(acct);
+            }
+        }
+
+        List<MRR_Snapshot__c> snapshots = buildSnapshots(activeAccounts, Date.today());
         insertSnapshots(snapshots);
+
+        // Update Latest_MRR__c for ALL accounts in scope, including zeroed-out
+        // ones — this triggers AccountMRRRollupHandler to fix parent rollups.
         updateAccountMRR(accounts);
     }
 
@@ -120,12 +136,15 @@ global class MonthlyMRRSnapshotJob implements Schedulable, Database.Batchable<sO
 
         List<Account> toUpdate = new List<Account>();
         for (Account acct : accounts) {
-            if (acct.Id != null && acct.Account_Value__c != null) {
-                toUpdate.add(new Account(
-                    Id = acct.Id,
-                    Latest_MRR__c = acct.Account_Value__c
-                ));
-            }
+            if (acct.Id == null) continue;
+            // Treat null Account_Value__c as 0 — ensures cancelled accounts
+            // get Latest_MRR__c = 0, which fires AccountMRRRollupHandler
+            // to recompute the parent's Parent_MRR__c.
+            Decimal newMRR = acct.Account_Value__c != null ? acct.Account_Value__c : 0;
+            toUpdate.add(new Account(
+                Id            = acct.Id,
+                Latest_MRR__c = newMRR
+            ));
         }
 
         if (!toUpdate.isEmpty()) {

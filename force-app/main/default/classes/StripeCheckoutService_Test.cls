@@ -9,14 +9,14 @@ public class StripeCheckoutService_Test {
         stripeSetting.Serect_Key__c = 'sk_test_123456';
         stripeSetting.Publishable_Key__c = 'pk_test_123456';
         insert stripeSetting;
-        
+
         // Account
         Account acc = new Account(
             Name = 'Test Account',
             Stripe_Customer_ID__c = 'cus_test_123456'
         );
         insert acc;
-        
+
         // Create test Products
         List<Product2> testProducts = new List<Product2>();
         testProducts.add(new Product2(
@@ -28,6 +28,7 @@ public class StripeCheckoutService_Test {
             SBQQ__SubscriptionType__c = 'Renewable',
             SBQQ__ChargeType__c = 'Recurring',
             SBQQ__BillingType__c = 'Advance',
+            Business_Use_Case__c = 'Digital Signage',
             Description = 'Test Product Description',
             CurrencyIsoCode = 'USD'
         ));
@@ -38,11 +39,12 @@ public class StripeCheckoutService_Test {
             SBQQ__SubscriptionPricing__c = 'Fixed Price',
             SBQQ__SubscriptionType__c = 'One-time',
             SBQQ__ChargeType__c = 'One-Time',
+            Business_Use_Case__c = 'Digital Signage',
             Description = 'Test One-Time Product',
             CurrencyIsoCode = 'USD'
         ));
         insert testProducts;
-        
+
         // Create test Quotes
         List<SBQQ__Quote__c> testQuotes = new List<SBQQ__Quote__c>();
         testQuotes.add(new SBQQ__Quote__c(
@@ -63,7 +65,7 @@ public class StripeCheckoutService_Test {
             Billing_Frequency_Override__c = 'Semiannual'
         ));
         insert testQuotes;
-        
+
         // Create test Quote Lines
         List<SBQQ__QuoteLine__c> testQuoteLines = new List<SBQQ__QuoteLine__c>();
         testQuoteLines.add(new SBQQ__QuoteLine__c(
@@ -81,8 +83,8 @@ public class StripeCheckoutService_Test {
         ));
         insert testQuoteLines;
     }
-    
-    // Mock for Stripe API responses
+
+    // Mock for successful Stripe API responses — includes client_secret for V3 URL
     class StripeMock implements HttpCalloutMock {
         public HTTPResponse respond(HTTPRequest req) {
             HttpResponse res = new HttpResponse();
@@ -90,6 +92,7 @@ public class StripeCheckoutService_Test {
             res.setStatusCode(200);
             res.setBody('{' +
                         '"id": "cs_test_123456",' +
+                        '"client_secret": "cs_test_secret_abc",' +
                         '"url": "https://stripe.com/pay/checkout_test",' +
                         '"payment_intent": "pi_test_123456",' +
                         '"expires_at": 1700000000,' +
@@ -98,8 +101,8 @@ public class StripeCheckoutService_Test {
             return res;
         }
     }
-    
-    // Mock for Stripe API responses
+
+    // Mock for Stripe API error responses
     class StripeMockError implements HttpCalloutMock {
         public HTTPResponse respond(HTTPRequest req) {
             HttpResponse res = new HttpResponse();
@@ -110,35 +113,47 @@ public class StripeCheckoutService_Test {
             return res;
         }
     }
-    
+
     @IsTest
     static void testGetQuoteForQuoteToCash() {
         Test.setMock(HttpCalloutMock.class, new StripeMock());
         SBQQ__Quote__c quote = [SELECT Id FROM SBQQ__Quote__c WHERE Submitted_Date__c = :Date.today() LIMIT 1];
-        
+
         Test.startTest();
         StripeCheckoutService.generatePaymentLinkFromQuote(new List<Id>{quote.Id});
         Test.stopTest();
-        
-        SBQQ__Quote__c updatedQuote = [SELECT Stripe_Payment_Link__c, Stripe_Checkout_Session_ID__c 
-                                       FROM SBQQ__Quote__c 
+
+        SBQQ__Quote__c updatedQuote = [SELECT Stripe_Payment_Link__c, Stripe_Checkout_Session_ID__c
+                                       FROM SBQQ__Quote__c
                                        WHERE Id = :quote.Id];
-        System.assertNotEquals(null, updatedQuote.Stripe_Payment_Link__c);
-        System.assertEquals('cs_test_123456', updatedQuote.Stripe_Checkout_Session_ID__c);
+        System.assertNotEquals(null, updatedQuote.Stripe_Payment_Link__c, 'Payment link should be generated');
+        System.assertEquals('cs_test_123456', updatedQuote.Stripe_Checkout_Session_ID__c, 'Session ID should match');
+        System.assert(
+            updatedQuote.Stripe_Payment_Link__c.contains('StripeCheckoutPageV3'),
+            'Payment link should point to StripeCheckoutPageV3'
+        );
+        System.assert(
+            updatedQuote.Stripe_Payment_Link__c.contains('session=cs_test_123456'),
+            'Payment link should contain session ID'
+        );
+        System.assert(
+            updatedQuote.Stripe_Payment_Link__c.contains('client=cs_test_secret_abc'),
+            'Payment link should contain client secret'
+        );
     }
-    
+
     @IsTest
     static void testGetQuoteForQuoteToCash_CalloutError() {
         Test.setMock(HttpCalloutMock.class, new StripeMockError());
         SBQQ__Quote__c quote = [SELECT Id FROM SBQQ__Quote__c LIMIT 1];
-        
+
         Test.startTest();
         StripeCheckoutService.generatePaymentLinkFromQuote(new List<Id>{quote.Id});
         Test.stopTest();
-        
-        SBQQ__Quote__c sameQuote = [SELECT Stripe_Payment_Link__c, Stripe_Checkout_Session_ID__c 
-                                    FROM SBQQ__Quote__c 
+
+        SBQQ__Quote__c sameQuote = [SELECT Stripe_Payment_Link__c, Stripe_Checkout_Session_ID__c
+                                    FROM SBQQ__Quote__c
                                     WHERE Id = :quote.Id];
-        System.assertEquals(null, sameQuote.Stripe_Payment_Link__c, 'No payment link should generate');
+        System.assertEquals(null, sameQuote.Stripe_Payment_Link__c, 'No payment link should generate on error');
     }
 }

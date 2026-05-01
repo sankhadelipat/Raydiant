@@ -18,14 +18,14 @@ private class StripeCheckoutController_Test {
         stripeSetting.Serect_Key__c = 'sk_test_123456';
         stripeSetting.Publishable_Key__c = 'pk_test_123456';
         insert stripeSetting;
-        
+
         // Account
         Account acc = new Account(
             Name = 'Test Account',
             Stripe_Customer_ID__c = 'cus_test_123456'
         );
         insert acc;
-        
+
         // Create test Products
         List<Product2> testProducts = new List<Product2>();
         testProducts.add(new Product2(
@@ -51,7 +51,7 @@ private class StripeCheckoutController_Test {
             CurrencyIsoCode = 'USD'
         ));
         insert testProducts;
-        
+
         // Create test Quotes
         List<SBQQ__Quote__c> testQuotes = new List<SBQQ__Quote__c>();
         testQuotes.add(new SBQQ__Quote__c(
@@ -76,7 +76,7 @@ private class StripeCheckoutController_Test {
             Billing_Frequency_Override__c = 'Semiannual'
         ));
         insert testQuotes;
-        
+
         // Create test Quote Lines
         List<SBQQ__QuoteLine__c> testQuoteLines = new List<SBQQ__QuoteLine__c>();
         testQuoteLines.add(new SBQQ__QuoteLine__c(
@@ -112,8 +112,7 @@ private class StripeCheckoutController_Test {
         pageRef.getParameters().put('client', 'secret_test_123');
         Test.setCurrentPage(pageRef);
 
-        StripeCheckoutController controller =
-            new StripeCheckoutController();
+        StripeCheckoutController controller = new StripeCheckoutController();
 
         Test.stopTest();
 
@@ -133,17 +132,32 @@ private class StripeCheckoutController_Test {
 
         StripeCheckoutController.handleCheckoutCompletion(
             quote.Id,
-            'John Doe',
-            '127.0.0.1',
-            'Test Browser'
+            'John Doe',          // signature
+            '127.0.0.1',         // ipAddress
+            'Test Browser',      // userAgent
+            'Jane Smith',        // billToName
+            'jane@acme.com',     // billToEmail
+            '123 Main St',       // shippingStreet
+            'San Francisco',     // shippingCity
+            'CA',                // shippingState
+            'US',                // shippingCountry
+            '94105'              // shippingPostalCode
         );
 
         Test.stopTest();
 
         SBQQ__Quote__c updatedQuote = [
-            SELECT Digital_Signature__c,
-                   Signature_IP_Address__c,
-                   Signature_User_Agent__c
+            SELECT
+                Digital_Signature__c,
+                Signature_IP_Address__c,
+                Signature_User_Agent__c,
+                Bill_To_Contact_Conga__c,
+                Bill_To_Email__c,
+                Shipping_Street__c,
+                SBQQ__ShippingCity__c,
+                SBQQ__ShippingState__c,
+                SBQQ__ShippingCountry__c,
+                SBQQ__ShippingPostalCode__c
             FROM SBQQ__Quote__c
             WHERE Id = :quote.Id
         ];
@@ -151,6 +165,13 @@ private class StripeCheckoutController_Test {
         System.assertEquals('John Doe', updatedQuote.Digital_Signature__c);
         System.assertEquals('127.0.0.1', updatedQuote.Signature_IP_Address__c);
         System.assertEquals('Test Browser', updatedQuote.Signature_User_Agent__c);
+        System.assertEquals('Jane Smith', updatedQuote.Bill_To_Contact_Conga__c);
+        System.assertEquals('jane@acme.com', updatedQuote.Bill_To_Email__c);
+        System.assertEquals('123 Main St', updatedQuote.Shipping_Street__c);
+        System.assertEquals('San Francisco', updatedQuote.SBQQ__ShippingCity__c);
+        System.assertEquals('CA', updatedQuote.SBQQ__ShippingState__c);
+        System.assertEquals('US', updatedQuote.SBQQ__ShippingCountry__c);
+        System.assertEquals('94105', updatedQuote.SBQQ__ShippingPostalCode__c);
     }
 
     private class ExpiredSessionMock implements HttpCalloutMock {
@@ -176,8 +197,7 @@ private class StripeCheckoutController_Test {
         pageRef.getParameters().put('client', 'secret_test_123');
         Test.setCurrentPage(pageRef);
 
-        StripeCheckoutController controller =
-            new StripeCheckoutController();
+        StripeCheckoutController controller = new StripeCheckoutController();
 
         Test.stopTest();
 

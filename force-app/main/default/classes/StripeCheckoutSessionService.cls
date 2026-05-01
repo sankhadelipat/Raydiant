@@ -96,6 +96,9 @@ public class StripeCheckoutSessionService implements Queueable, Database.AllowsC
                 }
 
                 // 3. Extract Shipping Address from collected_information
+                // Note: Displai collects shipping via the VF checkout form, not via a Stripe-hosted
+                // shipping step. collected_information.shipping_details will be empty in most sessions.
+                // Guard below prevents overwriting VF-captured shipping with nulls.
                 Map<String, Object> shippingAddress = new Map<String, Object>();
                 Map<String, Object> collectedInfo = (Map<String, Object>) sessionObj.get('collected_information');
 
@@ -119,36 +122,49 @@ public class StripeCheckoutSessionService implements Queueable, Database.AllowsC
                 System.debug('Shipping Address: ' + shippingAddress);
 
                 // 4. Update Account record
-                account.BillingStreet = (String) billingAddress.get('line1');
-                account.BillingCity = (String) billingAddress.get('city');
-                account.BillingState = (String) billingAddress.get('state');
-                account.BillingPostalCode = (String) billingAddress.get('postal_code');
-                account.BillingCountry = (String) billingAddress.get('country');
+                // Only update billing if Stripe returned billing address data
+                if (!billingAddress.isEmpty()) {
+                    account.BillingStreet = (String) billingAddress.get('line1');
+                    account.BillingCity = (String) billingAddress.get('city');
+                    account.BillingState = (String) billingAddress.get('state');
+                    account.BillingPostalCode = (String) billingAddress.get('postal_code');
+                    account.BillingCountry = (String) billingAddress.get('country');
+                }
 
-                account.ShippingStreet = (String) shippingAddress.get('line1');
-                account.ShippingCity = (String) shippingAddress.get('city');
-                account.ShippingState = (String) shippingAddress.get('state');
-                account.ShippingPostalCode = (String) shippingAddress.get('postal_code');
-                account.ShippingCountry = (String) shippingAddress.get('country');
-
-                // 5. Update Quote record
-                quote.SBQQ__BillingStreet__c = (String) billingAddress.get('line1');
-                quote.SBQQ__BillingCity__c = (String) billingAddress.get('city');
-                quote.SBQQ__BillingState__c = (String) billingAddress.get('state');
-                quote.SBQQ__BillingPostalCode__c = (String) billingAddress.get('postal_code');
-                quote.SBQQ__BillingCountry__c = (String) billingAddress.get('country');
-
-                quote.Shipping_Street__c = (String) shippingAddress.get('line1');
-                quote.SBQQ__ShippingStreet__c = (String) shippingAddress.get('line1');
-                quote.SBQQ__ShippingCity__c = (String) shippingAddress.get('city');
-                quote.SBQQ__ShippingState__c = (String) shippingAddress.get('state');
-                quote.SBQQ__ShippingPostalCode__c = (String) shippingAddress.get('postal_code');
-                quote.SBQQ__ShippingCountry__c = (String) shippingAddress.get('country');
+                // Only update account shipping if Stripe returned shipping address data
+                if (!shippingAddress.isEmpty()) {
+                    account.ShippingStreet = (String) shippingAddress.get('line1');
+                    account.ShippingCity = (String) shippingAddress.get('city');
+                    account.ShippingState = (String) shippingAddress.get('state');
+                    account.ShippingPostalCode = (String) shippingAddress.get('postal_code');
+                    account.ShippingCountry = (String) shippingAddress.get('country');
+                }
 
                 update account;
+
+                // 5. Update Quote record
+                // Only update billing fields if Stripe returned billing address data
+                if (!billingAddress.isEmpty()) {
+                    quote.SBQQ__BillingStreet__c = (String) billingAddress.get('line1');
+                    quote.SBQQ__BillingCity__c = (String) billingAddress.get('city');
+                    quote.SBQQ__BillingState__c = (String) billingAddress.get('state');
+                    quote.SBQQ__BillingPostalCode__c = (String) billingAddress.get('postal_code');
+                    quote.SBQQ__BillingCountry__c = (String) billingAddress.get('country');
+                }
+
+                // Only update shipping fields if Stripe returned shipping address data.
+                // If empty, the VF checkout form data written by handleCheckoutCompletion is preserved.
+                if (!shippingAddress.isEmpty()) {
+                    quote.Shipping_Street__c = (String) shippingAddress.get('line1');
+                    quote.SBQQ__ShippingStreet__c = (String) shippingAddress.get('line1');
+                    quote.SBQQ__ShippingCity__c = (String) shippingAddress.get('city');
+                    quote.SBQQ__ShippingState__c = (String) shippingAddress.get('state');
+                    quote.SBQQ__ShippingPostalCode__c = (String) shippingAddress.get('postal_code');
+                    quote.SBQQ__ShippingCountry__c = (String) shippingAddress.get('country');
+                }
+
                 update quote;
 
-                // update new List<SObject>{ account, quote };
             } else {
                 System.debug('Stripe error: ' + res.getStatus() + ' - ' + res.getBody());
                 throw new CalloutException('Failed to fetch session. Status: ' + res.getStatus());
