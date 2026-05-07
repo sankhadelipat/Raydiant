@@ -13,6 +13,8 @@ public class StripeSubcriptionPriceIdMigartion implements Database.Batchable<SOb
                     Order_Line_Billing_Freq__c,
                     Stripe_Price_ID__c,
                     SBQQ__NetPrice__c,
+                    SBQQ__ListPrice__c,
+                    Monthly_Value__c,
                     SBQQ__Quantity__c,
                     Subscription_Term__c,
                     SBQQ__Contract__r.StartDate,
@@ -55,18 +57,18 @@ public class StripeSubcriptionPriceIdMigartion implements Database.Batchable<SOb
                 String interval = (String) freqData[0];
                 Integer intervalCount = (Integer) freqData[1];
 
-                Decimal unitPrice = (sub.SBQQ__NetPrice__c != null &&
-                    sub.SBQQ__NetPrice__c != 0)
-                    ? sub.SBQQ__NetPrice__c
-                    : 0;
+                Decimal qty = sub.SBQQ__Quantity__c != null && sub.SBQQ__Quantity__c > 0 ? sub.SBQQ__Quantity__c : 1;
+
+                Decimal listPrice = (sub.Monthly_Value__c != null &&
+                    sub.Monthly_Value__c != 0)
+                    ? sub.Monthly_Value__c / qty
+                    : sub.Subscription_Term__c != null &&
+                          sub.Subscription_Term__c > 0
+                          ? sub.SBQQ__NetPrice__c / sub.Subscription_Term__c
+                          : sub.SBQQ__ListPrice__c; // Fallback to List Price if Monthly Value is not set
 
                 // Convert to cents
-                Decimal multiplier = (interval == 'month' &&
-                    intervalCount == 3)
-                    ? 3
-                    : (interval == 'year') ? (12 * intervalCount) : 1;
-
-                Decimal unitAmount = unitPrice.setScale(2) * multiplier * 100; // need to chc
+                Decimal unitAmount = calculateUnitAmount(listPrice, interval, intervalCount);
 
                 // Build Price request
                 List<String> bodyParts = new List<String>{
@@ -126,5 +128,20 @@ public class StripeSubcriptionPriceIdMigartion implements Database.Batchable<SOb
     public void finish(Database.BatchableContext bc) {
         System.debug('Stripe Subscription Price ID Migration completed.');
         // Next phase batch can be called here if required
+    }
+
+    private static Decimal calculateUnitAmount(Decimal listPrice, String interval, Integer intervalCount) {
+        Decimal amount;
+
+        if (interval == 'month') {
+            amount = listPrice * intervalCount;
+        } else if (interval == 'year') {
+            amount = listPrice * (intervalCount * 12);
+        } else {
+            amount = listPrice;
+        }
+
+        // Round to 2 decimal places and convert to cents
+        return amount.setScale(2, RoundingMode.HALF_UP) * 100;
     }
 }

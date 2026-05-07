@@ -109,10 +109,10 @@ public class StripeSubscriptionItemUpdater {
             try {
                 String newPriceId = sub.Stripe_Price_ID__c;
                 SBQQ__Subscription__c oldSub = oldMapsub.get(Sub.Id);
-                //if(oldSub.SBQQ__NetPrice__c != Sub.SBQQ__NetPrice__c)
+                //if(oldSub.SBQQ__ListPrice__c != Sub.SBQQ__ListPrice__c)
                 //  {
                 system.debug('Price Change');
-                newPriceId = createStripePrice(sub.id, sub.Stripe_Product_ID__c, sub.SBQQ__NetPrice__c);
+                newPriceId = createStripePrice(sub.id, sub.Stripe_Product_ID__c, sub.SBQQ__ListPrice__c);
 
                 // }
 

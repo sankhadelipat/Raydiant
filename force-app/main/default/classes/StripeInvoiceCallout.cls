@@ -38,7 +38,7 @@ public class StripeInvoiceCallout implements Queueable, Database.AllowsCallouts 
                     Id,
                     SBQQ__Product__r.Name,
                     SBQQ__Quantity__c,
-                    SBQQ__NetTotal__c,
+                    SBQQ__NetPrice__c,
                     SBQQ__CustomerPrice__c,
                     SBQQ__Product__r.Stripe_Product_Id__c,
                     Stripe_Price_ID__c,
@@ -101,20 +101,10 @@ public class StripeInvoiceCallout implements Queueable, Database.AllowsCallouts 
                         ql.Quantity_For_Stripe__c != 0)
                         ? ql.Quantity_For_Stripe__c
                         : 1;
-                    Decimal unitPrice = (ql.MRR__c != null &&
-                        ql.MRR__c != 0)
-                        ? ql.MRR__c / qty
-                        : ql.SBQQ__NetTotal__c / qty;
+                    Decimal listPrice = (ql.MRR__c != null && ql.MRR__c != 0) ? ql.MRR__c / qty : ql.SBQQ__NetPrice__c; // fallback to NetPrice if MRR is not available
 
                     // Calculate unitAmount in cents
-                    Decimal multiplier = 1;
-                    if (priceType == 'recurring') {
-                        multiplier = (interval == 'month' &&
-                            intervalCount == 3)
-                            ? 3
-                            : (interval == 'year') ? (12 * intervalCount) : 1; // monthly default
-                    }
-                    Decimal unitAmount = (unitPrice != null ? unitPrice.setScale(2) * multiplier * 100 : 0);
+                    Decimal unitAmount = calculateUnitAmount(listPrice, interval, intervalCount);
 
                     System.debug('unitAmount--' + unitAmount);
 
@@ -201,7 +191,7 @@ public class StripeInvoiceCallout implements Queueable, Database.AllowsCallouts 
                     throw new CalloutException('Stripe callout failed: ' + res3.getBody());
                 }
             }
-            
+
             // invoice update //
             Integer dueOffsetDays = 0;
             String terms = quoteList[0].SBQQ__PaymentTerms__c != null
@@ -264,7 +254,7 @@ public class StripeInvoiceCallout implements Queueable, Database.AllowsCallouts 
 
             System.debug('unixStartDate (user TZ adjusted): ' + unixStartDate);
             System.debug('unixDueDate (user TZ adjusted): ' + unixDueDate);
-            
+
             List<String> bodyParts = new List<String>();
             // bodyParts.add('customer=' + EncodingUtil.urlEncode(quoteList[0].SBQQ__Account__r.Stripe_Customer_ID__c, 'UTF-8'));
             //  bodyParts.add('collection_method=send_invoice');
@@ -320,5 +310,20 @@ public class StripeInvoiceCallout implements Queueable, Database.AllowsCallouts 
         if (unixTs == null)
             return null;
         return Datetime.newInstance(unixTs * 1000);
+    }
+
+    private static Decimal calculateUnitAmount(Decimal listPrice, String interval, Integer intervalCount) {
+        Decimal amount;
+
+        if (interval == 'month') {
+            amount = listPrice * intervalCount;
+        } else if (interval == 'year') {
+            amount = listPrice * (intervalCount * 12);
+        } else {
+            amount = listPrice;
+        }
+
+        // Round to 2 decimal places and convert to cents
+        return amount.setScale(2, RoundingMode.HALF_UP) * 100;
     }
 }

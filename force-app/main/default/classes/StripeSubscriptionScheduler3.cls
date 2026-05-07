@@ -90,8 +90,8 @@ public class StripeSubscriptionScheduler3 {
                     Quantity_For_Stripe__c,
                     SBQQ__EffectiveQuantity__c,
                     SBQQ__UpgradedSubscription__c,
-                    SBQQ__UpgradedSubscription__r.SBQQ__NetPrice__c,
-                    SBQQ__NetTotal__c,
+                    SBQQ__ListPrice__c,
+                    SBQQ__UpgradedSubscription__r.SBQQ__ListPrice__c,
                     SBQQ__Product__r.Name,
                     Billing_Frequency_Override__c,
                     CurrencyIsoCode,
@@ -271,30 +271,24 @@ public class StripeSubscriptionScheduler3 {
             ? ql.SBQQ__EffectiveQuantity__c
             : qty;
 
-        Decimal unitPrice;
+        Decimal listPrice;
 
         if (ql.MRR__c != null && ql.MRR__c != 0) {
-            unitPrice = ql.MRR__c / effectiveQty;
-        } else if (ql.SBQQ__NetTotal__c != null && ql.SBQQ__NetTotal__c != 0) {
-            unitPrice = ql.SBQQ__NetTotal__c / effectiveQty;
+            listPrice = ql.MRR__c / effectiveQty;
+        } else if (ql.SBQQ__ListPrice__c != null && ql.SBQQ__ListPrice__c != 0) {
+            listPrice = ql.SBQQ__ListPrice__c;
         } else if (
-            ql.SBQQ__UpgradedSubscription__r.SBQQ__NetPrice__c != null &&
-            ql.SBQQ__UpgradedSubscription__r.SBQQ__NetPrice__c != 0
+            ql.SBQQ__UpgradedSubscription__r.SBQQ__ListPrice__c != null &&
+            ql.SBQQ__UpgradedSubscription__r.SBQQ__ListPrice__c != 0
         ) {
-            unitPrice = ql.SBQQ__UpgradedSubscription__r.SBQQ__NetPrice__c;
+            listPrice = ql.SBQQ__UpgradedSubscription__r.SBQQ__ListPrice__c;
         } else {
-            unitPrice = 0;
+            listPrice = 0;
         }
 
-        Decimal multiplier = 1;
-        if (priceType == 'recurring') {
-            multiplier = (interval == 'month' &&
-                intervalCount == 3)
-                ? 3
-                : (interval == 'year') ? (12 * intervalCount) : 1;
-        }
-
-        Decimal unitAmount = (unitPrice != null ? unitPrice.setScale(2) * multiplier * 100 : 0);
+        // Calculate unitAmount in cents
+        Decimal unitAmount = calculateUnitAmount(listPrice, interval, intervalCount);
+        System.debug('unitAmount--' + unitAmount);
 
         List<String> bodyParts = new List<String>{
             'billing_scheme=per_unit',
@@ -324,5 +318,20 @@ public class StripeSubscriptionScheduler3 {
         }
 
         throw new CalloutException('Price creation failed: ' + res.getBody());
+    }
+
+    private static Decimal calculateUnitAmount(Decimal listPrice, String interval, Integer intervalCount) {
+        Decimal amount;
+
+        if (interval == 'month') {
+            amount = listPrice * intervalCount;
+        } else if (interval == 'year') {
+            amount = listPrice * (intervalCount * 12);
+        } else {
+            amount = listPrice;
+        }
+
+        // Round to 2 decimal places and convert to cents
+        return amount.setScale(2, RoundingMode.HALF_UP) * 100;
     }
 }

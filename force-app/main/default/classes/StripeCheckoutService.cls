@@ -59,9 +59,10 @@ public class StripeCheckoutService {
                     MRR__c,
                     Billing_Frequency_Override__c,
                     SBQQ__BillingFrequency__c,
+                    SBQQ__SubscriptionTerm__c,
                     Monthly_Total__c,
                     SBQQ__Quantity__c,
-                    SBQQ__NetTotal__c,
+                    SBQQ__NetPrice__c,
                     Quantity_For_Stripe__c,
                     SBQQ__CustomerPrice__c,
                     SBQQ__Product__r.Stripe_Product_Id__c,
@@ -115,20 +116,16 @@ public class StripeCheckoutService {
                     ql.Quantity_For_Stripe__c != 0)
                     ? ql.Quantity_For_Stripe__c
                     : 1;
-                Decimal unitPrice = (ql.MRR__c != null &&
+                Decimal listPrice = (ql.MRR__c != null &&
                     ql.MRR__c != 0)
                     ? ql.MRR__c / qty
-                    : ql.SBQQ__NetTotal__c / qty;
+                    : ql.SBQQ__SubscriptionTerm__c != null &&
+                          ql.SBQQ__SubscriptionTerm__c != 0
+                          ? ql.SBQQ__NetPrice__c / ql.SBQQ__SubscriptionTerm__c
+                          : ql.SBQQ__NetPrice__c; // fallback to NetPrice if MRR is not available
 
                 // Calculate unitAmount in cents
-                Decimal multiplier = 1;
-                if (priceType == 'recurring') {
-                    multiplier = (interval == 'month' &&
-                        intervalCount == 3)
-                        ? 3
-                        : (interval == 'year') ? (12 * intervalCount) : 1; // monthly default
-                }
-                Decimal unitAmount = (unitPrice != null ? unitPrice.setScale(2) * multiplier * 100 : 0);
+                Decimal unitAmount = calculateUnitAmount(listPrice, interval, intervalCount);
 
                 System.debug('unitAmount--' + unitAmount);
 
@@ -283,5 +280,20 @@ public class StripeCheckoutService {
         }
 
         return results;
+    }
+
+    private static Decimal calculateUnitAmount(Decimal listPrice, String interval, Integer intervalCount) {
+        Decimal amount;
+
+        if (interval == 'month') {
+            amount = listPrice * intervalCount;
+        } else if (interval == 'year') {
+            amount = listPrice * (intervalCount * 12);
+        } else {
+            amount = listPrice;
+        }
+
+        // Round to 2 decimal places and convert to cents
+        return amount.setScale(2, RoundingMode.HALF_UP) * 100;
     }
 }

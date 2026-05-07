@@ -48,7 +48,7 @@ public class StripeInvoiceCallout2 {
                     SBQQ__Product__r.Stripe_Product_Id__c,
                     SBQQ__Product__r.SBQQ__SubscriptionType__c,
                     SBQQ__Quantity__c,
-                    SBQQ__NetTotal__c,
+                    SBQQ__NetPrice__c,
                     SBQQ__CustomerPrice__c,
                     Stripe_Price_ID__c,
                     Quantity_For_Stripe__c,
@@ -180,12 +180,7 @@ public class StripeInvoiceCallout2 {
                     ql.Quantity_For_Stripe__c != 0)
                     ? ql.Quantity_For_Stripe__c
                     : (ql.SBQQ__Quantity__c != null ? ql.SBQQ__Quantity__c : 1);
-                Decimal unitPrice = 0;
-                if (ql.MRR__c != null && ql.MRR__c != 0) {
-                    unitPrice = ql.MRR__c / qty;
-                } else if (ql.SBQQ__NetTotal__c != null) {
-                    unitPrice = ql.SBQQ__NetTotal__c / qty;
-                }
+                Decimal unitPrice = (ql.MRR__c != null && ql.MRR__c != 0) ? ql.MRR__c / qty : ql.SBQQ__NetPrice__c; // fallback to NetPrice if MRR is not available
 
                 // multiplier for recurring yearly/quarterly to convert to per unit (monthly baseline)
                 Decimal multiplier = 1;

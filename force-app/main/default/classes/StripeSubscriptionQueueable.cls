@@ -37,28 +37,18 @@ public class StripeSubscriptionQueueable implements Queueable, Database.AllowsCa
             ];
 
             List<SBQQ__QuoteLine__c> quoteLines = [
-                SELECT
-                    Quantity_For_Stripe__c,
-                    SBQQ__NetTotal__c,
-                    SBQQ__Product__c,
-                    MRR__c,
-                    Monthly_Total__c,
-                    Stripe_Price_ID__c,
-                    SBQQ__SubscriptionType__c,
-                    SBQQ__SubscriptionTerm__c,
-                    Billing_Frequency_Override__c,
-                    Annual_Total__c
+                SELECT Id, Stripe_Price_ID__c
                 FROM SBQQ__QuoteLine__c
                 WHERE SBQQ__Quote__c = :quoteList[0].Id AND Stripe_Subscription_Type__c != 'One-time'
-                LIMIT 20
             ];
 
-            system.debug('--quoteItems-' + quoteLines);
+            System.debug('--quoteItems-' + quoteLines);
 
             Map<String, Object> payload = (Map<String, Object>) JSON.deserializeUntyped(responseBody);
-            system.debug('--payload--' + payload);
+            System.debug('--payload--' + payload);
+            
             Map<String, Object> metadata = (Map<String, Object>) payload.get('metadata');
-            system.debug('--metadata--' + metadata);
+            System.debug('--metadata--' + metadata);
             String subscriptionSource = metadata != null &&
                 metadata.containsKey('subscription_source') &&
                 metadata.get('subscription_source') != null
@@ -217,15 +207,16 @@ public class StripeSubscriptionQueueable implements Queueable, Database.AllowsCa
                 System.debug('Processing Price ID: ' + priceId);
                 System.debug('Processing Product ID: ' + productId);
 
-                Integer quantity = (Integer) item.get('quantity');
-                Decimal unitAmount = ((Decimal) price.get('unit_amount')) / 100;
-                Decimal monthlyAmount = calculateMonthlyAmount(unitAmount, interval, intervalCount);
+                Integer contractTerm = contract.ContractTerm != null ? contract.ContractTerm : 0;
 
                 // Calculate values directly from Stripe response
-                Decimal stripeMRR = monthlyAmount * quantity; // monthly value
+                Integer quantity = (Integer) item.get('quantity');
+                Decimal unitAmount = Decimal.valueOf((String) price.get('unit_amount_decimal')) / 100;
+
+                Decimal listPrice = calculateListPrice(unitAmount, interval, intervalCount);
+                Decimal netPrice = contractTerm > 0 ? (listPrice * contractTerm) : null;
+                Decimal stripeMRR = listPrice * quantity; // monthly value
                 Decimal stripeARR = stripeMRR * 12; // annual value
-                Integer contractTerm = contract.ContractTerm != null ? contract.ContractTerm : 0;
-                Decimal customerPrice = contractTerm > 0 ? (stripeMRR * contractTerm) : null;
 
                 Product2 matchingProduct = stripeProductIdToProductMap.get(productId);
                 System.debug('Matching Product: ' + matchingProduct);
@@ -249,9 +240,13 @@ public class StripeSubscriptionQueueable implements Queueable, Database.AllowsCa
                     SBQQ__SubscriptionEndDate__c = cancelAt,
                     Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
                     Latest_Change_Reason__c = latestChangeReason,
-                    SBQQ__NetPrice__c = monthlyAmount,
-                    SBQQ__ListPrice__c = unitAmount,
-                    SBQQ__CustomerPrice__c = customerPrice,
+                    SBQQ__ListPrice__c = listPrice,
+                    SBQQ__NetPrice__c = netPrice,
+                    SBQQ__CustomerPrice__c = netPrice,
+                    SBQQ__SubscriptionType__c = 'Renewable',
+                    SBQQ__BillingType__c = 'Advance',
+                    SBQQ__SubscriptionPricing__c = 'Fixed Price',
+                    SBQQ__ChargeType__c = 'Recurring',
                     SBQQ__Product__c = matchingProduct != null ? matchingProduct.Id : null,
                     SBQQ__BillingFrequency__c = getBillingFrequency(interval, intervalCount),
                     Billing_Frequency_Override__c = getBillingFrequency(interval, intervalCount),
@@ -508,15 +503,16 @@ public class StripeSubscriptionQueueable implements Queueable, Database.AllowsCa
                 Product2 matchingProduct = stripeProductIdToProductMap.get(productId);
                 System.debug('Matching Product: ' + matchingProduct);
 
-                Integer quantity = (Integer) item.get('quantity');
-                Decimal unitAmount = ((Decimal) price.get('unit_amount')) / 100;
-                Decimal monthlyAmount = calculateMonthlyAmount(unitAmount, interval, intervalCount);
+                Integer contractTerm = contract.ContractTerm != null ? contract.ContractTerm : null;
 
                 // Calculate values directly from Stripe response
-                Decimal stripeMRR = monthlyAmount * quantity; // monthly value
+                Integer quantity = (Integer) item.get('quantity');
+                Decimal unitAmount = Decimal.valueOf((String) price.get('unit_amount_decimal')) / 100;
+
+                Decimal listPrice = calculateListPrice(unitAmount, interval, intervalCount);
+                Decimal netPrice = contractTerm > 0 ? (listPrice * contractTerm) : null;
+                Decimal stripeMRR = listPrice * quantity; // monthly value
                 Decimal stripeARR = stripeMRR * 12; // annual value
-                Integer contractTerm = contract.ContractTerm != null ? contract.ContractTerm : null;
-                Decimal customerPrice = contractTerm > 0 ? (stripeMRR * contractTerm) : null;
 
                 SBQQ__Subscription__c sub = new SBQQ__Subscription__c(
                     SBQQ__Contract__c = contract.Id,
@@ -534,9 +530,13 @@ public class StripeSubscriptionQueueable implements Queueable, Database.AllowsCa
                     SBQQ__SubscriptionEndDate__c = cancelAt,
                     Stripe_Billing_Date__c = date.valueof(billingCycleAnchor),
                     Latest_Change_Reason__c = latestChangeReason,
-                    SBQQ__NetPrice__c = monthlyAmount,
-                    SBQQ__ListPrice__c = unitAmount,
-                    SBQQ__CustomerPrice__c = customerPrice,
+                    SBQQ__ListPrice__c = listPrice,
+                    SBQQ__NetPrice__c = netPrice,
+                    SBQQ__CustomerPrice__c = netPrice,
+                    SBQQ__SubscriptionType__c = 'Renewable',
+                    SBQQ__BillingType__c = 'Advance',
+                    SBQQ__SubscriptionPricing__c = 'Fixed Price',
+                    SBQQ__ChargeType__c = 'Recurring',
                     SBQQ__Product__c = matchingProduct != null ? matchingProduct.Id : null,
                     SBQQ__BillingFrequency__c = getBillingFrequency(interval, intervalCount),
                     Billing_Frequency_Override__c = getBillingFrequency(interval, intervalCount),
@@ -623,7 +623,7 @@ public class StripeSubscriptionQueueable implements Queueable, Database.AllowsCa
         return null;
     }
 
-    private static Decimal calculateMonthlyAmount(Decimal unitAmount, String interval, Integer intervalCount) {
+    private static Decimal calculateListPrice(Decimal unitAmount, String interval, Integer intervalCount) {
         if (interval == 'month') {
             return unitAmount / intervalCount;
         } else if (interval == 'year') {

@@ -135,8 +135,8 @@ public class StripeCreditNoteQueueable implements Queueable, Database.AllowsCall
                     String creditNoteLineItemId = (String) lineItem.get('id');
                     String invoiceLineItemId = (String) lineItem.get('invoice_line_item');
                     Decimal amount = lineItem.get('amount') != null ? (Decimal) lineItem.get('amount') / 100 : 0;
-                    Decimal unitAmount = lineItem.get('unit_amount') != null
-                        ? (Decimal) lineItem.get('unit_amount') / 100
+                    Decimal unitAmount = lineItem.get('unit_amount_decimal') != null
+                        ? Decimal.valueOf((String) lineItem.get('unit_amount_decimal')) / 100
                         : 0;
                     Integer quantity = lineItem.get('quantity') != null ? (Integer) lineItem.get('quantity') : 0;
                     Stripe_Invoice_Line_Item__c relatedInvoiceLineItem = invoiceLineItemMap.get(invoiceLineItemId);
