@@ -18,14 +18,24 @@ public without sharing class StripeCheckoutController {
     public static Decimal oneTimeAmount { get; private set; }
     public static String subscriptionHeadline { get; private set; }
 
+    // Maps billing frequency label → how many months are in one billing cycle
+    private static final Map<String, List<Object>> freqMap = new Map<String, List<Object>>{
+        'Monthly' => new List<Object>{ 'month', 1 },
+        'Quarterly' => new List<Object>{ 'month', 3 },
+        'Semiannual' => new List<Object>{ 'month', 6 },
+        'Annual' => new List<Object>{ 'year', 1 },
+        '2-Year' => new List<Object>{ 'year', 2 },
+        '3-Year' => new List<Object>{ 'year', 3 }
+    };
+
     public class QuoteDTO {
         public Id id { get; private set; }
         public String quoteNumber { get; private set; }
         public Date startDate { get; private set; }
         public Date endDate { get; private set; }
         public Date expiryDate { get; private set; }
-        public Decimal mrr { get; private set; }
-        public Decimal subscriptionMrr { get; private set; }
+        // public Decimal mrr { get; private set; }
+        // public Decimal subscriptionMrr { get; private set; }
         public Decimal netAmount { get; private set; }
         public Id accountId { get; private set; }
         public Id billToContactId { get; private set; }
@@ -52,15 +62,15 @@ public without sharing class StripeCheckoutController {
             startDate = quote.SBQQ__StartDate__c;
             endDate = quote.Calculated_End_Date__c;
             expiryDate = quote.SBQQ__ExpirationDate__c;
-            mrr = quote.MRR__c;
-            subscriptionMrr = quote.Subscription_MRR__c;
+            // mrr = quote.MRR__c;
+            // subscriptionMrr = quote.Subscription_MRR__c;
             netAmount = quote.SBQQ__NetAmount__c;
             accountId = quote.SBQQ__Account__c;
             billToContactId = quote.Bill_To_Contact__c;
             subscriptionTerm = quote.SBQQ__SubscriptionTerm__c;
             billingFrequencyOverride = quote.Billing_Frequency_Override__c;
             accountStripeCustomerId = quote.SBQQ__Account__r.Stripe_Customer_ID__c;
-            accountBillToEmail = quote.SBQQ__Account__r.Bill_To_Email__c;
+            // accountBillToEmail = quote.SBQQ__Account__r.Bill_To_Email__c;
             salesRepName = quote.Owner.Name;
             CurrencyIsoCode = quote.CurrencyIsoCode;
             // Billing contact
@@ -73,9 +83,7 @@ public without sharing class StripeCheckoutController {
             shippingStreet = quote.SBQQ__ShippingStreet__c;
             shippingCity = quote.SBQQ__ShippingCity__c;
             shippingState = quote.SBQQ__ShippingState__c;
-            shippingCountry = String.isNotBlank(quote.SBQQ__ShippingCountry__c)
-                ? quote.SBQQ__ShippingCountry__c
-                : 'US';
+            shippingCountry = String.isNotBlank(quote.SBQQ__ShippingCountry__c) ? quote.SBQQ__ShippingCountry__c : 'US';
             shippingPostalCode = quote.SBQQ__ShippingPostalCode__c;
         }
     }
@@ -91,16 +99,17 @@ public without sharing class StripeCheckoutController {
         public String billingFrequencyOverride { get; private set; }
         public String billingFrequency { get; private set; }
         public String chargeType { get; private set; }
-        public Decimal monthlyTotal { get; private set; }
-        public Decimal quantity { get; private set; }
+        public Decimal effectiveQuantity { get; private set; }
         public Decimal listPrice { get; private set; }
         public Decimal netTotal { get; private set; }
         public Decimal stripeQuantity { get; private set; }
-        public Decimal customerPrice { get; private set; }
+        public Decimal subscriptionTerm { get; private set; }
         public String stripeProductId { get; private set; }
         public String stripePriceId { get; private set; }
         public String productSubscriptionType { get; private set; }
         public String CurrencyIsoCode { get; private set; }
+        public Decimal discountPercent { get; private set; }
+        public Decimal additionalDiscountAmount { get; private set; }
 
         public QuoteLineDTO(SBQQ__QuoteLine__c quoteLine) {
             id = quoteLine.Id;
@@ -113,16 +122,17 @@ public without sharing class StripeCheckoutController {
             billingFrequencyOverride = quoteLine.Billing_Frequency_Override__c;
             billingFrequency = quoteLine.SBQQ__BillingFrequency__c;
             chargeType = quoteLine.SBQQ__ChargeType__c;
-            monthlyTotal = quoteLine.Monthly_Total__c;
-            quantity = quoteLine.SBQQ__Quantity__c;
+            effectiveQuantity = quoteLine.SBQQ__EffectiveQuantity__c;
             listPrice = quoteLine.SBQQ__ListPrice__c;
             netTotal = quoteLine.SBQQ__NetTotal__c;
             stripeQuantity = quoteLine.Quantity_For_Stripe__c;
-            customerPrice = quoteLine.SBQQ__CustomerPrice__c;
+            subscriptionTerm = quoteLine.SBQQ__SubscriptionTerm__c;
             stripeProductId = quoteLine.SBQQ__Product__r.Stripe_Product_Id__c;
             stripePriceId = quoteLine.SBQQ__Product__r.Stripe_Price_ID__c;
             productSubscriptionType = quoteLine.SBQQ__Product__r.SBQQ__SubscriptionType__c;
             CurrencyIsoCode = quoteLine.CurrencyIsoCode;
+            discountPercent = quoteLine.SBQQ__Discount__c;
+            additionalDiscountAmount = quoteLine.SBQQ__AdditionalDiscountAmount__c;
         }
     }
 
@@ -151,8 +161,8 @@ public without sharing class StripeCheckoutController {
                 SBQQ__StartDate__c,
                 Calculated_End_Date__c,
                 SBQQ__ExpirationDate__c,
-                MRR__c,
-                Subscription_MRR__c,
+                // MRR__c,
+                // Subscription_MRR__c,
                 SBQQ__NetAmount__c,
                 SBQQ__Account__c,
                 Bill_To_Contact__c,
@@ -191,20 +201,25 @@ public without sharing class StripeCheckoutController {
                 Billing_Frequency_Override__c,
                 SBQQ__BillingFrequency__c,
                 SBQQ__ChargeType__c,
-                Monthly_Total__c,
-                SBQQ__Quantity__c,
+                SBQQ__EffectiveQuantity__c,
                 SBQQ__ListPrice__c,
                 SBQQ__NetTotal__c,
+                SBQQ__Discount__c,
+                SBQQ__AdditionalDiscountAmount__c,
                 Quantity_For_Stripe__c,
-                SBQQ__CustomerPrice__c,
+                SBQQ__SubscriptionTerm__c,
                 SBQQ__Product__r.Stripe_Product_Id__c,
                 SBQQ__Product__r.Stripe_Price_ID__c,
                 SBQQ__Product__r.SBQQ__SubscriptionType__c,
                 CurrencyIsoCode
             FROM SBQQ__QuoteLine__c
-            WHERE SBQQ__Quote__c = :quote.Id AND SBQQ__Product__r.Stripe_Product_Id__c != NULL
+            WHERE
+                SBQQ__Quote__c = :quote.Id
+                AND SBQQ__Product__r.Stripe_Product_Id__c != NULL
+                AND SBQQ__EffectiveQuantity__c > 0
         ];
         System.debug('quoteLineItems--' + quoteLineItems);
+        System.debug('quoteLineItems count--' + quoteLineItems.size());
 
         recurringItemCount = 0;
         oneTimeItemCount = 0;
@@ -212,10 +227,33 @@ public without sharing class StripeCheckoutController {
         oneTimeAmount = 0;
         quoteLinesData = new List<QuoteLineDTO>();
 
+        String quoteFreq = quote.Billing_Frequency_Override__c;
+
         for (SBQQ__QuoteLine__c ql : quoteLineItems) {
             if (ql.SBQQ__ChargeType__c == 'Recurring') {
                 recurringItemCount++;
-                recurringAmount += ql.MRR__c != null ? ql.MRR__c : 0;
+
+                // Determine the billing frequency for this line
+                String freq = String.isNotBlank(ql.Billing_Frequency_Override__c)
+                    ? ql.Billing_Frequency_Override__c
+                    : quoteFreq;
+
+                List<Object> freqData = freqMap.containsKey(freq) ? freqMap.get(freq) : freqMap.get('Monthly');
+
+                String interval = (String) freqData[0];
+                Integer intervalCount = (Integer) freqData[1];
+
+                // recurringAmount = what the customer is actually charged per billing cycle
+                Decimal qty = ql.SBQQ__EffectiveQuantity__c;
+                Decimal lineAmount = ql.MRR__c != null &&
+                    ql.MRR__c != 0
+                    ? ql.MRR__c
+                    : ql.SBQQ__SubscriptionTerm__c != null &&
+                          ql.SBQQ__SubscriptionTerm__c != 0
+                          ? ql.SBQQ__NetTotal__c / ql.SBQQ__SubscriptionTerm__c
+                          : ql.SBQQ__NetTotal__c; // Fallback to NetTotal if MRR unavailable
+
+                recurringAmount += calculateUnitAmount(lineAmount, interval, intervalCount);
             } else {
                 oneTimeItemCount++;
                 oneTimeAmount += ql.SBQQ__NetTotal__c != null ? ql.SBQQ__NetTotal__c : 0;
@@ -223,49 +261,38 @@ public without sharing class StripeCheckoutController {
             quoteLinesData.add(new QuoteLineDTO(ql));
         }
 
-        List<String> recurringProductNames = new List<String>();
-
-        for (SBQQ__QuoteLine__c ql : quoteLineItems) {
-            if (ql.SBQQ__ChargeType__c == 'Recurring') {
-                recurringProductNames.add(ql.SBQQ__ProductName__c);
+        // Build headline from recurring product names only
+        List<String> recurringNames = new List<String>();
+        for (QuoteLineDTO dto : quoteLinesData) {
+            if (dto.chargeType == 'Recurring') {
+                recurringNames.add(dto.productName);
             }
         }
 
-        if (!recurringProductNames.isEmpty()) {
-            if (recurringProductNames.size() == 1) {
-                subscriptionHeadline = 'Subscribe to ' + recurringProductNames[0];
-            } else {
-                subscriptionHeadline =
-                    'Subscribe to ' +
-                    recurringProductNames[0] +
-                    ' + ' +
-                    String.valueOf(recurringProductNames.size() - 1) +
-                    ' more';
-            }
+        if (!recurringNames.isEmpty()) {
+            subscriptionHeadline = recurringNames.size() == 1
+                ? 'Subscribe to ' + recurringNames[0]
+                : 'Subscribe to ' + recurringNames[0] + ' + ' + (recurringNames.size() - 1) + ' more';
         } else {
             subscriptionHeadline = 'Complete your purchase';
         }
 
-        switch on quote.Billing_Frequency_Override__c {
-            when null {
-                interval = null;
-            }
+        // Map billing frequency to a human-readable interval label for the VF page
+        switch on quoteFreq {
             when 'Monthly' {
                 interval = 'month';
             }
             when 'Quarterly' {
-                interval = 'three month';
+                interval = '3 months';
             }
             when 'Semiannual' {
-                interval = 'six month';
+                interval = '6 months';
             }
             when 'Annual' {
                 interval = 'year';
             }
             when else {
-                interval = quote.Billing_Frequency_Override__c != null
-                    ? quote.Billing_Frequency_Override__c.toLowerCase()
-                    : 'month';
+                interval = String.isNotBlank(quoteFreq) ? quoteFreq.toLowerCase() : 'month';
             }
         }
     }
@@ -282,9 +309,8 @@ public without sharing class StripeCheckoutController {
         if (res.getStatusCode() == 200) {
             Map<String, Object> body = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
             return (String) body.get('status');
-        } else {
-            return 'expired';
         }
+        return 'expired';
     }
 
     @RemoteAction
@@ -338,5 +364,20 @@ public without sharing class StripeCheckoutController {
             );
             insert logger;
         }
+    }
+
+    private static Decimal calculateUnitAmount(Decimal listPrice, String interval, Integer intervalCount) {
+        Decimal amount;
+
+        if (interval == 'month') {
+            amount = listPrice * intervalCount;
+        } else if (interval == 'year') {
+            amount = listPrice * (intervalCount * 12);
+        } else {
+            amount = listPrice;
+        }
+
+        // Round to 2 decimal places
+        return amount.setScale(2, RoundingMode.HALF_UP);
     }
 }
