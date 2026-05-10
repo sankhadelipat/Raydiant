@@ -40,6 +40,7 @@ public without sharing class StripeCheckoutController {
         public Id accountId { get; private set; }
         public Id billToContactId { get; private set; }
         public Decimal subscriptionTerm { get; private set; }
+        public String agreementTerm { get; private set; }
         public String billingFrequencyOverride { get; private set; }
         public String accountStripeCustomerId { get; private set; }
         public String accountBillToEmail { get; private set; }
@@ -68,6 +69,7 @@ public without sharing class StripeCheckoutController {
             accountId = quote.SBQQ__Account__c;
             billToContactId = quote.Bill_To_Contact__c;
             subscriptionTerm = quote.SBQQ__SubscriptionTerm__c;
+            agreementTerm = quote.RAY_Agreement_Term__c;
             billingFrequencyOverride = quote.Billing_Frequency_Override__c;
             accountStripeCustomerId = quote.SBQQ__Account__r.Stripe_Customer_ID__c;
             // accountBillToEmail = quote.SBQQ__Account__r.Bill_To_Email__c;
@@ -170,6 +172,7 @@ public without sharing class StripeCheckoutController {
                 Bill_To_Contact__r.LastName,
                 Bill_To_Email__c,
                 SBQQ__SubscriptionTerm__c,
+                RAY_Agreement_Term__c,
                 Billing_Frequency_Override__c,
                 SBQQ__Account__r.Stripe_Customer_ID__c,
                 SBQQ__Account__r.Bill_To_Email__c,
