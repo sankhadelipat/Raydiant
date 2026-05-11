@@ -96,7 +96,7 @@
                     min-height: 100vh;
                     display: grid;
                     /* left: slightly wider than right */
-                    grid-template-columns: 55fr 45fr;
+                    grid-template-columns: 53fr 47fr;
                     align-items: stretch;
                 }
 
@@ -106,8 +106,7 @@
                ===================================================== */
                 .summary {
                     /* light grey background, full height */
-                    background: var(--c-surface);
-                    padding: 52px 6% 64px 7%;
+                    padding: 52px 7% 64px 7%;
                     /* The shadow that acts as the divider — inset on the RIGHT edge */
                     box-shadow: inset -12px 0 20px -12px rgba(0, 0, 0, 0.09);
                 }
@@ -144,7 +143,7 @@
 
                 /* ── Contract meta card — 2-column grid, NO row borders ── */
                 .contract-card {
-                    background: var(--c-bg);
+                    background: var(--c-surface);
                     border: 1px solid var(--c-border);
                     border-radius: var(--r-lg);
                     padding: 16px 18px;
@@ -245,7 +244,7 @@
                     font-weight: 500;
                     padding: 2px 9px;
                     border-radius: var(--r-pill);
-                    background: var(--c-bg);
+                    background: var(--c-surface);
                     border: 1px solid var(--c-border-2);
                     color: var(--c-text-2);
                     white-space: nowrap;
@@ -337,7 +336,7 @@
                No border-left — shadow on .summary handles the divide.
                ===================================================== */
                 .checkout {
-                    padding: 52px 7% 64px 6%;
+                    padding: 52px 7% 64px 7%;
                     min-height: 100vh;
                 }
 
@@ -656,7 +655,7 @@
                                 <span class="interval">per {!LOWER(interval)}</span>
                             </apex:outputPanel>
                             <apex:outputPanel rendered="{!AND(onetimeItemCount > 0, recurringItemCount > 0)}">
-                                <p class="interval">Then ${!recurringAmount} per {!LOWER(interval)}</p>
+                                <p class="interval">Then ${!recurringAmount} every {!LOWER(interval)}</p>
                             </apex:outputPanel>
                         </div>
 
@@ -1418,8 +1417,8 @@
                     return amount; // Default fallback
                 }
 
-                function calculateFlatDiscount(listUnitAmount, unitAmount) {
-                    const discount = (listUnitAmount - unitAmount).toFixed(2);
+                function calculateFlatDiscount(listAmount, finalAmount) {
+                    const discount = (listAmount - finalAmount).toFixed(2);
                     return discount > 0 ? parseFloat(discount) : 0;
                 }
 
@@ -1583,7 +1582,7 @@
                     const listUnitAmt  = listUnitCycleAmount(li);
                     const label        = isRecurring ? cycleLabel(freq) : '';
                     const intLabel     = isRecurring ? freqIntervalLabel(freq) : '';
-                    const discountFlat = calculateFlatDiscount(listUnitAmt, unitAmt);
+                    const discountFlat = calculateFlatDiscount(listAmt, finalAmt);
 
                     grandFinalTotal += finalAmt;
                     grandListTotal  += listAmt;
@@ -1598,34 +1597,25 @@
                     }
 
                     // Price column: show strikethrough list price only when there's a real discount
-                    const priceColHtml = hasDiscount
-                        ? `<div class="item-price-block">
-                               <div class="item-list-price">${fmt(listAmt)}</div>
-                               <div class="item-final-price">${fmt(finalAmt)}</div>
-                           </div>`
-                        : `<div class="item-price-block">
-                               <div class="item-final-price">${fmt(finalAmt)}</div>
-                           </div>`;
-
-                    // Breakdown line: e.g. "3 × $300.00 / year → $240.00 / year after discount"
-                    const breakdownLine = isRecurring
-                        ? `<div class="li-breakdown">
+                    const priceColHtml =
+                        `<div class="item-price-block">
                             ${hasDiscount 
-                                ? `<span class="old-price">
-                                    ${li.effectiveQty} &times; ${fmt(listUnitAmt)} every ${intLabel}
-                                  </span>`
+                                ? `<div class="item-list-price">${fmt(listAmt)}</div>` 
                                 : ''
                             }
-                            ${li.effectiveQty} &times; ${fmt(unitAmt)} every ${intLabel} = ${fmt(finalAmt)}
-                           </div>`
-                        : `<div class="li-breakdown">
-                            ${hasDiscount 
+                            <div class="item-final-price">${fmt(finalAmt)}</div>
+                        </div>`;
+
+                    // Breakdown line: e.g. "3 × $300.00 / year → $240.00 / year after discount"
+                    const breakdownLine =
+                        `<div class="li-breakdown">
+                            ${hasDiscount
                                 ? `<span class="old-price">
                                     ${li.effectiveQty} &times; ${fmt(listUnitAmt)}
                                   </span>`
                                 : ''
                             }
-                            ${li.effectiveQty} &times; ${fmt(unitAmt)} = ${fmt(finalAmt)}
+                            ${li.effectiveQty} &times; ${fmt(unitAmt)} = ${fmt(finalAmt)} ${isRecurring ? `every ${intLabel}` : ''}
                         </div>`
 
                     // Sub-row: qty badge + billing label LEFT, discount pill RIGHT
@@ -1640,7 +1630,6 @@
                             <div class="line-item-sub-row">
                                 <div class="li-sub-left">
                                     <span class="qty-badge">Qty ${li.effectiveQty}</span>
-                                    ${isRecurring ? `<span class="billing-label">&bull; ${label}</span>` : ''}
                                 </div>
                                 ${pillHtml}
                             </div>
